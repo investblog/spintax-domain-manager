@@ -69,23 +69,23 @@ function sdm_admin_menu() {
 add_action('admin_menu', 'sdm_admin_menu');
 
 function sdm_projects_dashboard() {
-    echo '<div class="wrap"><h1>' . esc_html__('Spintax Domain Manager - Projects', 'spintax-domain-manager') . '</h1></div>';
+    include SDM_PLUGIN_DIR . 'admin/pages/projects-page.php';
 }
 
 function sdm_sites_dashboard() {
-    echo '<div class="wrap"><h1>' . esc_html__('Spintax Domain Manager - Sites', 'spintax-domain-manager') . '</h1></div>';
+    include SDM_PLUGIN_DIR . 'admin/pages/sites-page.php';
 }
 
 function sdm_domains_dashboard() {
-    echo '<div class="wrap"><h1>' . esc_html__('Spintax Domain Manager - Domains', 'spintax-domain-manager') . '</h1></div>';
+    include SDM_PLUGIN_DIR . 'admin/pages/domains-page.php';
 }
 
 function sdm_accounts_dashboard() {
-    echo '<div class="wrap"><h1>' . esc_html__('Spintax Domain Manager - Accounts', 'spintax-domain-manager') . '</h1></div>';
+    include SDM_PLUGIN_DIR . 'admin/pages/accounts-page.php';
 }
 
 function sdm_redirects_dashboard() {
-    echo '<div class="wrap"><h1>' . esc_html__('Spintax Domain Manager - Redirects', 'spintax-domain-manager') . '</h1></div>';
+    include SDM_PLUGIN_DIR . 'admin/pages/redirects-page.php';
 }
 
 function sdm_settings_page() {
