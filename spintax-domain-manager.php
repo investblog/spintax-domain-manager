@@ -84,3 +84,46 @@ function sdm_deactivate() {
 function sdm_uninstall() {
     sdm_remove_tables();
 }
+
+/**
+ * Define constants and helper functions for a global nonce.
+ */
+
+// We define one "action" and one "field" name for the main nonce.
+// If you prefer separate nonces for each action, you can define multiple pairs.
+define( 'SDM_NONCE_ACTION', 'sdm_main_nonce_action' );
+define( 'SDM_NONCE_FIELD',  'sdm_main_nonce_field' );
+
+/**
+ * Create a main nonce for forms.
+ *
+ * @return string The nonce string.
+ */
+function sdm_create_main_nonce() {
+    return wp_create_nonce( SDM_NONCE_ACTION );
+}
+
+/**
+ * Echo a hidden input field with the main nonce.
+ * Usage: sdm_nonce_field();
+ */
+function sdm_nonce_field() {
+    echo '<input type="hidden" name="' . esc_attr( SDM_NONCE_FIELD ) . '" value="' . esc_attr( sdm_create_main_nonce() ) . '" />';
+}
+
+/**
+ * Check the main nonce (used in Ajax or form submissions).
+ * If verification fails, it will exit with a 403 error.
+ */
+function sdm_check_main_nonce() {
+    check_ajax_referer( SDM_NONCE_ACTION, SDM_NONCE_FIELD );
+}
+
+function sdm_enqueue_admin_assets() {
+    // Подключаем общий admin.js
+    wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array(), SDM_VERSION, true );
+
+    // Подключаем стили
+    wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
+}
+add_action( 'admin_enqueue_scripts', 'sdm_enqueue_admin_assets' );
