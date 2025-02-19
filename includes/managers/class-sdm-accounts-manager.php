@@ -11,33 +11,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SDM_Accounts_Manager {
 
     /**
-     * Retrieve all accounts from the database.
-     *
-     * @return array Array of account objects.
+     * Retrieve all accounts from the database, including project_name via LEFT JOIN.
      */
     public function get_all_accounts() {
         global $wpdb;
-        $table = $wpdb->prefix . 'sdm_accounts';
-        return $wpdb->get_results( "SELECT * FROM {$table} ORDER BY created_at DESC" );
+        $acc_table  = $wpdb->prefix . 'sdm_accounts';
+        $proj_table = $wpdb->prefix . 'sdm_projects';
+
+        // LEFT JOIN to get project_name
+        $sql = "
+            SELECT a.*, p.project_name AS project_name
+            FROM {$acc_table} a
+            LEFT JOIN {$proj_table} p ON p.id = a.project_id
+            ORDER BY a.created_at DESC
+        ";
+        return $wpdb->get_results($sql);
     }
 
     /**
-     * Add a new account.
-     *
-     * Expected fields in $data:
-     * - project_id (required)
-     * - site_id (optional)
-     * - service (ENUM: cloudflare, namesilo, namecheap, google, yandex, xmlstock, other)
-     * - account_name (optional)
-     * - email (optional)
-     * - api_key_enc
-     * - client_id_enc
-     * - client_secret_enc
-     * - refresh_token_enc
-     * - additional_data_enc
-     *
-     * @param array $data
-     * @return int|WP_Error Insert ID or WP_Error on failure.
+     * Add a new account (with encryption).
      */
     public function add_account( $data ) {
         global $wpdb;
@@ -73,7 +65,7 @@ class SDM_Accounts_Manager {
                 'created_at'          => current_time( 'mysql' ),
                 'updated_at'          => current_time( 'mysql' )
             ),
-            array( '%d', $site_id ? '%d' : null, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+            array( '%d', $site_id ? '%d' : null, '%s','%s','%s','%s','%s','%s','%s','%s','%s','%s' )
         );
 
         if ( false === $res ) {
@@ -83,11 +75,7 @@ class SDM_Accounts_Manager {
     }
 
     /**
-     * Update an existing account by ID.
-     *
-     * @param int   $account_id
-     * @param array $data
-     * @return bool|WP_Error
+     * Update an existing account by ID (with encryption).
      */
     public function update_account( $account_id, $data ) {
         global $wpdb;
@@ -98,7 +86,7 @@ class SDM_Accounts_Manager {
             return new WP_Error( 'invalid_id', __( 'Invalid account ID.', 'spintax-domain-manager' ) );
         }
 
-        // Get the old record to preserve old encrypted fields if user leaves them empty
+        // Get old record to preserve old encrypted fields if user leaves them empty
         $old_record = $wpdb->get_row( $wpdb->prepare("SELECT * FROM $table WHERE id=%d", $account_id) );
         if ( ! $old_record ) {
             return new WP_Error( 'not_found', __( 'Account not found.', 'spintax-domain-manager' ) );
@@ -108,7 +96,7 @@ class SDM_Accounts_Manager {
         $account_name = sanitize_text_field( $data['account_name'] );
         $email        = sanitize_email( $data['email'] );
 
-        // If user provided new values, encrypt them, otherwise keep old
+        // If user provided new values, encrypt them, else keep old
         if ( isset($data['api_key_enc']) && $data['api_key_enc'] !== '' ) {
             $api_key_enc = sdm_encrypt( $data['api_key_enc'] );
         } else {
@@ -150,7 +138,7 @@ class SDM_Accounts_Manager {
                 'client_secret_enc'   => $client_secret_enc,
                 'refresh_token_enc'   => $refresh_token_enc,
                 'additional_data_enc' => $additional_data_enc,
-                'updated_at'          => current_time( 'mysql' ),
+                'updated_at'          => current_time( 'mysql' )
             ),
             array( 'id' => $account_id ),
             array( '%s','%s','%s','%s','%s','%s','%s','%s','%s' ),
@@ -165,9 +153,6 @@ class SDM_Accounts_Manager {
 
     /**
      * Delete an account by ID.
-     *
-     * @param int $account_id
-     * @return bool|WP_Error
      */
     public function delete_account( $account_id ) {
         global $wpdb;
