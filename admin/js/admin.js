@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // -------------------------------------------------
     var copyButton = document.getElementById('sdm_copy_key_button');
     var keyField   = document.getElementById('sdm_encryption_key_field');
-    
+
     if (copyButton && keyField) {
         copyButton.addEventListener('click', function() {
             keyField.select();
@@ -335,8 +335,13 @@ document.addEventListener('DOMContentLoaded', function() {
         var accountName     = row.querySelector('input[name="account_name"]').value;
         var email           = row.querySelector('input[name="email"]').value;
         var apiKey          = row.querySelector('input[name="api_key_enc"]').value;
+        var clientId        = row.querySelector('input[name="client_id_enc"]').value;
+        var clientSecret    = row.querySelector('input[name="client_secret_enc"]').value;
+        var refreshToken    = row.querySelector('input[name="refresh_token_enc"]').value;
         var additionalData  = row.querySelector('textarea[name="additional_data_enc"]').value;
-        var projectIdInput  = row.querySelector('input[name="project_id"]'); // if editing project link
+
+        // Если нужно редактировать project_id, здесь же считываем его
+        // var projectIdInput  = row.querySelector('input[name="project_id"]');
 
         var formData = new FormData();
         formData.append('action', 'sdm_update_account');
@@ -346,12 +351,15 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('account_name', accountName);
         formData.append('email', email);
         formData.append('api_key_enc', apiKey);
+        formData.append('client_id_enc', clientId);
+        formData.append('client_secret_enc', clientSecret);
+        formData.append('refresh_token_enc', refreshToken);
         formData.append('additional_data_enc', additionalData);
 
-        // If you allow editing project_id inline
-        if (projectIdInput) {
-            formData.append('project_id', projectIdInput.value);
-        }
+        // Если хотите редактировать project_id
+        // if (projectIdInput) {
+        //     formData.append('project_id', projectIdInput.value);
+        // }
 
         fetch(ajaxurl, {
             method: 'POST',
@@ -362,23 +370,25 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(function(data) {
             if (data.success) {
                 showAccountsNotice('updated', data.data.message);
+
                 var serviceSpan     = row.querySelector('.column-service .sdm-display-value');
                 var nameSpan        = row.querySelector('.column-account-name .sdm-display-value');
                 var emailSpan       = row.querySelector('.column-email .sdm-display-value');
                 var apiKeySpan      = row.querySelector('.column-api-key .sdm-display-value');
+                var clientIdSpan    = row.querySelector('.column-client-id .sdm-display-value');
+                var clientSecretSpan= row.querySelector('.column-client-secret .sdm-display-value');
+                var refreshTokenSpan= row.querySelector('.column-refresh-token .sdm-display-value');
                 var additionalSpan  = row.querySelector('.column-additional-data .sdm-display-value');
-                var projectSpan     = row.querySelector('.column-project .sdm-display-value');
 
-                if (serviceSpan)    serviceSpan.textContent    = service;
-                if (nameSpan)       nameSpan.textContent       = accountName;
-                if (emailSpan)      emailSpan.textContent      = email;
-                if (apiKeySpan)     apiKeySpan.textContent     = apiKey;
-                if (additionalSpan) additionalSpan.textContent = additionalData;
-
-                // If editing project link inline
-                if (projectSpan && projectIdInput) {
-                    projectSpan.textContent = projectIdInput.value; 
-                }
+                if (serviceSpan)     serviceSpan.textContent     = service;
+                if (nameSpan)        nameSpan.textContent        = accountName;
+                if (emailSpan)       emailSpan.textContent       = email;
+                // При успешном обновлении, если поле непустое, показываем «Encrypted»
+                if (apiKeySpan)      apiKeySpan.textContent      = apiKey ? 'Encrypted' : '';
+                if (clientIdSpan)    clientIdSpan.textContent    = clientId ? 'Encrypted' : '';
+                if (clientSecretSpan)clientSecretSpan.textContent= clientSecret ? 'Encrypted' : '';
+                if (refreshTokenSpan)refreshTokenSpan.textContent= refreshToken ? 'Encrypted' : '';
+                if (additionalSpan)  additionalSpan.textContent  = additionalData ? 'Encrypted' : '';
 
                 toggleEditAccountRow(row, false);
             } else {
@@ -405,5 +415,174 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 5000);
     }
+
+        // ...
+    // 6) Services: Add, Edit, Delete
+    var addServiceForm    = document.getElementById('sdm-add-service-form');
+    var servicesNotice    = document.getElementById('sdm-services-notice');
+    var servicesTable     = document.getElementById('sdm-services-table');
+
+    // Add service
+    if ( addServiceForm && servicesNotice ) {
+        addServiceForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(addServiceForm);
+            formData.append('action', 'sdm_add_service');
+
+            var submitButton = addServiceForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(function(res){ return res.json(); })
+            .then(function(data){
+                submitButton.disabled = false;
+                if (data.success) {
+                    showServicesNotice('updated', 'Service added (ID: ' + data.data.service_id + ')');
+                    addServiceForm.reset();
+                    location.reload(); // or dynamically add row
+                } else {
+                    showServicesNotice('error', data.data);
+                }
+            })
+            .catch(function(error){
+                console.error(error);
+                showServicesNotice('error', 'Request failed.');
+                submitButton.disabled = false;
+            });
+        });
+    }
+
+    // Inline edit & delete
+    if ( servicesTable && servicesNotice ) {
+        servicesTable.addEventListener('click', function(e) {
+            // Edit
+            if ( e.target.classList.contains('sdm-edit-service') ) {
+                e.preventDefault();
+                var row = e.target.closest('tr');
+                toggleEditServiceRow(row, true);
+            }
+            // Save
+            else if ( e.target.classList.contains('sdm-save-service') ) {
+                e.preventDefault();
+                var row = e.target.closest('tr');
+                saveServiceRow(row);
+            }
+            // Delete
+            else if ( e.target.classList.contains('sdm-delete-service') ) {
+                e.preventDefault();
+                if ( ! confirm('Are you sure?') ) {
+                    return;
+                }
+                var row        = e.target.closest('tr');
+                var serviceId  = row.getAttribute('data-service-id');
+                var nonce      = row.getAttribute('data-update-nonce');
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_delete_service');
+                formData.append('sdm_main_nonce_field', nonce);
+                formData.append('service_id', serviceId);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(res){ return res.json(); })
+                .then(function(data){
+                    if (data.success) {
+                        showServicesNotice('updated', data.data.message);
+                        row.parentNode.removeChild(row);
+                    } else {
+                        showServicesNotice('error', data.data);
+                    }
+                })
+                .catch(function(error){
+                    console.error(error);
+                    showServicesNotice('error', 'Request failed.');
+                });
+            }
+        });
+    }
+
+    function toggleEditServiceRow(row, editMode) {
+        var displayElems = row.querySelectorAll('.sdm-display-value');
+        var editInputs   = row.querySelectorAll('.sdm-edit-input');
+        var editLink     = row.querySelector('.sdm-edit-service');
+        var saveLink     = row.querySelector('.sdm-save-service');
+
+        if (editMode) {
+            displayElems.forEach(function(el){ el.classList.add('sdm-hidden'); });
+            editInputs.forEach(function(el){ el.classList.remove('sdm-hidden'); });
+            editLink.classList.add('sdm-hidden');
+            saveLink.classList.remove('sdm-hidden');
+        } else {
+            displayElems.forEach(function(el){ el.classList.remove('sdm-hidden'); });
+            editInputs.forEach(function(el){ el.classList.add('sdm-hidden'); });
+            editLink.classList.remove('sdm-hidden');
+            saveLink.classList.add('sdm-hidden');
+        }
+    }
+
+    function saveServiceRow(row) {
+        var serviceId = row.getAttribute('data-service-id');
+        var nonce     = row.getAttribute('data-update-nonce');
+
+        var serviceNameInput      = row.querySelector('input[name="service_name"]');
+        var authMethodInput       = row.querySelector('input[name="auth_method"]');
+        var additionalParamsInput = row.querySelector('textarea[name="additional_params"]');
+
+        var serviceName      = serviceNameInput.value;
+        var authMethod       = authMethodInput.value;
+        var additionalParams = additionalParamsInput.value;
+
+        var formData = new FormData();
+        formData.append('action', 'sdm_update_service');
+        formData.append('sdm_main_nonce_field', nonce);
+        formData.append('service_id', serviceId);
+        formData.append('service_name', serviceName);
+        formData.append('auth_method', authMethod);
+        formData.append('additional_params', additionalParams);
+
+        fetch(ajaxurl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(function(res){ return res.json(); })
+        .then(function(data){
+            if (data.success) {
+                showServicesNotice('updated', data.data.message);
+
+                // Update displayed values
+                row.querySelector('.column-service-name .sdm-display-value').textContent = serviceName;
+                row.querySelector('.column-auth-method .sdm-display-value').textContent = authMethod;
+                row.querySelector('.column-additional-params .sdm-display-value').textContent = additionalParams;
+
+                toggleEditServiceRow(row, false);
+            } else {
+                showServicesNotice('error', data.data);
+            }
+        })
+        .catch(function(error){
+            console.error(error);
+            showServicesNotice('error', 'Request failed.');
+        });
+    }
+
+    function showServicesNotice(type, message) {
+        if (!servicesNotice) return;
+        var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
+        servicesNotice.innerHTML = '<div class="notice ' + cssClass + ' is-dismissible"><p>' + message + '</p></div>';
+        setTimeout(function(){
+            if (servicesNotice.firstChild) {
+                servicesNotice.removeChild(servicesNotice.firstChild);
+            }
+        }, 5000);
+    }
+
 
 });

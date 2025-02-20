@@ -41,6 +41,7 @@ require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-sites-manager.php';
 require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-domains-manager.php';
 require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-accounts-manager.php';
 require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-redirects-manager.php';
+require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-service-types-manager.php';
 
 // Include API integrations
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';

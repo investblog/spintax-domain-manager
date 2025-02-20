@@ -1,7 +1,7 @@
 <?php
 /**
  * File: includes/managers/class-sdm-accounts-manager.php
- * Description: Manager for external service accounts CRUD operations + encryption for additional fields.
+ * Description: Manager for external service accounts CRUD operations (new approach with service_id).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -11,18 +11,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SDM_Accounts_Manager {
 
     /**
-     * Retrieve all accounts from the database, including project_name via LEFT JOIN.
+     * Retrieve all accounts from the database, 
+     * including project_name and service_name via LEFT JOIN.
      */
     public function get_all_accounts() {
         global $wpdb;
         $acc_table  = $wpdb->prefix . 'sdm_accounts';
         $proj_table = $wpdb->prefix . 'sdm_projects';
+        $serv_table = $wpdb->prefix . 'sdm_service_types';
 
-        // LEFT JOIN to get project_name
+        // LEFT JOIN to get project_name and service_name
         $sql = "
-            SELECT a.*, p.project_name AS project_name
+            SELECT 
+                a.*, 
+                p.project_name AS project_name,
+                st.service_name AS service
             FROM {$acc_table} a
             LEFT JOIN {$proj_table} p ON p.id = a.project_id
+            LEFT JOIN {$serv_table} st ON st.id = a.service_id
             ORDER BY a.created_at DESC
         ";
         return $wpdb->get_results($sql);
@@ -38,15 +44,21 @@ class SDM_Accounts_Manager {
         $project_id = isset( $data['project_id'] ) ? absint( $data['project_id'] ) : 0;
         $site_id    = isset( $data['site_id'] ) ? absint( $data['site_id'] ) : null;
 
-        $service      = in_array( $data['service'], array('cloudflare','namesilo','namecheap','google','yandex','xmlstock','other'), true ) ? $data['service'] : 'other';
+        // Get service_id by service_name from sdm_service_types
+        $service_name = isset( $data['service'] ) ? sanitize_text_field( $data['service'] ) : '';
+        $service_id   = $this->get_service_id_by_name( $service_name );
+        if ( is_wp_error( $service_id ) ) {
+            return $service_id; // e.g. "Service not found"
+        }
+
         $account_name = sanitize_text_field( $data['account_name'] );
         $email        = sanitize_email( $data['email'] );
 
         // Encrypt fields if not empty
-        $api_key_enc         = ! empty($data['api_key_enc']) ? sdm_encrypt($data['api_key_enc']) : '';
-        $client_id_enc       = ! empty($data['client_id_enc']) ? sdm_encrypt($data['client_id_enc']) : '';
-        $client_secret_enc   = ! empty($data['client_secret_enc']) ? sdm_encrypt($data['client_secret_enc']) : '';
-        $refresh_token_enc   = ! empty($data['refresh_token_enc']) ? sdm_encrypt($data['refresh_token_enc']) : '';
+        $api_key_enc         = ! empty($data['api_key_enc'])         ? sdm_encrypt($data['api_key_enc'])         : '';
+        $client_id_enc       = ! empty($data['client_id_enc'])       ? sdm_encrypt($data['client_id_enc'])       : '';
+        $client_secret_enc   = ! empty($data['client_secret_enc'])   ? sdm_encrypt($data['client_secret_enc'])   : '';
+        $refresh_token_enc   = ! empty($data['refresh_token_enc'])   ? sdm_encrypt($data['refresh_token_enc'])   : '';
         $additional_data_enc = ! empty($data['additional_data_enc']) ? sdm_encrypt($data['additional_data_enc']) : '';
 
         $res = $wpdb->insert(
@@ -54,7 +66,7 @@ class SDM_Accounts_Manager {
             array(
                 'project_id'          => $project_id,
                 'site_id'             => $site_id,
-                'service'             => $service,
+                'service_id'          => $service_id, // store ID, not name
                 'account_name'        => $account_name,
                 'email'               => $email,
                 'api_key_enc'         => $api_key_enc,
@@ -65,7 +77,7 @@ class SDM_Accounts_Manager {
                 'created_at'          => current_time( 'mysql' ),
                 'updated_at'          => current_time( 'mysql' )
             ),
-            array( '%d', $site_id ? '%d' : null, '%s','%s','%s','%s','%s','%s','%s','%s','%s','%s' )
+            array( '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
         );
 
         if ( false === $res ) {
@@ -92,7 +104,14 @@ class SDM_Accounts_Manager {
             return new WP_Error( 'not_found', __( 'Account not found.', 'spintax-domain-manager' ) );
         }
 
-        $service      = in_array( $data['service'], array('cloudflare','namesilo','namecheap','google','yandex','xmlstock','other'), true ) ? $data['service'] : 'other';
+        // Convert service_name to service_id
+        $service_name = isset( $data['service'] ) ? sanitize_text_field( $data['service'] ) : '';
+        $service_id   = $this->get_service_id_by_name( $service_name );
+        if ( is_wp_error( $service_id ) ) {
+            // if service not found, fallback or return error
+            return $service_id;
+        }
+
         $account_name = sanitize_text_field( $data['account_name'] );
         $email        = sanitize_email( $data['email'] );
 
@@ -130,7 +149,7 @@ class SDM_Accounts_Manager {
         $updated = $wpdb->update(
             $table,
             array(
-                'service'             => $service,
+                'service_id'          => $service_id,
                 'account_name'        => $account_name,
                 'email'               => $email,
                 'api_key_enc'         => $api_key_enc,
@@ -141,7 +160,7 @@ class SDM_Accounts_Manager {
                 'updated_at'          => current_time( 'mysql' )
             ),
             array( 'id' => $account_id ),
-            array( '%s','%s','%s','%s','%s','%s','%s','%s','%s' ),
+            array( '%d','%s','%s','%s','%s','%s','%s','%s','%s' ),
             array( '%d' )
         );
 
@@ -166,6 +185,29 @@ class SDM_Accounts_Manager {
             return new WP_Error( 'db_delete_error', __( 'Could not delete account.', 'spintax-domain-manager' ) );
         }
         return true;
+    }
+
+    /**
+     * Helper: Get service_id by service_name from sdm_service_types.
+     */
+    private function get_service_id_by_name( $service_name ) {
+        global $wpdb;
+        if ( empty( $service_name ) ) {
+            return new WP_Error( 'invalid_service', __( 'Service name is empty.', 'spintax-domain-manager' ) );
+        }
+
+        $table = $wpdb->prefix . 'sdm_service_types';
+        $service_id = $wpdb->get_var(
+            $wpdb->prepare("SELECT id FROM $table WHERE service_name = %s", $service_name)
+        );
+
+        if ( empty( $service_id ) ) {
+            return new WP_Error(
+                'service_not_found',
+                sprintf( __( 'Service "%s" not found in service types table.', 'spintax-domain-manager' ), $service_name )
+            );
+        }
+        return intval( $service_id );
     }
 }
 

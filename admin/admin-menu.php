@@ -4,7 +4,7 @@
  * Description: Registers the Spintax Domain Manager admin menu with a Dashboard.
  *
  * Top-level: "Spintax Manager" → Dashboard
- * Submenu items: Projects, Sites, Domains, Accounts, Redirects, Settings
+ * Submenu items: Projects, Sites, Domains, Accounts, Services, Redirects, Settings
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -69,6 +69,16 @@ function sdm_admin_menu() {
         'sdm-accounts',
         'sdm_accounts_dashboard'
     );
+    
+    // Submenu: Services (новый пункт)
+    add_submenu_page(
+        'sdm-dashboard',
+        __('Services', 'spintax-domain-manager'),
+        __('Services', 'spintax-domain-manager'),
+        'manage_options',
+        'sdm-services',
+        'sdm_services_dashboard'
+    );
 
     // Submenu: Redirects
     add_submenu_page(
@@ -130,6 +140,14 @@ function sdm_domains_dashboard() {
  */
 function sdm_accounts_dashboard() {
     include SDM_PLUGIN_DIR . 'admin/pages/accounts-page.php';
+}
+
+/**
+ * Services page callback
+ * File: admin/pages/services-page.php
+ */
+function sdm_services_dashboard() {
+    include SDM_PLUGIN_DIR . 'admin/pages/services-page.php';
 }
 
 /**
@@ -214,7 +232,6 @@ function sdm_enqueue_admin_scripts() {
     wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array(), SDM_VERSION, true );
 }
 add_action( 'admin_enqueue_scripts', 'sdm_enqueue_admin_scripts' );
-
 
 /**
  * Sanitization callback for encryption key.

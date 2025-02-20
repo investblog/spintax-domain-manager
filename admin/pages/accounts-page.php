@@ -2,7 +2,6 @@
 /**
  * File: admin/pages/accounts-page.php
  * Description: Displays the Accounts interface with a list of accounts, inline editing, Ajax deletion, and a form to add new accounts.
- *              Теперь включает поля client_id_enc, client_secret_enc, refresh_token_enc с отображением «Encrypted».
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -13,12 +12,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 $projects_manager = new SDM_Projects_Manager();
 $all_projects = $projects_manager->get_all_projects();
 
-// 2) Get list of accounts (joined with project_name)
+// 2) Get list of accounts (joined with project_name and service_name)
 $accounts_manager = new SDM_Accounts_Manager();
 $accounts = $accounts_manager->get_all_accounts();
 
 // Unified nonce for inline editing
 $main_nonce = sdm_create_main_nonce();
+
+// Получаем список сервисов динамически
+$service_manager = new SDM_Service_Types_Manager();
+$services = $service_manager->get_all_services();
 ?>
 <div class="wrap">
     <h1><?php esc_html_e( 'Accounts', 'spintax-domain-manager' ); ?></h1>
@@ -51,29 +54,33 @@ $main_nonce = sdm_create_main_nonce();
                         data-account-id="<?php echo esc_attr( $account->id ); ?>"
                         data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>">
 
-                        <!-- Project ID (не редактируется) -->
+                        <!-- Project ID (read-only) -->
                         <td class="column-project-id">
                             <?php echo esc_html( $account->project_id ); ?>
                         </td>
 
-                        <!-- Project Name (не редактируется) -->
+                        <!-- Project Name (read-only) -->
                         <td class="column-project-name">
                             <?php echo ! empty( $account->project_name )
                                 ? esc_html( $account->project_name )
                                 : esc_html__( '(No project)', 'spintax-domain-manager' ); ?>
                         </td>
 
-                        <!-- Service (редактируется) -->
+                        <!-- Service (editable) -->
                         <td class="column-service">
-                            <span class="sdm-display-value"><?php echo esc_html( $account->service ); ?></span>
+                            <span class="sdm-display-value">
+                                <?php echo esc_html( $account->service ); // from JOIN (service_name) ?>
+                            </span>
                             <select class="sdm-edit-input sdm-hidden" name="service">
-                                <option value="cloudflare" <?php selected( $account->service, 'cloudflare' ); ?>>Cloudflare</option>
-                                <option value="namesilo" <?php selected( $account->service, 'namesilo' ); ?>>NameSilo</option>
-                                <option value="namecheap" <?php selected( $account->service, 'namecheap' ); ?>>Namecheap</option>
-                                <option value="google" <?php selected( $account->service, 'google' ); ?>>Google</option>
-                                <option value="yandex" <?php selected( $account->service, 'yandex' ); ?>>Yandex</option>
-                                <option value="xmlstock" <?php selected( $account->service, 'xmlstock' ); ?>>XML Stock</option>
-                                <option value="other" <?php selected( $account->service, 'other' ); ?>>Other</option>
+                                <?php if ( ! empty( $services ) ) : ?>
+                                    <?php foreach ( $services as $srv ) : ?>
+                                        <option value="<?php echo esc_attr( $srv->service_name ); ?>" <?php selected( $account->service, $srv->service_name ); ?>>
+                                            <?php echo esc_html( ucfirst( $srv->service_name ) ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php else : ?>
+                                    <option value=""><?php esc_html_e( 'No services available', 'spintax-domain-manager' ); ?></option>
+                                <?php endif; ?>
                             </select>
                         </td>
 
@@ -147,9 +154,15 @@ $main_nonce = sdm_create_main_nonce();
                         <td class="column-created"><?php echo esc_html( $account->created_at ); ?></td>
 
                         <td class="column-actions">
-                            <a href="#" class="sdm-action-button sdm-edit sdm-edit-account"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a>
-                            <a href="#" class="sdm-action-button sdm-save sdm-save-account sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
-                            <a href="#" class="sdm-action-button sdm-delete sdm-delete-account"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
+                            <a href="#" class="sdm-action-button sdm-edit sdm-edit-account">
+                                <?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?>
+                            </a>
+                            <a href="#" class="sdm-action-button sdm-save sdm-save-account sdm-hidden">
+                                <?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?>
+                            </a> |
+                            <a href="#" class="sdm-action-button sdm-delete sdm-delete-account">
+                                <?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?>
+                            </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -166,12 +179,10 @@ $main_nonce = sdm_create_main_nonce();
     <h2><?php esc_html_e( 'Add New Account', 'spintax-domain-manager' ); ?></h2>
 
     <?php if ( empty( $all_projects ) ) : ?>
-        <!-- No projects -->
         <p style="color: #dc3232;">
             <?php esc_html_e( 'No projects found. Please create a project first.', 'spintax-domain-manager' ); ?>
         </p>
     <?php else : ?>
-        <!-- Форма для добавления нового аккаунта -->
         <form id="sdm-add-account-form" class="sdm-form">
             <?php sdm_nonce_field(); ?>
             <table class="sdm-form-table">
@@ -191,13 +202,15 @@ $main_nonce = sdm_create_main_nonce();
                     <th><label for="service"><?php esc_html_e( 'Service', 'spintax-domain-manager' ); ?></label></th>
                     <td>
                         <select name="service" id="service">
-                            <option value="cloudflare">Cloudflare</option>
-                            <option value="namesilo">NameSilo</option>
-                            <option value="namecheap">Namecheap</option>
-                            <option value="google">Google</option>
-                            <option value="yandex">Yandex</option>
-                            <option value="xmlstock">XML Stock</option>
-                            <option value="other">Other</option>
+                            <?php if ( ! empty( $services ) ) : ?>
+                                <?php foreach ( $services as $srv ) : ?>
+                                    <option value="<?php echo esc_attr( $srv->service_name ); ?>">
+                                        <?php echo esc_html( ucfirst( $srv->service_name ) ); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php else : ?>
+                                <option value=""><?php esc_html_e( 'No services available', 'spintax-domain-manager' ); ?></option>
+                            <?php endif; ?>
                         </select>
                     </td>
                 </tr>
