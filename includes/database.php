@@ -1,13 +1,19 @@
 <?php
 /**
+ * File: includes/database.php
+ * Path: includes/database.php
+ *
  * Handles database creation and deletion for the Spintax Domain Manager.
  *
  * This file defines the following tables:
  * 1. sdm_projects: Top-level projects with global settings.
+ *    - Added 'cf_settings' JSON column for storing Cloudflare and other project settings.
  * 2. sdm_sites: Sites belonging to a project.
  * 3. sdm_domains: Domains (Cloudflare zones) assigned to a project and optionally to a site.
- * 4. sdm_accounts: External service accounts linked to a project (optionally overridden per site).
- * 5. sdm_redirects: Redirect rules associated with a site.
+ * 4. sdm_service_types: External service types available for accounts.
+ * 5. sdm_accounts: External service accounts linked to a project (optionally overridden per site).
+ *    - Replaced fixed ENUM 'service' with 'service_id' referencing sdm_service_types.
+ * 6. sdm_redirects: Redirect rules associated with a site.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,6 +29,7 @@ function sdm_create_tables() {
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         project_name VARCHAR(255) NOT NULL,
         description TEXT DEFAULT NULL,
+        cf_settings JSON DEFAULT NULL,
         ssl_mode ENUM('full','flexible','strict') DEFAULT 'full',
         monitoring_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -60,12 +67,22 @@ function sdm_create_tables() {
         FOREIGN KEY (site_id) REFERENCES {$wpdb->prefix}sdm_sites(id) ON DELETE SET NULL
     ) $charset_collate;";
 
-    // 4) Accounts table: external service accounts linked to a project, optionally overridden per site.
+    // 4) Service Types table: available external service types.
+    $service_types_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_service_types (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        service_name VARCHAR(50) NOT NULL,
+        auth_method VARCHAR(50) DEFAULT NULL,
+        additional_params TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) $charset_collate;";
+
+    // 5) Accounts table: external service accounts linked to a project.
     $accounts_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_accounts (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         project_id BIGINT UNSIGNED NOT NULL,
         site_id BIGINT UNSIGNED DEFAULT NULL,
-        service ENUM('cloudflare','namesilo','namecheap','google','yandex','xmlstock','other') NOT NULL,
+        service_id BIGINT UNSIGNED NOT NULL,
         account_name VARCHAR(255) DEFAULT NULL,
         email VARCHAR(255) DEFAULT NULL,
         api_key_enc TEXT DEFAULT NULL,
@@ -78,10 +95,11 @@ function sdm_create_tables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES {$wpdb->prefix}sdm_projects(id) ON DELETE CASCADE,
-        FOREIGN KEY (site_id) REFERENCES {$wpdb->prefix}sdm_sites(id) ON DELETE SET NULL
+        FOREIGN KEY (site_id) REFERENCES {$wpdb->prefix}sdm_sites(id) ON DELETE SET NULL,
+        FOREIGN KEY (service_id) REFERENCES {$wpdb->prefix}sdm_service_types(id) ON DELETE RESTRICT
     ) $charset_collate;";
 
-    // 5) Redirects table: redirect rules associated with a site.
+    // 6) Redirects table: redirect rules associated with a site.
     $redirects_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_redirects (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         site_id BIGINT UNSIGNED NOT NULL,
@@ -97,14 +115,17 @@ function sdm_create_tables() {
     dbDelta( $projects_sql );
     dbDelta( $sites_sql );
     dbDelta( $domains_sql );
+    dbDelta( $service_types_sql );
     dbDelta( $accounts_sql );
     dbDelta( $redirects_sql );
 }
 
 function sdm_remove_tables() {
     global $wpdb;
+    // Drop tables in order to respect foreign key constraints.
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_redirects");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_accounts");
+    $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_service_types");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_domains");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_sites");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_projects");
