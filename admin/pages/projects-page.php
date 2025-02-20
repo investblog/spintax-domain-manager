@@ -18,10 +18,10 @@ $main_nonce = sdm_create_main_nonce();
     <h1><?php esc_html_e( 'Projects', 'spintax-domain-manager' ); ?></h1>
 
     <!-- Single container for all notices (add/edit/delete) -->
-    <div id="sdm-projects-notice"></div>
+    <div id="sdm-projects-notice" class="sdm-notice"></div>
 
     <!-- Projects Table -->
-    <table id="sdm-projects-table" class="wp-list-table widefat fixed striped">
+    <table id="sdm-projects-table" class="wp-list-table widefat fixed striped sdm-table">
         <thead>
             <tr>
                 <th><?php esc_html_e( 'ID', 'spintax-domain-manager' ); ?></th>
@@ -75,9 +75,9 @@ $main_nonce = sdm_create_main_nonce();
                         <td class="column-created"><?php echo esc_html( $project->created_at ); ?></td>
                         
                         <td class="column-actions">
-                            <a href="#" class="sdm-edit-project"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a>
-                            <a href="#" class="sdm-save-project sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
-                            <a href="#" class="sdm-delete-project"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
+                            <a href="#" class="sdm-action-button sdm-edit sdm-edit-project"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a>
+                            <a href="#" class="sdm-action-button sdm-save sdm-save-project sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
+                            <a href="#" class="sdm-action-button sdm-delete sdm-delete-project"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -92,9 +92,9 @@ $main_nonce = sdm_create_main_nonce();
     <hr>
     <!-- Add New Project Form -->
     <h2><?php esc_html_e( 'Add New Project', 'spintax-domain-manager' ); ?></h2>
-    <form id="sdm-add-project-form">
+    <form id="sdm-add-project-form" class="sdm-form">
         <?php sdm_nonce_field(); ?>
-        <table class="form-table">
+        <table class="sdm-form-table">
             <tr>
                 <th><label for="project_name"><?php esc_html_e( 'Project Name', 'spintax-domain-manager' ); ?></label></th>
                 <td><input type="text" name="project_name" id="project_name" required></td>

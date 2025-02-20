@@ -8,120 +8,93 @@
 }
 
 /*--------------------------------------------------------------
-2. PROJECTS TABLE STYLING
+2. COMMON TABLE STYLING
 --------------------------------------------------------------*/
 
-#sdm-projects-table {
+/* Общие стили для таблиц */
+.sdm-table {
     margin-top: 1em;
     width: 100%;
     border-collapse: collapse;
 }
-
-#sdm-projects-table th,
-#sdm-projects-table td {
+.sdm-table th,
+.sdm-table td {
     padding: 8px 10px;
     vertical-align: top;
 }
-
-#sdm-projects-table .sdm-display-value {
+.sdm-display-value {
     display: inline-block;
     margin-right: 5px;
 }
 
-/* Style the action links (Edit, Save, Delete) */
-#sdm-projects-table .column-actions a {
-    margin-right: 8px;
-}
-
-/* Example: highlight row in edit mode if you add a special class in JS
-   .sdm-editing-row { background-color: #f8f8f8; }
-*/
-
 /*--------------------------------------------------------------
-3. WP-LIKE NOTICES
+3. COMMON FORM STYLING
 --------------------------------------------------------------*/
 
-#sdm-projects-notice .notice,
-#sdm-add-project-message .updated,
-#sdm-add-project-message .error {
-    padding: 10px;
-    margin: 10px 0;
-    border-left: 4px solid #2271b1; /* WP admin color */
-    background-color: #fff;
-}
-
-#sdm-projects-notice .notice-error,
-#sdm-add-project-message .error {
-    border-left-color: #dc3232;
-    background-color: #fef2f2;
-}
-
-#sdm-projects-notice .notice-success,
-#sdm-add-project-message .updated {
-    border-left-color: #46b450;
-    background-color: #f7fcf2;
-}
-
-/*--------------------------------------------------------------
-4. ADD NEW PROJECT FORM
---------------------------------------------------------------*/
-
-/* Container for the form */
-#sdm-add-project-form {
-    margin-top: 20px;
-    padding: 0; /* Align with typical WP style */
+/* Общие стили для форм */
+.sdm-form {
     max-width: 600px;
+    margin-top: 20px;
 }
-
-/* Basic table layout for form fields */
-#sdm-add-project-form .form-table {
+.sdm-form .sdm-form-table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 1em;
 }
-
-#sdm-add-project-form .form-table th {
+.sdm-form .sdm-form-table th {
     text-align: left;
     width: 120px;
     vertical-align: top;
     padding: 6px 10px;
     font-weight: 600;
 }
-
-#sdm-add-project-form .form-table td {
+.sdm-form .sdm-form-table td {
     padding: 6px 10px;
 }
-
-/* Inputs in the form */
-#sdm-add-project-form input[type="text"],
-/*#sdm-add-project-form select,*/
-#sdm-add-project-form textarea {
+.sdm-form input[type="text"],
+.sdm-form input[type="email"],
+.sdm-form textarea {
     width: 100%;
     box-sizing: border-box;
     padding: 5px;
     border: 1px solid #ccc;
     border-radius: 2px;
-    font-size: 13px; /* match WP admin font size */
+    font-size: 13px;
 }
-
-/* Submit button aligned with WP style */
-#sdm-add-project-form .submit .button-primary {
+.sdm-form .button-primary {
     margin-top: 10px;
     font-size: 13px;
 }
 
-/* Container for messages after form submission */
-#sdm-add-project-message {
-    margin-top: 10px;
+/*--------------------------------------------------------------
+4. WP-LIKE NOTICES
+--------------------------------------------------------------*/
+
+.sdm-notice .notice,
+.sdm-notice .updated,
+.sdm-notice .error {
+    padding: 10px;
+    margin: 10px 0;
+    border-left: 4px solid #2271b1;
+    background-color: #fff;
+}
+.sdm-notice .notice-error,
+.sdm-notice .error {
+    border-left-color: #dc3232;
+    background-color: #fef2f2;
+}
+.sdm-notice .notice-success,
+.sdm-notice .updated {
+    border-left-color: #46b450;
+    background-color: #f7fcf2;
 }
 
 /*--------------------------------------------------------------
- Action Buttons Styling
+5. ACTION BUTTONS STYLING
 --------------------------------------------------------------*/
-#sdm-projects-table .column-actions a.sdm-edit-project,
-#sdm-projects-table .column-actions a.sdm-save-project,
-#sdm-projects-table .column-actions a.sdm-delete-project,
-#sdm-projects-table .column-actions a.sdm-test-project {
+
+/* Общие стили для кнопок действий */
+.sdm-action-button {
     display: inline-block;
     padding: 3px 8px;
     font-size: 12px;
@@ -130,35 +103,37 @@
     margin-right: 4px;
     transition: opacity 0.2s ease;
 }
-
-/* Edit Button: Blue */
-#sdm-projects-table .column-actions a.sdm-edit-project {
+.sdm-action-button:hover {
+    opacity: 0.85;
+}
+/* Модификаторы для кнопок */
+.sdm-edit {
     background-color: #0073aa;
     color: #fff;
 }
-
-/* Save Button: Green */
-#sdm-projects-table .column-actions a.sdm-save-project {
+.sdm-save {
     background-color: #46b450;
     color: #fff;
 }
-
-/* Delete Button: Red */
-#sdm-projects-table .column-actions a.sdm-delete-project {
+.sdm-delete {
     background-color: #dc3232;
     color: #fff;
 }
-
-/* Test Button: Orange (if needed) */
-#sdm-projects-table .column-actions a.sdm-test-project {
+.sdm-test {
     background-color: #f7b500;
     color: #fff;
 }
 
-/* Hover effects for all action buttons */
-#sdm-projects-table .column-actions a.sdm-edit-project:hover,
-#sdm-projects-table .column-actions a.sdm-save-project:hover,
-#sdm-projects-table .column-actions a.sdm-delete-project:hover,
-#sdm-projects-table .column-actions a.sdm-test-project:hover {
-    opacity: 0.85;
+/*--------------------------------------------------------------
+6. UNIQUE SELECTORS (не меняем, чтобы не ломать JS)
+--------------------------------------------------------------*/
+
+#sdm-projects-table { /* Уникальные стили для таблицы проектов, если нужны */ }
+#sdm-accounts-table { /* Уникальные стили для таблицы аккаунтов, если нужны */ }
+
+#sdm-add-project-form { /* Уникальные стили для формы проектов */
+    padding: 0;
+}
+#sdm-add-project-message {
+    margin-top: 10px;
 }

@@ -1,10 +1,8 @@
 <?php
 /**
  * File: admin/pages/accounts-page.php
- * Description: Displays the Accounts interface with a list of accounts, 
- *              inline editing, Ajax deletion, and a form to add new accounts.
- *              Now includes client_id_enc, client_secret_enc, refresh_token_enc as columns,
- *              displayed as "Encrypted" if not empty, inline editing is optional.
+ * Description: Displays the Accounts interface with a list of accounts, inline editing, Ajax deletion, and a form to add new accounts.
+ *              Теперь включает поля client_id_enc, client_secret_enc, refresh_token_enc с отображением «Encrypted».
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -26,10 +24,10 @@ $main_nonce = sdm_create_main_nonce();
     <h1><?php esc_html_e( 'Accounts', 'spintax-domain-manager' ); ?></h1>
 
     <!-- Notice container for accounts -->
-    <div id="sdm-accounts-notice"></div>
+    <div id="sdm-accounts-notice" class="sdm-notice"></div>
 
     <!-- Accounts Table -->
-    <table id="sdm-accounts-table" class="wp-list-table widefat fixed striped">
+    <table id="sdm-accounts-table" class="wp-list-table widefat fixed striped sdm-table">
         <thead>
             <tr>
                 <th><?php esc_html_e( 'Project ID', 'spintax-domain-manager' ); ?></th>
@@ -53,21 +51,19 @@ $main_nonce = sdm_create_main_nonce();
                         data-account-id="<?php echo esc_attr( $account->id ); ?>"
                         data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>">
 
-                        <!-- Project ID (not editable) -->
+                        <!-- Project ID (не редактируется) -->
                         <td class="column-project-id">
                             <?php echo esc_html( $account->project_id ); ?>
                         </td>
 
-                        <!-- Project Name (not editable) -->
+                        <!-- Project Name (не редактируется) -->
                         <td class="column-project-name">
-                            <?php
-                            echo ! empty( $account->project_name )
+                            <?php echo ! empty( $account->project_name )
                                 ? esc_html( $account->project_name )
-                                : esc_html__( '(No project)', 'spintax-domain-manager' );
-                            ?>
+                                : esc_html__( '(No project)', 'spintax-domain-manager' ); ?>
                         </td>
 
-                        <!-- Service (editable) -->
+                        <!-- Service (редактируется) -->
                         <td class="column-service">
                             <span class="sdm-display-value"><?php echo esc_html( $account->service ); ?></span>
                             <select class="sdm-edit-input sdm-hidden" name="service">
@@ -84,25 +80,21 @@ $main_nonce = sdm_create_main_nonce();
                         <!-- Account Name -->
                         <td class="column-account-name">
                             <span class="sdm-display-value"><?php echo esc_html( $account->account_name ); ?></span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="account_name" 
-                                   value="<?php echo esc_attr( $account->account_name ); ?>">
+                            <input class="sdm-edit-input sdm-hidden" type="text" name="account_name" value="<?php echo esc_attr( $account->account_name ); ?>">
                         </td>
 
                         <!-- Email -->
                         <td class="column-email">
                             <span class="sdm-display-value"><?php echo esc_html( $account->email ); ?></span>
-                            <input class="sdm-edit-input sdm-hidden" type="email" name="email"
-                                   value="<?php echo esc_attr( $account->email ); ?>">
+                            <input class="sdm-edit-input sdm-hidden" type="email" name="email" value="<?php echo esc_attr( $account->email ); ?>">
                         </td>
 
                         <!-- API Key -->
                         <td class="column-api-key">
                             <span class="sdm-display-value">
-                                <?php 
-                                echo ! empty( $account->api_key_enc ) 
+                                <?php echo ! empty( $account->api_key_enc ) 
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
-                                    : '';
-                                ?>
+                                    : ''; ?>
                             </span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="api_key_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
@@ -111,11 +103,9 @@ $main_nonce = sdm_create_main_nonce();
                         <!-- Client ID -->
                         <td class="column-client-id">
                             <span class="sdm-display-value">
-                                <?php 
-                                echo ! empty( $account->client_id_enc )
+                                <?php echo ! empty( $account->client_id_enc )
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
-                                    : '';
-                                ?>
+                                    : ''; ?>
                             </span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="client_id_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
@@ -124,11 +114,9 @@ $main_nonce = sdm_create_main_nonce();
                         <!-- Client Secret -->
                         <td class="column-client-secret">
                             <span class="sdm-display-value">
-                                <?php 
-                                echo ! empty( $account->client_secret_enc )
+                                <?php echo ! empty( $account->client_secret_enc )
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
-                                    : '';
-                                ?>
+                                    : ''; ?>
                             </span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="client_secret_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
@@ -137,11 +125,9 @@ $main_nonce = sdm_create_main_nonce();
                         <!-- Refresh Token -->
                         <td class="column-refresh-token">
                             <span class="sdm-display-value">
-                                <?php 
-                                echo ! empty( $account->refresh_token_enc )
+                                <?php echo ! empty( $account->refresh_token_enc )
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
-                                    : '';
-                                ?>
+                                    : ''; ?>
                             </span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="refresh_token_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
@@ -150,11 +136,9 @@ $main_nonce = sdm_create_main_nonce();
                         <!-- Additional Data -->
                         <td class="column-additional-data">
                             <span class="sdm-display-value">
-                                <?php
-                                echo ! empty( $account->additional_data_enc )
+                                <?php echo ! empty( $account->additional_data_enc )
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
-                                    : '';
-                                ?>
+                                    : ''; ?>
                             </span>
                             <textarea class="sdm-edit-input sdm-hidden" name="additional_data_enc" rows="2"
                                       placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>"></textarea>
@@ -163,9 +147,9 @@ $main_nonce = sdm_create_main_nonce();
                         <td class="column-created"><?php echo esc_html( $account->created_at ); ?></td>
 
                         <td class="column-actions">
-                            <a href="#" class="sdm-edit-account"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a>
-                            <a href="#" class="sdm-save-account sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
-                            <a href="#" class="sdm-delete-account"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
+                            <a href="#" class="sdm-action-button sdm-edit sdm-edit-account"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a>
+                            <a href="#" class="sdm-action-button sdm-save sdm-save-account sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
+                            <a href="#" class="sdm-action-button sdm-delete sdm-delete-account"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -187,10 +171,10 @@ $main_nonce = sdm_create_main_nonce();
             <?php esc_html_e( 'No projects found. Please create a project first.', 'spintax-domain-manager' ); ?>
         </p>
     <?php else : ?>
-        <!-- Form to add a new account -->
-        <form id="sdm-add-account-form">
+        <!-- Форма для добавления нового аккаунта -->
+        <form id="sdm-add-account-form" class="sdm-form">
             <?php sdm_nonce_field(); ?>
-            <table class="form-table">
+            <table class="sdm-form-table">
                 <tr>
                     <th><label for="project_id"><?php esc_html_e( 'Project', 'spintax-domain-manager' ); ?></label></th>
                     <td>
