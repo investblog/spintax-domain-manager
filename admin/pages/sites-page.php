@@ -96,16 +96,24 @@ $main_nonce = sdm_create_main_nonce();
             <?php if ( ! empty( $sites ) ) : ?>
                 <?php foreach ( $sites as $site ) : ?>
                     <tr id="site-row-<?php echo esc_attr( $site->id ); ?>" data-site-id="<?php echo esc_attr( $site->id ); ?>" data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>">
-                        <td><?php echo esc_html( $site->site_name ); ?></td>
-                        <td><?php echo esc_html( $site->main_domain ); ?></td>
+                        <td class="column-site-name">
+                            <span class="sdm-display-value"><?php echo esc_html( $site->site_name ); ?></span>
+                            <input class="sdm-edit-input sdm-hidden" type="text" name="site_name" value="<?php echo esc_attr( $site->site_name ); ?>">
+                        </td>
+
+                        <td class="column-main-domain">
+                            <span class="sdm-display-value"><?php echo esc_html( $site->main_domain ); ?></span>
+                            <input class="sdm-edit-input sdm-hidden" type="text" name="main_domain" value="<?php echo esc_attr( $site->main_domain ); ?>">
+                        </td>
                         <td><?php echo esc_html( $site->language ); ?></td>
                         <td><?php echo esc_html( $site->created_at ); ?></td>
                         <td><?php echo esc_html( $site->updated_at ); ?></td>
-                        <td>
-                            <a href="#" class="sdm-action-button sdm-edit-site"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a> |
+                        <td class="column-actions">
+                            <a href="#" class="sdm-action-button sdm-edit-site sdm-edit"><?php esc_html_e( 'Edit', 'spintax-domain-manager' ); ?></a>
+                            <a href="#" class="sdm-action-button sdm-save-site sdm-save sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
                             <a href="#" class="sdm-action-button sdm-delete-site sdm-delete"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
                         </td>
-                    </tr>
+                                            </tr>
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr id="no-sites">

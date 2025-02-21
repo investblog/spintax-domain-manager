@@ -124,6 +124,7 @@ function sdm_enqueue_admin_assets() {
     // Подключаем общий admin.js
     wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array(), SDM_VERSION, true );
     wp_enqueue_script( 'sdm-domains-js', SDM_PLUGIN_URL . 'admin/js/domains.js', array(), SDM_VERSION, true );
+    wp_enqueue_script( 'sdm-sites-js', SDM_PLUGIN_URL . 'admin/js/sites.js', array(), SDM_VERSION, true );
 
     // Подключаем стили
     wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
