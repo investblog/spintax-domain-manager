@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
 
-    // Получаем глобальный nonce из скрытого поля
+    // Get the global nonce from the hidden field
     var mainNonceField = document.getElementById('sdm-main-nonce');
     var mainNonce = mainNonceField ? mainNonceField.value : '';
 
@@ -25,16 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin',
                 body: formData
             })
-            .then(function(response) {
-                return response.json();
-            })
+            .then(function(response) { return response.json(); })
             .then(function(data) {
-                if (submitButton) {
-                    submitButton.disabled = false;
-                }
+                if (submitButton) { submitButton.disabled = false; }
                 if (data.success) {
                     showSitesNotice('updated', 'Site added successfully (ID: ' + data.data.site_id + ')');
-                    // Обновляем страницу, чтобы увидеть добавленный сайт в таблице
                     location.reload();
                 } else {
                     showSitesNotice('error', data.data);
@@ -42,9 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(function(error) {
                 console.error('Add site error:', error);
-                if (submitButton) {
-                    submitButton.disabled = false;
-                }
+                if (submitButton) { submitButton.disabled = false; }
                 showSitesNotice('error', 'Ajax request failed.');
             });
         });
@@ -56,17 +49,24 @@ document.addEventListener('DOMContentLoaded', function() {
     var sitesTable = document.getElementById('sdm-sites-table');
     if (sitesTable) {
         sitesTable.addEventListener('click', function(e) {
-            // Если клик по кнопке "Edit"
-            if ( e.target.classList.contains('sdm-edit-site') ) {
+            // Handle click on "Edit" button
+            if (e.target.classList.contains('sdm-edit-site')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 toggleEditRow(row, true);
             }
-            // Если клик по кнопке "Save"
-            else if ( e.target.classList.contains('sdm-save-site') ) {
+            // Handle click on "Save" button
+            else if (e.target.classList.contains('sdm-save-site')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 saveRow(row);
+            }
+            // Handle click on site icon
+            else if (e.target.closest('.sdm-site-icon')) {
+                e.preventDefault();
+                var iconSpan = e.target.closest('.sdm-site-icon');
+                var siteId = iconSpan.getAttribute('data-site-id');
+                openIconModal(siteId);
             }
         });
     }
@@ -93,15 +93,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function saveRow(row) {
         var siteId = row.getAttribute('data-site-id');
         var nonce  = row.getAttribute('data-update-nonce');
-
-        // Считываем новые значения из input
         var siteNameInput   = row.querySelector('input[name="site_name"]');
         var mainDomainInput = row.querySelector('input[name="main_domain"]');
-
         var siteName   = siteNameInput ? siteNameInput.value : '';
         var mainDomain = mainDomainInput ? mainDomainInput.value : '';
+        var saveLink = row.querySelector('.sdm-save-site');
 
-        // Формируем FormData для AJAX
+        // Replace the "Save" text with a spinner during the request
+        saveLink.innerHTML = '<span class="spinner is-active" style="float:none;margin:0;"></span>';
+
         var formData = new FormData();
         formData.append('action', 'sdm_update_site');
         formData.append('sdm_main_nonce_field', nonce);
@@ -116,14 +116,12 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(function(response) { return response.json(); })
         .then(function(data) {
+            saveLink.innerHTML = 'Save';
             if (data.success) {
-                // Обновляем отображение
                 var siteNameSpan   = row.querySelector('.column-site-name .sdm-display-value');
                 var mainDomainSpan = row.querySelector('.column-main-domain .sdm-display-value');
                 if (siteNameSpan) siteNameSpan.textContent = siteName;
                 if (mainDomainSpan) mainDomainSpan.textContent = mainDomain;
-
-                // Выключаем режим редактирования
                 toggleEditRow(row, false);
                 showSitesNotice('updated', data.data.message);
             } else {
@@ -132,10 +130,82 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function(error) {
             console.error('Update site error:', error);
+            saveLink.innerHTML = 'Save';
             showSitesNotice('error', 'Ajax request failed.');
         });
     }
 
+    // ----------------------------
+    // Handle SVG Icon Editing
+    // ----------------------------
+    function openIconModal(siteId) {
+        var modal = document.getElementById('sdm-edit-icon-modal');
+        var siteIdField = document.getElementById('sdm-icon-site-id');
+        var svgInput = document.getElementById('svg_icon');
+        var currentIcon = document.querySelector('#site-row-' + siteId + ' .sdm-site-icon').innerHTML.trim();
+
+        siteIdField.value = siteId;
+        svgInput.value = currentIcon; // Load current SVG (or default)
+        modal.style.display = 'block';
+    }
+
+    var editIconForm = document.getElementById('sdm-edit-icon-form');
+    if (editIconForm) {
+        editIconForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            formData.append('action', 'sdm_update_site_icon');
+            formData.append('sdm_main_nonce_field', mainNonce);
+
+            var submitButton = this.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.innerHTML += '<span class="spinner is-active" style="float:none;margin:0 5px;"></span>';
+            }
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Save Icon';
+                }
+                if (data.success) {
+                    var siteId = document.getElementById('sdm-icon-site-id').value;
+                    var iconSpan = document.querySelector('#site-row-' + siteId + ' .sdm-site-icon');
+                    iconSpan.innerHTML = data.data.svg_icon;
+                    document.getElementById('sdm-edit-icon-modal').style.display = 'none';
+                    showSitesNotice('updated', 'Icon updated successfully.');
+                } else {
+                    showSitesNotice('error', data.data);
+                }
+            })
+            .catch(function(error) {
+                console.error('Update icon error:', error);
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Save Icon';
+                }
+                showSitesNotice('error', 'Ajax request failed.');
+            });
+        });
+    }
+
+    // Close modal on overlay or close button click
+    document.getElementById('sdm-close-icon-modal').addEventListener('click', function() {
+        document.getElementById('sdm-edit-icon-modal').style.display = 'none';
+    });
+    document.querySelector('#sdm-edit-icon-modal .sdm-modal-overlay').addEventListener('click', function() {
+        document.getElementById('sdm-edit-icon-modal').style.display = 'none';
+    });
+
+    // ----------------------------
+    // Helper: Show Sites Notice
+    // ----------------------------
     function showSitesNotice(type, message) {
         var noticeContainer = document.getElementById('sdm-sites-notice');
         if (!noticeContainer) return;
@@ -172,9 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin',
                 body: formData
             })
-            .then(function(response) {
-                return response.json();
-            })
+            .then(function(response) { return response.json(); })
             .then(function(data) {
                 if (data.success) {
                     showSitesNotice('updated', data.data.message);
@@ -189,22 +257,4 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
-
-    // ----------------------------
-    // 3. Helper: Show Sites Notice
-    // ----------------------------
-    function showSitesNotice(type, message) {
-        var noticeContainer = document.getElementById('sdm-sites-notice');
-        if (!noticeContainer) return;
-        var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
-        noticeContainer.innerHTML = '<div class="notice ' + cssClass + ' is-dismissible"><p>' + message + '</p><button class="notice-dismiss" type="button">×</button></div>';
-        
-        var dismissBtn = noticeContainer.querySelector('.notice-dismiss');
-        if (dismissBtn) {
-            dismissBtn.addEventListener('click', function() {
-                noticeContainer.innerHTML = '';
-            });
-        }
-    }
-
 });

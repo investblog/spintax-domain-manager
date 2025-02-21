@@ -2,8 +2,6 @@
 /**
  * File: admin/pages/sites-page.php
  * Description: Displays the Sites interface with a list of sites for a selected project and a form to add a new site.
- *              The form now uses a text input for Language (with a sample placeholder)
- *              and an autocomplete field for Main Domain, populated with unassigned, non-blocked domains of the project.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,7 +29,7 @@ if ( $current_project_id > 0 ) {
     );
 }
 
-// Получаем список свободных доменов проекта: неназначенные (site_id IS NULL) и незаблокированные.
+// Получаем список свободных доменов проекта
 $non_blocked_domains = array();
 if ( $current_project_id > 0 ) {
     $non_blocked_domains = $wpdb->get_results(
@@ -84,6 +82,7 @@ $main_nonce = sdm_create_main_nonce();
     <table id="sdm-sites-table" class="wp-list-table widefat fixed striped sdm-table" style="margin-top:20px;">
         <thead>
             <tr>
+                <th><?php esc_html_e( 'Icon', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Site Name', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Main Domain', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Language', 'spintax-domain-manager' ); ?></th>
@@ -96,11 +95,21 @@ $main_nonce = sdm_create_main_nonce();
             <?php if ( ! empty( $sites ) ) : ?>
                 <?php foreach ( $sites as $site ) : ?>
                     <tr id="site-row-<?php echo esc_attr( $site->id ); ?>" data-site-id="<?php echo esc_attr( $site->id ); ?>" data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>">
+                        <td class="column-icon">
+                            <span class="sdm-site-icon" data-site-id="<?php echo esc_attr( $site->id ); ?>">
+                                <?php 
+                                if ( ! empty( $site->svg_icon ) ) {
+                                    echo $site->svg_icon; // Выводим пользовательский SVG
+                                } else {
+                                    echo file_get_contents( SDM_PLUGIN_DIR . 'assets/icons/spintax-icon.svg' ); // Дефолтная иконка
+                                }
+                                ?>
+                            </span>
+                        </td>
                         <td class="column-site-name">
                             <span class="sdm-display-value"><?php echo esc_html( $site->site_name ); ?></span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="site_name" value="<?php echo esc_attr( $site->site_name ); ?>">
                         </td>
-
                         <td class="column-main-domain">
                             <span class="sdm-display-value"><?php echo esc_html( $site->main_domain ); ?></span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="main_domain" value="<?php echo esc_attr( $site->main_domain ); ?>">
@@ -113,17 +122,42 @@ $main_nonce = sdm_create_main_nonce();
                             <a href="#" class="sdm-action-button sdm-save-site sdm-save sdm-hidden"><?php esc_html_e( 'Save', 'spintax-domain-manager' ); ?></a> |
                             <a href="#" class="sdm-action-button sdm-delete-site sdm-delete"><?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?></a>
                         </td>
-                                            </tr>
+                    </tr>
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr id="no-sites">
-                    <td colspan="6"><?php esc_html_e( 'No sites found for this project.', 'spintax-domain-manager' ); ?></td>
+                    <td colspan="7"><?php esc_html_e( 'No sites found for this project.', 'spintax-domain-manager' ); ?></td>
                 </tr>
             <?php endif; ?>
         </tbody>
     </table>
 
-    <!-- Form for Adding a New Site -->
+    <!-- Modal for Editing SVG Icon -->
+    <div id="sdm-edit-icon-modal" style="display:none;">
+        <div class="sdm-modal-overlay"></div>
+        <div class="sdm-modal-content">
+            <span id="sdm-close-icon-modal" style="position:absolute; top:10px; right:15px; font-size:20px; cursor:pointer;">×</span>
+            <h2><?php esc_html_e( 'Edit Site Icon', 'spintax-domain-manager' ); ?></h2>
+            <form id="sdm-edit-icon-form" class="sdm-form" method="post" action="">
+                <input type="hidden" name="site_id" id="sdm-icon-site-id">
+                <?php sdm_nonce_field(); ?>
+                <table class="sdm-form-table">
+                    <tr>
+                        <th><label for="svg_icon"><?php esc_html_e( 'SVG Icon', 'spintax-domain-manager' ); ?></label></th>
+                        <td>
+                            <textarea name="svg_icon" id="svg_icon" rows="5" placeholder='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/></svg>'></textarea>
+                            <p class="description"><?php esc_html_e( 'Paste your inline SVG code here.', 'spintax-domain-manager' ); ?></p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <button type="submit" class="button button-primary"><?php esc_html_e( 'Save Icon', 'spintax-domain-manager' ); ?></button>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form for Adding a New Site (оставляем без изменений) -->
     <h2><?php esc_html_e( 'Add New Site', 'spintax-domain-manager' ); ?></h2>
     <form id="sdm-add-site-form" class="sdm-form" method="post" action="">
         <?php sdm_nonce_field(); ?>
@@ -152,9 +186,7 @@ $main_nonce = sdm_create_main_nonce();
             </tr>
             <tr>
                 <th><label for="language"><?php esc_html_e( 'Language', 'spintax-domain-manager' ); ?></label></th>
-                <td>
-                    <input type="text" name="language" id="language" placeholder="EN_en" required>
-                </td>
+                <td><input type="text" name="language" id="language" placeholder="EN_en" required></td>
             </tr>
         </table>
         <p class="submit">

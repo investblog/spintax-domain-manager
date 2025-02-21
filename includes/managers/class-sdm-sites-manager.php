@@ -104,6 +104,54 @@ class SDM_Sites_Manager {
         }
         return true;
     }
+
+    /**
+     * Update site icon
+     */
+    public function update_site_icon( $site_id, $svg_icon ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sdm_sites';
+
+        $site_id = absint( $site_id );
+        if ( $site_id <= 0 ) {
+            return new WP_Error( 'invalid_site_id', __( 'Invalid site ID.', 'spintax-domain-manager' ) );
+        }
+
+        // Sanitize SVG (allow only SVG tags and attributes)
+        $svg_icon = wp_kses( $svg_icon, array(
+            'svg' => array(
+                'width' => true,
+                'height' => true,
+                'viewBox' => true,
+                'fill' => true,
+                'stroke' => true,
+                'stroke-width' => true,
+                'class' => true,
+            ),
+            'path' => array(
+                'd' => true,
+                'fill' => true,
+                'stroke' => true,
+            ),
+            'g' => array(),
+        ));
+
+        $updated = $wpdb->update(
+            $table,
+            array(
+                'svg_icon' => $svg_icon,
+                'updated_at' => current_time('mysql'),
+            ),
+            array( 'id' => $site_id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+
+        if ( false === $updated ) {
+            return new WP_Error( 'db_update_error', __( 'Could not update site icon.', 'spintax-domain-manager' ) );
+        }
+        return $svg_icon;
+    }
 } // <-- ВАЖНО: закрывающая скобка класса
 
 
@@ -146,3 +194,29 @@ function sdm_ajax_add_site() {
     wp_send_json_success( array( 'site_id' => $result ) );
 }
 add_action( 'wp_ajax_sdm_add_site', 'sdm_ajax_add_site' );
+
+
+/**
+ * AJAX Handler: Update Site Icon
+ */
+function sdm_ajax_update_site_icon() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $site_id = isset( $_POST['site_id'] ) ? absint( $_POST['site_id'] ) : 0;
+    $svg_icon = isset( $_POST['svg_icon'] ) ? wp_unslash( $_POST['svg_icon'] ) : '';
+
+    $manager = new SDM_Sites_Manager();
+    $result = $manager->update_site_icon( $site_id, $svg_icon );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( $result->get_error_message() );
+    }
+    wp_send_json_success( array( 
+        'message' => __( 'Icon updated successfully.', 'spintax-domain-manager' ),
+        'svg_icon' => $result
+    ) );
+}
+add_action( 'wp_ajax_sdm_update_site_icon', 'sdm_ajax_update_site_icon' );
