@@ -129,12 +129,43 @@
 6. UNIQUE SELECTORS (не меняем, чтобы не ломать JS)
 --------------------------------------------------------------*/
 
-#sdm-projects-table { /* Уникальные стили для таблицы проектов, если нужны */ }
-#sdm-accounts-table { /* Уникальные стили для таблицы аккаунтов, если нужны */ }
-
 #sdm-add-project-form { /* Уникальные стили для формы проектов */
     padding: 0;
 }
 #sdm-add-project-message {
     margin-top: 10px;
+}
+
+/* Родительский контейнер модального окна */
+#sdm-mass-add-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000; /* поверх всего */
+    display: none; /* скрыто по умолчанию */
+}
+
+/* Полупрозрачный оверлей на весь экран */
+.sdm-modal-overlay {
+    position: absolute;
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+}
+
+/* Модальное окно по центру */
+.sdm-modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    padding: 20px;
+    border-radius: 4px;
+    max-width: 500px;
+    width: 90%;
 }

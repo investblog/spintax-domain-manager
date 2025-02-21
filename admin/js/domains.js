@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var mainNonce = mainNonceField ? mainNonceField.value : '';
 
     // ----------------------------
-    // 1. Fetch Project Domains
+    // 1. Fetch Project Domains (оставляем без изменений)
     // ----------------------------
     var fetchBtn = document.getElementById('sdm-fetch-domains');
     var projectSelector = document.getElementById('sdm-project-selector');
@@ -31,13 +31,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin',
                 body: formData
             })
-            .then(function(response) {
-                return response.json();
-            })
+            .then(function(response) { return response.json(); })
             .then(function(data) {
                 if (data.success) {
                     fetchStatus.textContent = 'Fetched ' + data.data.count + ' domains from CloudFlare.';
-                    // Здесь можно добавить обновление таблицы, если нужно.
                 } else {
                     fetchStatus.textContent = 'Error: ' + data.data;
                 }
@@ -67,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Обработчик для массовых действий – один обработчик
     if (massActionApply && massActionSelect) {
         massActionApply.addEventListener('click', function(e) {
             e.preventDefault();
@@ -75,13 +73,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Please select a mass action.');
                 return;
             }
-
-            // Если выбрано действие "mass_add", открываем модальное окно
             if (action === 'mass_add') {
+                console.log("Mass action 'mass_add' selected. Opening modal.");
                 openMassAddModal();
                 return;
             }
-
             // Для других действий собираем ID выбранных доменов
             var selected = [];
             document.querySelectorAll('.sdm-domain-checkbox').forEach(function(cb) {
@@ -93,7 +89,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('No domains selected.');
                 return;
             }
-
             var formData = new FormData();
             formData.append('action', 'sdm_mass_action');
             formData.append('mass_action', action);
@@ -124,23 +119,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // ----------------------------
     // 3. Modal for Mass Adding Domains to CloudFlare
     // ----------------------------
-    var massAddModal = document.getElementById('sdm-mass-add-modal');
+    var modalContainer = document.getElementById('sdm-mass-add-modal');
     var modalConfirm = document.getElementById('sdm-modal-confirm');
     var modalClose   = document.getElementById('sdm-modal-close');
 
     function openMassAddModal() {
-        if (massAddModal) {
-            var textarea = document.getElementById('sdm-mass-add-textarea');
-            if (textarea) {
-                textarea.value = '';
-            }
-            massAddModal.classList.remove('sdm-hidden');
+        var textarea = document.getElementById('sdm-mass-add-textarea');
+        if (textarea) {
+            textarea.value = '';
+        }
+        // Показываем родительский контейнер, что сделает видимыми и оверлей, и содержимое
+        if (modalContainer) {
+            modalContainer.style.display = 'block';
         }
     }
 
     function closeMassAddModal() {
-        if (massAddModal) {
-            massAddModal.classList.add('sdm-hidden');
+        if (modalContainer) {
+            modalContainer.style.display = 'none';
         }
     }
 
@@ -208,5 +204,5 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-
+    
 });
