@@ -1,7 +1,6 @@
 <?php
 /**
  * File: includes/database.php
- * Path: includes/database.php
  *
  * Handles database creation and deletion for the Spintax Domain Manager.
  *
@@ -9,6 +8,7 @@
  * 1. sdm_projects: Top-level projects with global settings.
  *    - Added 'cf_settings' JSON column for storing Cloudflare and other project settings.
  * 2. sdm_sites: Sites belonging to a project.
+ *    - Added fields: main_domain, last_domain, language.
  * 3. sdm_domains: Domains (Cloudflare zones) assigned to a project and optionally to a site.
  * 4. sdm_service_types: External service types available for accounts.
  * 5. sdm_accounts: External service accounts linked to a project (optionally overridden per site).
@@ -37,17 +37,23 @@ function sdm_create_tables() {
     ) $charset_collate;";
 
     // 2) Sites table: sites attached to a project.
-    $sites_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_sites (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    // Добавлены поля: main_domain, last_domain, language.
+    $sites_sql = "CREATE TABLE {$wpdb->prefix}sdm_sites (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         project_id BIGINT UNSIGNED NOT NULL,
         site_name VARCHAR(255) NOT NULL,
         server_ip VARCHAR(45) DEFAULT NULL,
         svg_icon TEXT DEFAULT NULL,
         override_accounts JSON DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES {$wpdb->prefix}sdm_projects(id) ON DELETE CASCADE
+        main_domain VARCHAR(255) DEFAULT NULL,
+        last_domain VARCHAR(255) DEFAULT NULL,
+        language VARCHAR(10) DEFAULT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        KEY project_id (project_id)
     ) $charset_collate;";
+
 
     // 3) Domains table: domains attached to a project and optionally a site.
     $domains_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_domains (

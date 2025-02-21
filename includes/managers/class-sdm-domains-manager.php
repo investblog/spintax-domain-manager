@@ -144,6 +144,18 @@ class SDM_Domains_Manager {
             'updated'  => $updated,
         );
     }
+
+    /**
+ * Returns the total number of domains in the sdm_domains table.
+ *
+ * @return int Total count of domains.
+ */
+public function count_domains() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'sdm_domains';
+    $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+    return intval($count);
+}
 }
 
 /**
