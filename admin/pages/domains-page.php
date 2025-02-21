@@ -31,6 +31,7 @@ $domains = $wpdb->get_results( $sql );
 $main_nonce = sdm_create_main_nonce();
 ?>
 <div class="wrap">
+    <input type="hidden" id="sdm-main-nonce" value="<?php echo esc_attr( sdm_create_main_nonce() ); ?>">
     <h1><?php esc_html_e( 'Domains', 'spintax-domain-manager' ); ?></h1>
 
     <!-- Notice container for domains (persistent until closed) -->
