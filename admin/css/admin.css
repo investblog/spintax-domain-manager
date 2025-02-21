@@ -105,6 +105,7 @@
 }
 .sdm-action-button:hover {
     opacity: 0.85;
+    color: #fff;
 }
 /* Модификаторы для кнопок */
 .sdm-edit {
