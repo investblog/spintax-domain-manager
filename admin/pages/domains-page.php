@@ -1,8 +1,7 @@
 <?php
 /**
  * File: admin/pages/domains-page.php
- * Description: Displays the Domains interface with a centered modal for mass adding domains and assigning to sites,
- *              and merges "Blocked (Provider)" and "Blocked (Gov)" columns into a single "Blocked" column.
+ * Description: Displays the Domains interface for a selected project, with mass actions and individual domain actions.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -21,17 +20,25 @@ $current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) :
 
 // Если выбран проект, фильтруем домены
 $domains = array();
+$main_domains = array(); // Список главных доменов для сайтов
 if ( $current_project_id > 0 ) {
     $sql = $wpdb->prepare(
-        "SELECT d.*, p.project_name, s.site_name
+        "SELECT d.*, s.site_name, s.main_domain
          FROM {$prefix}sdm_domains d
-         LEFT JOIN {$prefix}sdm_projects p ON d.project_id = p.id
          LEFT JOIN {$prefix}sdm_sites s ON d.site_id = s.id
          WHERE d.project_id = %d
          ORDER BY d.created_at DESC",
         $current_project_id
     );
     $domains = $wpdb->get_results( $sql );
+
+    // Получаем список главных доменов для этого проекта
+    $main_domains = $wpdb->get_col(
+        $wpdb->prepare(
+            "SELECT main_domain FROM {$prefix}sdm_sites WHERE project_id = %d",
+            $current_project_id
+        )
+    );
 }
 
 // Получаем список сайтов для текущего проекта для модального окна
@@ -57,49 +64,60 @@ $main_nonce = sdm_create_main_nonce();
     <!-- Notice container -->
     <div id="sdm-domains-notice" class="sdm-notice"></div>
 
-    <!-- Project Selector and Fetch Button -->
-    <form method="get" action="">
-        <input type="hidden" name="page" value="sdm-domains">
-
-        <label for="sdm-project-selector"><?php esc_html_e( 'Select Project:', 'spintax-domain-manager' ); ?></label>
-        <select id="sdm-project-selector" name="project_id" onchange="this.form.submit()">
-            <option value="0"><?php esc_html_e( '— Select —', 'spintax-domain-manager' ); ?></option>
-            <?php if ( ! empty( $all_projects ) ) : ?>
-                <?php foreach ( $all_projects as $proj ) : ?>
-                    <option value="<?php echo esc_attr( $proj->id ); ?>"
-                        <?php selected( $proj->id, $current_project_id ); ?>>
-                        <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
-                    </option>
-                <?php endforeach; ?>
+    <!-- Project Indicator (instead of selector in table) -->
+    <?php if ( $current_project_id > 0 ) : ?>
+        <p class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
+            <?php 
+            $project_name = '';
+            foreach ($all_projects as $proj) {
+                if ($proj->id == $current_project_id) {
+                    $project_name = $proj->project_name;
+                    break;
+                }
+            }
+            echo sprintf( __( 'Viewing domains for project: %d - %s', 'spintax-domain-manager' ), 
+                $current_project_id, 
+                esc_html( $project_name ?: 'Unknown' ) ); 
+            ?>
+        </p>
+    <?php else : ?>
+        <!-- Project Selector -->
+        <form method="get" action="">
+            <input type="hidden" name="page" value="sdm-domains">
+            <label for="sdm-project-selector" class="sdm-label"><?php esc_html_e( 'Select Project:', 'spintax-domain-manager' ); ?></label>
+            <select id="sdm-project-selector" name="project_id" onchange="this.form.submit()" class="sdm-select">
+                <option value="0"><?php esc_html_e( '— Select —', 'spintax-domain-manager' ); ?></option>
+                <?php if ( ! empty( $all_projects ) ) : ?>
+                    <?php foreach ( $all_projects as $proj ) : ?>
+                        <option value="<?php echo esc_attr( $proj->id ); ?>"
+                            <?php selected( $proj->id, $current_project_id ); ?>>
+                            <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </select>
+            <?php if ( $current_project_id > 0 ) : ?>
+                <button type="button" id="sdm-fetch-domains" class="button button-primary sdm-fetch-button" style="margin-left: 10px;">
+                    <?php esc_html_e( 'Fetch Project Domains', 'spintax-domain-manager' ); ?>
+                </button>
+                <span id="sdm-fetch-domains-status" class="sdm-status"></span>
             <?php endif; ?>
-        </select>
-
-        <?php if ( $current_project_id > 0 ) : ?>
-            <button type="button" id="sdm-fetch-domains" class="button button-primary" style="margin-left:10px;">
-                <?php esc_html_e( 'Fetch Project Domains', 'spintax-domain-manager' ); ?>
-            </button>
-            <span id="sdm-fetch-domains-status"></span>
-        <?php endif; ?>
-    </form>
-
-    <?php if ( $current_project_id === 0 ) : ?>
-        <p style="margin-top:20px;"><?php esc_html_e( 'Please select a project to view its domains.', 'spintax-domain-manager' ); ?></p>
+        </form>
+        <p style="margin: 20px 0; color: #666;"><?php esc_html_e( 'Please select a project to view its domains.', 'spintax-domain-manager' ); ?></p>
         <?php return; ?>
     <?php endif; ?>
 
     <!-- Domains Table -->
-    <table id="sdm-domains-table" class="wp-list-table widefat fixed striped sdm-table" style="margin-top:20px;">
+    <table id="sdm-domains-table" class="wp-list-table widefat fixed striped sdm-table">
         <thead>
             <tr>
                 <!-- Domain -->
                 <th><?php esc_html_e( 'Domain', 'spintax-domain-manager' ); ?></th>
-                <!-- Project -->
-                <th><?php esc_html_e( 'Project', 'spintax-domain-manager' ); ?></th>
                 <!-- Site -->
                 <th><?php esc_html_e( 'Site', 'spintax-domain-manager' ); ?></th>
                 <!-- Abuse Status -->
                 <th><?php esc_html_e( 'Abuse Status', 'spintax-domain-manager' ); ?></th>
-                <!-- Blocked (merged) -->
+                <!-- Blocked -->
                 <th><?php esc_html_e( 'Blocked', 'spintax-domain-manager' ); ?></th>
                 <!-- Status -->
                 <th><?php esc_html_e( 'Status', 'spintax-domain-manager' ); ?></th>
@@ -108,10 +126,7 @@ $main_nonce = sdm_create_main_nonce();
                 <!-- Created At -->
                 <th><?php esc_html_e( 'Created At', 'spintax-domain-manager' ); ?></th>
                 <!-- Actions -->
-                <th>
-                    <?php esc_html_e( 'Actions', 'spintax-domain-manager' ); ?>
-                    <input type="checkbox" id="sdm-select-all-domains" style="margin-left:5px;">
-                </th>
+                <th><?php esc_html_e( 'Actions', 'spintax-domain-manager' ); ?></th>
             </tr>
         </thead>
         <tbody>
@@ -119,27 +134,37 @@ $main_nonce = sdm_create_main_nonce();
                 <?php foreach ( $domains as $domain ) : ?>
                     <?php
                     $is_active  = ( $domain->status === 'active' );
-                    // Если хотя бы одно поле блокировки true => "Yes", иначе "No"
                     $is_blocked = ( $domain->is_blocked_provider || $domain->is_blocked_government );
                     $is_assigned = ! empty( $domain->site_id ); // Проверяем, назначен ли домен сайту
+                    $is_main_domain = in_array( $domain->domain, $main_domains ); // Проверяем, является ли домен главным для сайта
                     ?>
                     <tr id="domain-row-<?php echo esc_attr( $domain->id ); ?>"
                         data-domain-id="<?php echo esc_attr( $domain->id ); ?>"
-                        data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>">
+                        data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>"
+                        data-site-id="<?php echo esc_attr( $domain->site_id ); ?>">
 
                         <!-- Domain -->
                         <td><?php echo esc_html( $domain->domain ); ?></td>
 
-                        <!-- Project -->
-                        <td><?php echo esc_html( $domain->project_name ?: '(No project)' ); ?></td>
-
                         <!-- Site -->
-                        <td><?php echo esc_html( $domain->site_name ?: '(Unassigned)' ); ?></td>
+                        <td>
+                            <?php if ( $is_assigned ) : ?>
+                                <a href="?page=sdm-sites&project_id=<?php echo esc_attr( $current_project_id ); ?>&site_id=<?php echo esc_attr( $domain->site_id ); ?>"
+                                   class="sdm-site-link">
+                                    <?php echo esc_html( $domain->site_name ); ?>
+                                </a>
+                                <?php if ( $is_main_domain ) : ?>
+                                    <span class="sdm-main-domain-note" style="color: #a00; font-style: italic; font-size: 12px; margin-left: 5px;">(Main)</span>
+                                <?php endif; ?>
+                            <?php else : ?>
+                                (Unassigned)
+                            <?php endif; ?>
+                        </td>
 
                         <!-- Abuse Status -->
                         <td><?php echo esc_html( $domain->abuse_status ); ?></td>
 
-                        <!-- Blocked (merged) -->
+                        <!-- Blocked -->
                         <td><?php echo $is_blocked ? esc_html__( 'Yes', 'spintax-domain-manager' ) : esc_html__( 'No', 'spintax-domain-manager' ); ?></td>
 
                         <!-- Status -->
@@ -151,12 +176,19 @@ $main_nonce = sdm_create_main_nonce();
                         <!-- Created At -->
                         <td><?php echo esc_html( $domain->created_at ); ?></td>
 
-                        <!-- Actions / Checkboxes -->
+                        <!-- Actions -->
                         <td>
-                            <?php if ( $is_active && ! $is_assigned ) : ?>
-                                <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr( $domain->id ); ?>">
-                            <?php elseif ( $is_active && $is_assigned ) : ?>
-                                <span class="sdm-assigned-note"><?php esc_html_e( 'Assigned', 'spintax-domain-manager' ); ?></span>
+                            <?php if ( $is_active ) : ?>
+                                <?php if ( $is_assigned && ! $is_main_domain ) : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr( $domain->id ); ?>">
+                                    <a href="#" class="sdm-action-button sdm-unassign" style="background-color: #f7b500; color: #fff; margin-left: 5px;">
+                                        Unassign
+                                    </a>
+                                <?php elseif ( $is_assigned && $is_main_domain ) : ?>
+                                    <span class="sdm-assigned-note"><?php esc_html_e( 'Assigned (Main)', 'spintax-domain-manager' ); ?></span>
+                                <?php else : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr( $domain->id ); ?>">
+                                <?php endif; ?>
                             <?php else : ?>
                                 <a href="#" class="sdm-action-button sdm-delete-domain sdm-delete">
                                     <?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?>
@@ -167,50 +199,49 @@ $main_nonce = sdm_create_main_nonce();
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr id="no-domains">
-                    <td colspan="9"><?php esc_html_e( 'No domains found for this project.', 'spintax-domain-manager' ); ?></td>
+                    <td colspan="8"><?php esc_html_e( 'No domains found for this project.', 'spintax-domain-manager' ); ?></td>
                 </tr>
             <?php endif; ?>
         </tbody>
     </table>
 
     <!-- Mass Actions Panel -->
-    <div id="sdm-mass-actions" style="margin:20px 0;">
-        <select id="sdm-mass-action-select">
-            <option value=""><?php esc_html_e( 'Select Mass Action', 'spintax-domain-manager' ); ?></option>
-            <option value="sync_ns"><?php esc_html_e( 'Sync NS-Servers', 'spintax-domain-manager' ); ?></option>
-            <option value="assign_site"><?php esc_html_e( 'Assign to Site', 'spintax-domain-manager' ); ?></option>
-            <option value="sync_status"><?php esc_html_e( 'Sync Statuses', 'spintax-domain-manager' ); ?></option>
-            <option value="mass_add"><?php esc_html_e( 'Add Domains', 'spintax-domain-manager' ); ?></option>
+    <div class="sdm-mass-actions" style="margin: 20px 0;">
+        <select id="sdm-mass-action-select" class="sdm-select">
+            <option value="">Select Mass Action</option>
+            <option value="sync_ns">Sync NS-Servers</option>
+            <option value="assign_site">Assign to Site</option>
+            <option value="sync_status">Sync Statuses</option>
+            <option value="mass_add">Add Domains</option>
         </select>
-        <button id="sdm-mass-action-apply" class="button"><?php esc_html_e( 'Apply', 'spintax-domain-manager' ); ?></button>
+        <button id="sdm-mass-action-apply" class="button button-primary sdm-action-button">Apply</button>
     </div>
 </div>
 
 <!-- Modal for Mass Adding Domains to CloudFlare -->
-<div id="sdm-mass-add-modal">
-    <div id="sdm-mass-add-overlay" class="sdm-modal-overlay"></div>
-    <div id="sdm-mass-add-content" class="sdm-modal-content">
-        <h2><?php esc_html_e( 'Mass Add Domains to CloudFlare', 'spintax-domain-manager' ); ?></h2>
-        <p><?php esc_html_e( 'Enter the domains you want to add, one per line:', 'spintax-domain-manager' ); ?></p>
-        <textarea id="sdm-mass-add-textarea" rows="6" style="width:100%;" placeholder="<?php esc_attr_e( 'example.com', 'spintax-domain-manager' ); ?>"></textarea>
-        <div style="margin-top:20px;">
-            <button id="sdm-modal-confirm" class="button button-primary"><?php esc_html_e( 'Confirm', 'spintax-domain-manager' ); ?></button>
-            <button id="sdm-modal-close" class="button"><?php esc_html_e( 'Cancel', 'spintax-domain-manager' ); ?></button>
+<div id="sdm-mass-add-modal" class="sdm-modal">
+    <div class="sdm-modal-overlay"></div>
+    <div class="sdm-modal-content">
+        <h2>Mass Add Domains to CloudFlare</h2>
+        <p>Enter the domains you want to add, one per line:</p>
+        <textarea id="sdm-mass-add-textarea" rows="6" class="sdm-textarea" placeholder="example.com"></textarea>
+        <div class="sdm-modal-actions" style="margin-top: 20px;">
+            <button id="sdm-modal-confirm" class="button button-primary sdm-action-button">Confirm</button>
+            <button id="sdm-modal-close" class="button sdm-action-button">Cancel</button>
         </div>
     </div>
 </div>
 
 <!-- Modal for Assigning Domains to Site -->
-<div id="sdm-assign-to-site-modal" style="display:none;">
+<div id="sdm-assign-to-site-modal" class="sdm-modal" style="display:none;">
     <div class="sdm-modal-overlay"></div>
     <div class="sdm-modal-content">
-        <span id="sdm-close-assign-modal" style="position:absolute; top:10px; right:15px; font-size:20px; cursor:pointer;">×</span>
-        <h2><?php esc_html_e( 'Assign Domains to Site', 'spintax-domain-manager' ); ?></h2>
-        <p><?php esc_html_e( 'Selected domains:', 'spintax-domain-manager' ); ?></p>
-        <ul id="sdm-selected-domains-list" style="list-style-type: none; padding: 0; margin-bottom: 15px;"></ul>
-        <p><?php esc_html_e( 'Select a site to assign the domains:', 'spintax-domain-manager' ); ?></p>
-        <select id="sdm-assign-site-select" name="site_id" required>
-            <option value=""><?php esc_html_e( 'Select a site', 'spintax-domain-manager' ); ?></option>
+        <span id="sdm-close-assign-modal" class="sdm-modal-close">×</span>
+        <h2 id="sdm-modal-action-title">Assign Domains to Site</h2>
+        <p id="sdm-modal-instruction">Select a site to assign the domains:</p>
+        <ul id="sdm-selected-domains-list" class="sdm-selected-domains"></ul>
+        <select id="sdm-assign-site-select" name="site_id" class="sdm-select" required>
+            <option value="">Select a site</option>
             <?php if ( ! empty( $sites ) ) : ?>
                 <?php foreach ( $sites as $site ) : ?>
                     <option value="<?php echo esc_attr( $site->id ); ?>">
@@ -219,9 +250,9 @@ $main_nonce = sdm_create_main_nonce();
                 <?php endforeach; ?>
             <?php endif; ?>
         </select>
-        <div style="margin-top:20px;">
-            <button id="sdm-assign-confirm" class="button button-primary"><?php esc_html_e( 'Assign', 'spintax-domain-manager' ); ?></button>
-            <button id="sdm-assign-cancel" class="button"><?php esc_html_e( 'Cancel', 'spintax-domain-manager' ); ?></button>
+        <div class="sdm-modal-actions" style="margin-top: 20px;">
+            <button id="sdm-assign-confirm" class="button button-primary sdm-action-button">Assign</button>
+            <button id="sdm-assign-cancel" class="button sdm-action-button">Cancel</button>
         </div>
     </div>
 </div>

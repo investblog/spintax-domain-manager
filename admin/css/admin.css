@@ -1,17 +1,9 @@
-/*--------------------------------------------------------------
-1. GLOBAL HELPER CLASSES
---------------------------------------------------------------*/
-
-/* Hide elements with this class */
+/* Global Helper Classes */
 .sdm-hidden {
     display: none !important;
 }
 
-/*--------------------------------------------------------------
-2. COMMON TABLE STYLING
---------------------------------------------------------------*/
-
-/* Общие стили для таблиц */
+/* Common Table Styling */
 .sdm-table {
     margin-top: 1em;
     width: 100%;
@@ -27,11 +19,7 @@
     margin-right: 5px;
 }
 
-/*--------------------------------------------------------------
-3. COMMON FORM STYLING
---------------------------------------------------------------*/
-
-/* Общие стили для форм */
+/* Common Form Styling */
 .sdm-form {
     max-width: 600px;
     margin-top: 20px;
@@ -66,10 +54,7 @@
     font-size: 13px;
 }
 
-/*--------------------------------------------------------------
-4. WP-LIKE NOTICES
---------------------------------------------------------------*/
-
+/* WP-Like Notices */
 .sdm-notice .notice,
 .sdm-notice .updated,
 .sdm-notice .error {
@@ -89,11 +74,7 @@
     background-color: #f7fcf2;
 }
 
-/*--------------------------------------------------------------
-5. ACTION BUTTONS STYLING
---------------------------------------------------------------*/
-
-/* Общие стили для кнопок действий */
+/* Action Buttons Styling */
 .sdm-action-button {
     display: inline-block;
     padding: 3px 8px;
@@ -107,57 +88,29 @@
     opacity: 0.85;
     color: #fff;
 }
-/* Модификаторы для кнопок */
-.sdm-edit {
-    background-color: #0073aa;
-    color: #fff;
-}
-.sdm-save {
-    background-color: #46b450;
-    color: #fff;
-}
-.sdm-delete {
-    background-color: #dc3232;
-    color: #fff;
-}
-.sdm-test {
-    background-color: #f7b500;
-    color: #fff;
-}
+.sdm-edit { background-color: #0073aa; color: #fff; }
+.sdm-save { background-color: #46b450; color: #fff; }
+.sdm-delete { background-color: #dc3232; color: #fff; }
+.sdm-unassign { background-color: #f7b500; color: #fff; }
 
-/*--------------------------------------------------------------
-6. UNIQUE SELECTORS (не меняем, чтобы не ломать JS)
---------------------------------------------------------------*/
-
-#sdm-add-project-form { /* Уникальные стили для формы проектов */
-    padding: 0;
-}
-#sdm-add-project-message {
-    margin-top: 10px;
-}
-
-/* Родительский контейнер модального окна */
+/* Modal Styling */
 #sdm-mass-add-modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10000; /* поверх всего */
-    display: none; /* скрыто по умолчанию */
+    z-index: 10000;
+    display: none;
 }
-
-/* Полупрозрачный оверлей на весь экран */
 .sdm-modal-overlay {
     position: absolute;
-    top: 0; 
-    left: 0; 
-    right: 0; 
+    top: 0;
+    left: 0;
+    right: 0;
     bottom: 0;
     background: rgba(0,0,0,0.5);
 }
-
-/* Модальное окно по центру */
 .sdm-modal-content {
     position: absolute;
     top: 50%;
@@ -169,7 +122,8 @@
     max-width: 500px;
     width: 90%;
 }
-/* Styling for site icons in the table */
+
+/* Site Icons and Notes */
 .sdm-site-icon {
     display: inline-block;
     width: 24px;
@@ -180,7 +134,6 @@
     line-height: 0;
     position: relative;
 }
-
 .sdm-site-icon svg {
     width: 100%;
     height: 100%;
@@ -190,53 +143,55 @@
     vertical-align: top;
     object-fit: contain;
 }
-
-.sdm-site-icon:hover svg {
-    opacity: 0.8; /* Легкая подсветка при наведении */
-}
-
+.sdm-site-icon:hover svg { opacity: 0.8; }
 .sdm-site-icon svg {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%); /* Центрируем SVG в контейнере */
+    transform: translate(-50%, -50%);
 }
+.sdm-assigned-note,
+.sdm-main-domain-note {
+    color: #a00;
+    font-style: italic;
+    font-size: 12px;
+    margin-left: 5px;
+}
+.sdm-site-link {
+    color: #0073aa;
+    text-decoration: none;
+}
+.sdm-site-link:hover { text-decoration: underline; }
 
+/* Form and Modal Inputs */
 #sdm-edit-icon-form textarea {
     width: 100%;
     min-height: 100px;
-    font-family: monospace; /* Для читаемости кода SVG */
+    font-family: monospace;
 }
-
 #sdm-edit-icon-form .description {
     font-size: 12px;
     color: #666;
     margin-top: 5px;
 }
-
-
-/* Styling for Select2 in inline editing */
-.sdm-main-domain-select {
-    width: 200px; /* Adjust width as needed */
+.sdm-main-domain-select,
+#sdm-assign-site-select {
+    width: 200px;
     padding: 4px;
 }
-
 .select2-container .select2-selection--single {
     height: 30px;
     border: 1px solid #ccc;
     border-radius: 2px;
 }
-
 .select2-container--default .select2-selection--single .select2-selection__rendered {
     line-height: 30px;
     padding-left: 5px;
 }
-
 .select2-container--default .select2-selection--single .select2-selection__arrow {
     height: 30px;
 }
-
-/* Ensure Select2 is hidden by default in edit mode */
-.sdm-edit-input.sdm-main-domain-select.sdm-hidden {
+.sdm-edit-input.sdm-main-domain-select.sdm-hidden,
+.sdm-edit-input#sdm-assign-site-select.sdm-hidden {
     display: none;
 }

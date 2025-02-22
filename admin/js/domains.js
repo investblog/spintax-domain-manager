@@ -79,20 +79,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            if (action === 'assign_site') {
-                var selected = [];
-                document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
-                    selected.push(cb.value);
-                });
-                if (selected.length === 0) {
-                    alert('No domains selected.');
-                    return;
-                }
-                openAssignToSiteModal(selected);
-                return;
-            }
-
-            // For other actions (sync_ns, sync_status), placeholder logic
             var selected = [];
             document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                 selected.push(cb.value);
@@ -102,6 +88,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            if (action === 'assign_site') {
+                openAssignToSiteModal(selected, action);
+                return;
+            }
+
+            // For other actions (sync_ns, sync_status), placeholder logic
             var formData = new FormData();
             formData.append('action', 'sdm_mass_action');
             formData.append('mass_action', action);
@@ -130,7 +122,106 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 3. Modal for Mass Adding Domains to CloudFlare
+    // 3. Delete Inactive Domains
+    // ----------------------------
+    var deleteDomainButtons = document.querySelectorAll('.sdm-delete-domain');
+    deleteDomainButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (!confirm('Are you sure you want to delete this domain?')) return;
+
+            var row = this.closest('tr');
+            var domainId = row.getAttribute('data-domain-id');
+
+            var formData = new FormData();
+            formData.append('action', 'sdm_delete_domain');
+            formData.append('domain_id', domainId);
+            formData.append('sdm_main_nonce_field', mainNonce);
+
+            var spinner = document.createElement('span');
+            spinner.className = 'spinner is-active';
+            spinner.style.float = 'none';
+            spinner.style.margin = '0 5px';
+            this.innerHTML = '';
+            this.appendChild(spinner);
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showDomainsNotice('updated', data.data.message);
+                    row.parentNode.removeChild(row);
+                } else {
+                    showDomainsNotice('error', data.data);
+                }
+                spinner.remove();
+            })
+            .catch(function(error) {
+                console.error('Delete domain error:', error);
+                showDomainsNotice('error', 'Ajax request failed.');
+                spinner.remove();
+            });
+        });
+    });
+
+    // ----------------------------
+    // 4. Unassign Single Domain
+    // ----------------------------
+    var unassignButtons = document.querySelectorAll('.sdm-unassign');
+    unassignButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (!confirm('Are you sure you want to unassign this domain?')) return;
+
+            var row = this.closest('tr');
+            var domainId = row.getAttribute('data-domain-id');
+
+            var formData = new FormData();
+            formData.append('action', 'sdm_unassign_domain');
+            formData.append('domain_id', domainId);
+            formData.append('sdm_main_nonce_field', mainNonce);
+
+            var spinner = document.createElement('span');
+            spinner.className = 'spinner is-active';
+            spinner.style.float = 'none';
+            spinner.style.margin = '0 5px';
+            this.innerHTML = '';
+            this.appendChild(spinner);
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showDomainsNotice('updated', data.data.message);
+                    row.querySelector('.sdm-site-link').parentNode.innerHTML = '(Unassigned)';
+                    row.querySelector('.sdm-unassign').remove();
+                    if (row.querySelector('.sdm-main-domain-note')) {
+                        row.querySelector('.sdm-main-domain-note').remove();
+                    }
+                    row.querySelector('.sdm-domain-checkbox').style.display = 'inline-block';
+                } else {
+                    showDomainsNotice('error', data.data);
+                }
+                spinner.remove();
+            })
+            .catch(function(error) {
+                console.error('Unassign domain error:', error);
+                showDomainsNotice('error', 'Ajax request failed.');
+                spinner.remove();
+            });
+        });
+    });
+
+    // ----------------------------
+    // 5. Modal for Mass Adding Domains to CloudFlare
     // ----------------------------
     var massAddModal = document.getElementById('sdm-mass-add-modal');
     var modalConfirm = document.getElementById('sdm-modal-confirm');
@@ -197,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 4. Modal for Assigning Domains to Site
+    // 6. Modal for Assigning Domains to Site
     // ----------------------------
     var assignModal = document.getElementById('sdm-assign-to-site-modal');
     var assignConfirm = document.getElementById('sdm-assign-confirm');
@@ -205,8 +296,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var assignClose = document.getElementById('sdm-close-assign-modal');
     var siteSelect = document.getElementById('sdm-assign-site-select');
     var selectedDomainsList = document.getElementById('sdm-selected-domains-list');
+    var modalActionTitle = document.getElementById('sdm-modal-action-title');
+    var modalInstruction = document.getElementById('sdm-modal-instruction');
 
-    function openAssignToSiteModal(domainIds) {
+    function openAssignToSiteModal(domainIds, action) {
         if (selectedDomainsList) {
             selectedDomainsList.innerHTML = '';
             domainIds.forEach(function(id) {
@@ -219,6 +312,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+
+        if (action === 'assign_site') {
+            modalActionTitle.textContent = 'Assign Domains to Site';
+            modalInstruction.textContent = 'Select a site to assign the domains:';
+            siteSelect.disabled = false;
+            siteSelect.value = '';
+        }
+
         assignModal.style.display = 'block';
     }
 
@@ -229,12 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (assignConfirm) {
         assignConfirm.addEventListener('click', function(e) {
             e.preventDefault();
-            var siteId = siteSelect.value;
-            if (!siteId) {
-                alert('Please select a site.');
-                return;
-            }
-
+            var action = massActionSelect.value;
             var selected = [];
             document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                 selected.push(cb.value);
@@ -247,8 +343,15 @@ document.addEventListener('DOMContentLoaded', function() {
             var formData = new FormData();
             formData.append('action', 'sdm_assign_domains_to_site');
             formData.append('domain_ids', JSON.stringify(selected));
-            formData.append('site_id', siteId);
+            formData.append('site_id', siteSelect.value);
             formData.append('sdm_main_nonce_field', mainNonce);
+
+            var spinner = document.createElement('span');
+            spinner.className = 'spinner is-active';
+            spinner.style.float = 'none';
+            spinner.style.margin = '0 5px';
+            this.innerHTML = '';
+            this.appendChild(spinner);
 
             fetch(ajaxurl, {
                 method: 'POST',
@@ -257,6 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(function(response) { return response.json(); })
             .then(function(data) {
+                spinner.remove();
                 if (data.success) {
                     showDomainsNotice('updated', data.data.message);
                     closeAssignToSiteModal();
@@ -268,6 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(function(error) {
                 console.error('Assign domains error:', error);
                 showDomainsNotice('error', 'Ajax request failed.');
+                spinner.remove();
             });
         });
     }
@@ -284,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 5. Helper: Show Domains Notice
+    // 7. Helper: Show Domains Notice
     // ----------------------------
     function showDomainsNotice(type, message) {
         var noticeContainer = document.getElementById('sdm-domains-notice');

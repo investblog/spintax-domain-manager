@@ -236,6 +236,111 @@ class SDM_Domains_Manager {
     }
 
     /**
+     * Unassigns a single domain from its site.
+     *
+     * @param int $domain_id The ID of the domain to unassign.
+     * @return array Associative array with keys:
+     *               - 'success' => boolean (true if unassigned, false otherwise)
+     *               - 'message' => status message
+     */
+    public function unassign_domain( $domain_id ) {
+        global $wpdb;
+
+        $domain_id = absint( $domain_id );
+        if ( $domain_id <= 0 ) {
+            return array(
+                'success' => false,
+                'message' => __( 'Invalid domain ID.', 'spintax-domain-manager' )
+            );
+        }
+
+        // Check if the domain is assigned to any site
+        $current_site_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT site_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+            $domain_id
+        ));
+
+        if ( empty( $current_site_id ) ) {
+            return array(
+                'success' => false,
+                'message' => __( 'Domain is not assigned to any site.', 'spintax-domain-manager' )
+            );
+        }
+
+        // Check if the domain is the main domain for its site
+        $is_main_domain = $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}sdm_sites 
+             WHERE site_id = %d 
+               AND main_domain = (SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d)",
+            $current_site_id,
+            $domain_id
+        ));
+
+        if ( $is_main_domain > 0 ) {
+            return array(
+                'success' => false,
+                'message' => __( 'Cannot unassign a main domain. Use site settings to change the main domain.', 'spintax-domain-manager' )
+            );
+        }
+
+        // Unassign the domain (set site_id to NULL)
+        $updated = $wpdb->update(
+            $wpdb->prefix . 'sdm_domains',
+            array( 'site_id' => NULL, 'updated_at' => current_time('mysql') ),
+            array( 'id' => $domain_id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+
+        if ( false !== $updated ) {
+            return array(
+                'success' => true,
+                'message' => __( 'Domain unassigned successfully.', 'spintax-domain-manager' )
+            );
+        } else {
+            return array(
+                'success' => false,
+                'message' => __( 'Failed to unassign domain.', 'spintax-domain-manager' )
+            );
+        }
+    }
+
+    /**
+     * Deletes a domain.
+     *
+     * @param int $domain_id The ID of the domain to delete.
+     * @return bool|WP_Error True on success, WP_Error on failure.
+     */
+    public function delete_domain( $domain_id ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sdm_domains';
+
+        $domain_id = absint( $domain_id );
+        if ( $domain_id <= 0 ) {
+            return new WP_Error( 'invalid_domain_id', __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+        }
+
+        // Start transaction to ensure data consistency
+        $wpdb->query( 'START TRANSACTION' );
+
+        // Delete the domain
+        $deleted = $wpdb->delete(
+            $table,
+            array( 'id' => $domain_id ),
+            array( '%d' )
+        );
+
+        if ( false === $deleted ) {
+            $wpdb->query( 'ROLLBACK' );
+            return new WP_Error( 'db_delete_error', __( 'Could not delete domain from database.', 'spintax-domain-manager' ) );
+        }
+
+        $wpdb->query( 'COMMIT' );
+
+        return true;
+    }
+
+    /**
      * Returns the total number of domains in the sdm_domains table.
      *
      * @return int Total count of domains.
@@ -246,7 +351,7 @@ class SDM_Domains_Manager {
         $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
         return intval($count);
     }
-} /*<-- Last! */
+}/*<-- Last! */
 
 /**
  * AJAX Handler: Fetch and sync domains (zones) for a project from CloudFlare,
@@ -316,5 +421,52 @@ function sdm_ajax_assign_domains_to_site() {
 }
 add_action( 'wp_ajax_sdm_assign_domains_to_site', 'sdm_ajax_assign_domains_to_site' );
 
+/**
+ * AJAX Handler: Delete Domain
+ */
+function sdm_ajax_delete_domain() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
 
+    $domain_id = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
+    if ( $domain_id <= 0 ) {
+        wp_send_json_error( __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+    }
+
+    $manager = new SDM_Domains_Manager();
+    $result = $manager->delete_domain( $domain_id );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( $result->get_error_message() );
+    }
+    wp_send_json_success( array( 'message' => __( 'Domain deleted successfully.', 'spintax-domain-manager' ) ) );
+}
+add_action( 'wp_ajax_sdm_delete_domain', 'sdm_ajax_delete_domain' );
+
+/**
+ * AJAX Handler: Unassign a Single Domain
+ */
+function sdm_ajax_unassign_domain() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $domain_id = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
+    if ( $domain_id <= 0 ) {
+        wp_send_json_error( __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+    }
+
+    $manager = new SDM_Domains_Manager();
+    $result = $manager->unassign_domain( $domain_id );
+
+    if ( $result['success'] ) {
+        wp_send_json_success( array( 'message' => $result['message'] ) );
+    } else {
+        wp_send_json_error( $result['message'] );
+    }
+}
+add_action( 'wp_ajax_sdm_unassign_domain', 'sdm_ajax_unassign_domain' );
 
