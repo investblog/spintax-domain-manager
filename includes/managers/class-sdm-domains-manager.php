@@ -198,3 +198,4 @@ function sdm_ajax_fetch_domains() {
     ) );
 }
 add_action( 'wp_ajax_sdm_fetch_domains', 'sdm_ajax_fetch_domains' );
+

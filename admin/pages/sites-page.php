@@ -101,7 +101,7 @@ $main_nonce = sdm_create_main_nonce();
                                 if ( ! empty( $site->svg_icon ) ) {
                                     echo $site->svg_icon; // Выводим пользовательский SVG
                                 } else {
-                                    echo file_get_contents( SDM_PLUGIN_DIR . 'assets/icons/spintax-icon.svg' ); // Дефолтная иконка
+                                    echo file_get_contents( SDM_PLUGIN_DIR . 'assets/icons/spintax-icon.svg' );
                                 }
                                 ?>
                             </span>
@@ -146,7 +146,7 @@ $main_nonce = sdm_create_main_nonce();
                         <th><label for="svg_icon"><?php esc_html_e( 'SVG Icon', 'spintax-domain-manager' ); ?></label></th>
                         <td>
                             <textarea name="svg_icon" id="svg_icon" rows="5" placeholder='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/></svg>'></textarea>
-                            <p class="description"><?php esc_html_e( 'Paste your inline SVG code here.', 'spintax-domain-manager' ); ?></p>
+                            <p class="description"><?php esc_html_e( 'Paste your inline SVG code here. Recommended size: 24x24px.', 'spintax-domain-manager' ); ?></p>
                         </td>
                     </tr>
                 </table>

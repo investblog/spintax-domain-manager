@@ -152,6 +152,62 @@ class SDM_Sites_Manager {
         }
         return $svg_icon;
     }
+
+    /**
+     * Delete a site and update related domains if necessary.
+     *
+     * @param int $site_id The ID of the site to delete.
+     * @return bool|WP_Error True on success, WP_Error on failure.
+     */
+    public function delete_site( $site_id ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sdm_sites';
+
+        $site_id = absint( $site_id );
+        if ( $site_id <= 0 ) {
+            return new WP_Error( 'invalid_site_id', __( 'Invalid site ID.', 'spintax-domain-manager' ) );
+        }
+
+        // Start transaction to ensure data consistency
+        $wpdb->query( 'START TRANSACTION' );
+
+        // Delete the site
+        $deleted = $wpdb->delete(
+            $table,
+            array( 'id' => $site_id ),
+            array( '%d' )
+        );
+
+        if ( false === $deleted ) {
+            $wpdb->query( 'ROLLBACK' );
+            return new WP_Error( 'db_delete_error', __( 'Could not delete site from database.', 'spintax-domain-manager' ) );
+        }
+
+        // Optionally update related domains to set site_id to NULL (unassign domains)
+        $updated_domains = $wpdb->update(
+            $wpdb->prefix . 'sdm_domains',
+            array( 'site_id' => NULL ),
+            array( 'site_id' => $site_id ),
+            array( '%s' ),
+            array( '%d' )
+        );
+
+        if ( false === $updated_domains ) {
+            $wpdb->query( 'ROLLBACK' );
+            return new WP_Error( 'db_update_error', __( 'Could not unassign domains from the site.', 'spintax-domain-manager' ) );
+        }
+
+        // Optionally update related redirects to maintain data consistency
+        $wpdb->delete(
+            $wpdb->prefix . 'sdm_redirects',
+            array( 'site_id' => $site_id ),
+            array( '%d' )
+        );
+
+        $wpdb->query( 'COMMIT' );
+
+        return true;
+    }
 } // <-- ВАЖНО: закрывающая скобка класса
 
 
@@ -220,3 +276,73 @@ function sdm_ajax_update_site_icon() {
     ) );
 }
 add_action( 'wp_ajax_sdm_update_site_icon', 'sdm_ajax_update_site_icon' );
+
+/**
+ * AJAX Handler: Validate Domain
+ */
+function sdm_ajax_validate_domain() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $domain = isset( $_POST['domain'] ) ? sanitize_text_field( $_POST['domain'] ) : '';
+    if ( empty( $domain ) ) {
+        wp_send_json_error( __( 'Domain is required.', 'spintax-domain-manager' ) );
+    }
+
+    global $wpdb;
+    $prefix = $wpdb->prefix;
+
+    // Проверяем, существует ли домен в sdm_domains и соответствует требованиям
+    $domain_exists = $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$prefix}sdm_domains 
+         WHERE domain = %s 
+           AND site_id IS NULL 
+           AND is_blocked_provider = 0 
+           AND is_blocked_government = 0",
+        $domain
+    ) );
+
+    if ( $domain_exists <= 0 ) {
+        wp_send_json_error( __( 'Domain is not available, blocked, or already assigned to a site.', 'spintax-domain-manager' ) );
+    }
+
+    // Проверяем, не используется ли домен другим сайтом в sdm_sites
+    $domain_in_use = $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$prefix}sdm_sites 
+         WHERE main_domain = %s",
+        $domain
+    ) );
+
+    if ( $domain_in_use > 0 ) {
+        wp_send_json_error( __( 'This domain is already assigned to another site.', 'spintax-domain-manager' ) );
+    }
+
+    wp_send_json_success( __( 'Domain is valid and available.', 'spintax-domain-manager' ) );
+}
+add_action( 'wp_ajax_sdm_validate_domain', 'sdm_ajax_validate_domain' );
+
+/**
+ * AJAX Handler: Delete Site
+ */
+function sdm_ajax_delete_site() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $site_id = isset( $_POST['site_id'] ) ? absint( $_POST['site_id'] ) : 0;
+    if ( $site_id <= 0 ) {
+        wp_send_json_error( __( 'Invalid site ID.', 'spintax-domain-manager' ) );
+    }
+
+    $manager = new SDM_Sites_Manager();
+    $result = $manager->delete_site( $site_id );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( $result->get_error_message() );
+    }
+    wp_send_json_success( array( 'message' => __( 'Site deleted successfully.', 'spintax-domain-manager' ) ) );
+}
+add_action( 'wp_ajax_sdm_delete_site', 'sdm_ajax_delete_site' );

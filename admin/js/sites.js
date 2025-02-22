@@ -5,40 +5,79 @@ document.addEventListener('DOMContentLoaded', function() {
     var mainNonce = mainNonceField ? mainNonceField.value : '';
 
     // ----------------------------
-    // 1. Handle "Add New Site" Form Submission via AJAX
+    // 1. Handle "Add New Site" Form Submission via AJAX with domain validation
     // ----------------------------
     var addSiteForm = document.getElementById('sdm-add-site-form');
     if (addSiteForm) {
         addSiteForm.addEventListener('submit', function(e) {
             e.preventDefault();
             var formData = new FormData(addSiteForm);
-            formData.append('action', 'sdm_add_site');
-            formData.append('sdm_main_nonce_field', mainNonce);
-
+            var mainDomain = formData.get('main_domain').trim();
             var submitButton = addSiteForm.querySelector('button[type="submit"]');
+
+            // Validate main_domain before submission
+            if (!mainDomain) {
+                showSitesNotice('error', 'Main Domain is required.');
+                return;
+            }
+
+            // Show spinner while validating
             if (submitButton) {
                 submitButton.disabled = true;
+                submitButton.innerHTML += '<span class="spinner is-active" style="float:none;margin:0 5px;"></span>';
             }
+
+            var validateFormData = new FormData();
+            validateFormData.append('action', 'sdm_validate_domain');
+            validateFormData.append('domain', mainDomain);
+            validateFormData.append('sdm_main_nonce_field', mainNonce);
 
             fetch(ajaxurl, {
                 method: 'POST',
                 credentials: 'same-origin',
-                body: formData
+                body: validateFormData
             })
             .then(function(response) { return response.json(); })
             .then(function(data) {
-                if (submitButton) { submitButton.disabled = false; }
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = submitButton.innerHTML.replace('<span class="spinner is-active" style="float:none;margin:0 5px;"></span>', '');
+                }
+
                 if (data.success) {
-                    showSitesNotice('updated', 'Site added successfully (ID: ' + data.data.site_id + ')');
-                    location.reload();
+                    // Domain is valid, proceed with form submission
+                    formData.append('action', 'sdm_add_site');
+                    formData.append('sdm_main_nonce_field', mainNonce);
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        body: formData
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            showSitesNotice('updated', 'Site added successfully (ID: ' + data.data.site_id + ')');
+                            location.reload();
+                        } else {
+                            showSitesNotice('error', data.data);
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('Add site error:', error);
+                        showSitesNotice('error', 'Ajax request failed.');
+                    });
                 } else {
                     showSitesNotice('error', data.data);
                 }
             })
             .catch(function(error) {
-                console.error('Add site error:', error);
-                if (submitButton) { submitButton.disabled = false; }
-                showSitesNotice('error', 'Ajax request failed.');
+                console.error('Domain validation error:', error);
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = submitButton.innerHTML.replace('<span class="spinner is-active" style="float:none;margin:0 5px;"></span>', '');
+                }
+                showSitesNotice('error', 'Ajax request failed during domain validation.');
             });
         });
     }
@@ -154,6 +193,12 @@ document.addEventListener('DOMContentLoaded', function() {
         editIconForm.addEventListener('submit', function(e) {
             e.preventDefault();
             var formData = new FormData(this);
+            var svgIcon = document.getElementById('svg_icon').value;
+
+            // Remove width and height attributes from SVG to let CSS control size
+            svgIcon = svgIcon.replace(/width="[^"]*"/i, '').replace(/height="[^"]*"/i, '');
+            formData.set('svg_icon', svgIcon); // Обновляем значение в FormData
+
             formData.append('action', 'sdm_update_site_icon');
             formData.append('sdm_main_nonce_field', mainNonce);
 
