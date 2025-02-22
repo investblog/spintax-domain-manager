@@ -1,7 +1,7 @@
 <?php
 /**
  * File: admin/pages/domains-page.php
- * Description: Displays the Domains interface with a centered modal for mass adding domains,
+ * Description: Displays the Domains interface with a centered modal for mass adding domains and assigning to sites,
  *              and merges "Blocked (Provider)" and "Blocked (Gov)" columns into a single "Blocked" column.
  */
 
@@ -32,6 +32,17 @@ if ( $current_project_id > 0 ) {
         $current_project_id
     );
     $domains = $wpdb->get_results( $sql );
+}
+
+// Получаем список сайтов для текущего проекта для модального окна
+$sites = array();
+if ( $current_project_id > 0 ) {
+    $sites = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT id, site_name FROM {$prefix}sdm_sites WHERE project_id = %d ORDER BY site_name ASC",
+            $current_project_id
+        )
+    );
 }
 
 // Генерируем nonce
@@ -110,6 +121,7 @@ $main_nonce = sdm_create_main_nonce();
                     $is_active  = ( $domain->status === 'active' );
                     // Если хотя бы одно поле блокировки true => "Yes", иначе "No"
                     $is_blocked = ( $domain->is_blocked_provider || $domain->is_blocked_government );
+                    $is_assigned = ! empty( $domain->site_id ); // Проверяем, назначен ли домен сайту
                     ?>
                     <tr id="domain-row-<?php echo esc_attr( $domain->id ); ?>"
                         data-domain-id="<?php echo esc_attr( $domain->id ); ?>"
@@ -141,8 +153,10 @@ $main_nonce = sdm_create_main_nonce();
 
                         <!-- Actions / Checkboxes -->
                         <td>
-                            <?php if ( $is_active ) : ?>
+                            <?php if ( $is_active && ! $is_assigned ) : ?>
                                 <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr( $domain->id ); ?>">
+                            <?php elseif ( $is_active && $is_assigned ) : ?>
+                                <span class="sdm-assigned-note"><?php esc_html_e( 'Assigned', 'spintax-domain-manager' ); ?></span>
                             <?php else : ?>
                                 <a href="#" class="sdm-action-button sdm-delete-domain sdm-delete">
                                     <?php esc_html_e( 'Delete', 'spintax-domain-manager' ); ?>
@@ -159,17 +173,17 @@ $main_nonce = sdm_create_main_nonce();
         </tbody>
     </table>
 
-<!-- Mass Actions Panel -->
-<div id="sdm-mass-actions" style="margin:20px 0;">
-    <select id="sdm-mass-action-select">
-        <option value=""><?php esc_html_e( 'Select Mass Action', 'spintax-domain-manager' ); ?></option>
-        <option value="sync_ns"><?php esc_html_e( 'Sync NS-Servers', 'spintax-domain-manager' ); ?></option>
-        <option value="assign_site"><?php esc_html_e( 'Assign to Site', 'spintax-domain-manager' ); ?></option>
-        <option value="sync_status"><?php esc_html_e( 'Sync Statuses', 'spintax-domain-manager' ); ?></option>
-        <option value="mass_add"><?php esc_html_e( 'Add Domains', 'spintax-domain-manager' ); ?></option>
-    </select>
-    <button id="sdm-mass-action-apply" class="button"><?php esc_html_e( 'Apply', 'spintax-domain-manager' ); ?></button>
-</div>
+    <!-- Mass Actions Panel -->
+    <div id="sdm-mass-actions" style="margin:20px 0;">
+        <select id="sdm-mass-action-select">
+            <option value=""><?php esc_html_e( 'Select Mass Action', 'spintax-domain-manager' ); ?></option>
+            <option value="sync_ns"><?php esc_html_e( 'Sync NS-Servers', 'spintax-domain-manager' ); ?></option>
+            <option value="assign_site"><?php esc_html_e( 'Assign to Site', 'spintax-domain-manager' ); ?></option>
+            <option value="sync_status"><?php esc_html_e( 'Sync Statuses', 'spintax-domain-manager' ); ?></option>
+            <option value="mass_add"><?php esc_html_e( 'Add Domains', 'spintax-domain-manager' ); ?></option>
+        </select>
+        <button id="sdm-mass-action-apply" class="button"><?php esc_html_e( 'Apply', 'spintax-domain-manager' ); ?></button>
+    </div>
 </div>
 
 <!-- Modal for Mass Adding Domains to CloudFlare -->
@@ -182,6 +196,32 @@ $main_nonce = sdm_create_main_nonce();
         <div style="margin-top:20px;">
             <button id="sdm-modal-confirm" class="button button-primary"><?php esc_html_e( 'Confirm', 'spintax-domain-manager' ); ?></button>
             <button id="sdm-modal-close" class="button"><?php esc_html_e( 'Cancel', 'spintax-domain-manager' ); ?></button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Assigning Domains to Site -->
+<div id="sdm-assign-to-site-modal" style="display:none;">
+    <div class="sdm-modal-overlay"></div>
+    <div class="sdm-modal-content">
+        <span id="sdm-close-assign-modal" style="position:absolute; top:10px; right:15px; font-size:20px; cursor:pointer;">×</span>
+        <h2><?php esc_html_e( 'Assign Domains to Site', 'spintax-domain-manager' ); ?></h2>
+        <p><?php esc_html_e( 'Selected domains:', 'spintax-domain-manager' ); ?></p>
+        <ul id="sdm-selected-domains-list" style="list-style-type: none; padding: 0; margin-bottom: 15px;"></ul>
+        <p><?php esc_html_e( 'Select a site to assign the domains:', 'spintax-domain-manager' ); ?></p>
+        <select id="sdm-assign-site-select" name="site_id" required>
+            <option value=""><?php esc_html_e( 'Select a site', 'spintax-domain-manager' ); ?></option>
+            <?php if ( ! empty( $sites ) ) : ?>
+                <?php foreach ( $sites as $site ) : ?>
+                    <option value="<?php echo esc_attr( $site->id ); ?>">
+                        <?php echo esc_html( $site->site_name ); ?>
+                    </option>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </select>
+        <div style="margin-top:20px;">
+            <button id="sdm-assign-confirm" class="button button-primary"><?php esc_html_e( 'Assign', 'spintax-domain-manager' ); ?></button>
+            <button id="sdm-assign-cancel" class="button"><?php esc_html_e( 'Cancel', 'spintax-domain-manager' ); ?></button>
         </div>
     </div>
 </div>

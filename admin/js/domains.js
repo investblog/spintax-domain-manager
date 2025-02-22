@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', function() {
 
-    // Получаем глобальный nonce из скрытого поля
+    // Get the global nonce from the hidden field
     var mainNonceField = document.getElementById('sdm-main-nonce');
     var mainNonce = mainNonceField ? mainNonceField.value : '';
 
     // ----------------------------
-    // 1. Fetch Project Domains (оставляем без изменений)
+    // 1. Fetch Project Domains
     // ----------------------------
     var fetchBtn = document.getElementById('sdm-fetch-domains');
     var projectSelector = document.getElementById('sdm-project-selector');
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Обработчик для массовых действий – один обработчик
+    // Handle mass actions
     if (massActionApply && massActionSelect) {
         massActionApply.addEventListener('click', function(e) {
             e.preventDefault();
@@ -73,22 +73,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Please select a mass action.');
                 return;
             }
+
             if (action === 'mass_add') {
-                console.log("Mass action 'mass_add' selected. Opening modal.");
                 openMassAddModal();
                 return;
             }
-            // Для других действий собираем ID выбранных доменов
-            var selected = [];
-            document.querySelectorAll('.sdm-domain-checkbox').forEach(function(cb) {
-                if (cb.checked) {
+
+            if (action === 'assign_site') {
+                var selected = [];
+                document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                     selected.push(cb.value);
+                });
+                if (selected.length === 0) {
+                    alert('No domains selected.');
+                    return;
                 }
+                openAssignToSiteModal(selected);
+                return;
+            }
+
+            // For other actions (sync_ns, sync_status), placeholder logic
+            var selected = [];
+            document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
+                selected.push(cb.value);
             });
             if (selected.length === 0) {
                 alert('No domains selected.');
                 return;
             }
+
             var formData = new FormData();
             formData.append('action', 'sdm_mass_action');
             formData.append('mass_action', action);
@@ -119,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ----------------------------
     // 3. Modal for Mass Adding Domains to CloudFlare
     // ----------------------------
-    var modalContainer = document.getElementById('sdm-mass-add-modal');
+    var massAddModal = document.getElementById('sdm-mass-add-modal');
     var modalConfirm = document.getElementById('sdm-modal-confirm');
     var modalClose   = document.getElementById('sdm-modal-close');
 
@@ -128,16 +141,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (textarea) {
             textarea.value = '';
         }
-        // Показываем родительский контейнер, что сделает видимыми и оверлей, и содержимое
-        if (modalContainer) {
-            modalContainer.style.display = 'block';
-        }
+        massAddModal.style.display = 'block';
     }
 
     function closeMassAddModal() {
-        if (modalContainer) {
-            modalContainer.style.display = 'none';
-        }
+        massAddModal.style.display = 'none';
     }
 
     if (modalConfirm) {
@@ -189,7 +197,94 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 4. Helper: Show Domain Notice
+    // 4. Modal for Assigning Domains to Site
+    // ----------------------------
+    var assignModal = document.getElementById('sdm-assign-to-site-modal');
+    var assignConfirm = document.getElementById('sdm-assign-confirm');
+    var assignCancel = document.getElementById('sdm-assign-cancel');
+    var assignClose = document.getElementById('sdm-close-assign-modal');
+    var siteSelect = document.getElementById('sdm-assign-site-select');
+    var selectedDomainsList = document.getElementById('sdm-selected-domains-list');
+
+    function openAssignToSiteModal(domainIds) {
+        if (selectedDomainsList) {
+            selectedDomainsList.innerHTML = '';
+            domainIds.forEach(function(id) {
+                var domainRow = document.getElementById('domain-row-' + id);
+                if (domainRow) {
+                    var domainName = domainRow.querySelector('td:first-child').textContent;
+                    var li = document.createElement('li');
+                    li.textContent = domainName;
+                    selectedDomainsList.appendChild(li);
+                }
+            });
+        }
+        assignModal.style.display = 'block';
+    }
+
+    function closeAssignToSiteModal() {
+        assignModal.style.display = 'none';
+    }
+
+    if (assignConfirm) {
+        assignConfirm.addEventListener('click', function(e) {
+            e.preventDefault();
+            var siteId = siteSelect.value;
+            if (!siteId) {
+                alert('Please select a site.');
+                return;
+            }
+
+            var selected = [];
+            document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
+                selected.push(cb.value);
+            });
+            if (selected.length === 0) {
+                alert('No domains selected.');
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('action', 'sdm_assign_domains_to_site');
+            formData.append('domain_ids', JSON.stringify(selected));
+            formData.append('site_id', siteId);
+            formData.append('sdm_main_nonce_field', mainNonce);
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showDomainsNotice('updated', data.data.message);
+                    closeAssignToSiteModal();
+                    location.reload();
+                } else {
+                    showDomainsNotice('error', data.data);
+                }
+            })
+            .catch(function(error) {
+                console.error('Assign domains error:', error);
+                showDomainsNotice('error', 'Ajax request failed.');
+            });
+        });
+    }
+
+    if (assignCancel || assignClose) {
+        [assignCancel, assignClose].forEach(function(element) {
+            if (element) {
+                element.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    closeAssignToSiteModal();
+                });
+            }
+        });
+    }
+
+    // ----------------------------
+    // 5. Helper: Show Domains Notice
     // ----------------------------
     function showDomainsNotice(type, message) {
         var noticeContainer = document.getElementById('sdm-domains-notice');
@@ -205,4 +300,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Initialize Select2 for site selection
+    var siteSelectElement = document.getElementById('sdm-assign-site-select');
+    if (siteSelectElement) {
+        siteSelectElement.addEventListener('focus', function() {
+            if (!window.jQuery) return;
+            jQuery(this).select2({
+                width: '100%',
+                placeholder: 'Select a site',
+                allowClear: true
+            });
+        });
+    }
 });

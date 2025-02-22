@@ -123,8 +123,15 @@ function sdm_check_main_nonce() {
 function sdm_enqueue_admin_assets() {
     wp_enqueue_style( 'wp-admin' );
     wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array('jquery'), SDM_VERSION, true );
-    wp_enqueue_script( 'sdm-domains-js', SDM_PLUGIN_URL . 'admin/js/domains.js', array(), SDM_VERSION, true );
-    wp_enqueue_script( 'sdm-sites-js', SDM_PLUGIN_URL . 'admin/js/sites.js', array(), SDM_VERSION, true );
+    wp_enqueue_script( 'sdm-domains-js', SDM_PLUGIN_URL . 'admin/js/domains.js', array('jquery'), SDM_VERSION, true );
+    wp_enqueue_script( 'sdm-sites-js', SDM_PLUGIN_URL . 'admin/js/sites.js', array('jquery'), SDM_VERSION, true );
     wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
+
+    // Подключаем Select2 только на страницах сайтов и доменов
+    $screen = get_current_screen();
+    if ( $screen && ( $screen->id === 'spintax-manager_page_sdm-sites' || $screen->id === 'spintax-manager_page_sdm-domains' ) ) {
+        wp_enqueue_style( 'select2-css', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css', array(), '4.0.13' );
+        wp_enqueue_script( 'select2', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js', array('jquery'), '4.0.13', true );
+    }
 }
 add_action( 'admin_enqueue_scripts', 'sdm_enqueue_admin_assets' );

@@ -29,7 +29,7 @@ if ( $current_project_id > 0 ) {
     );
 }
 
-// Получаем список свободных доменов проекта
+// Получаем список свободных доменов проекта для автодополнения (неназначенные, активные, незаблокированные)
 $non_blocked_domains = array();
 if ( $current_project_id > 0 ) {
     $non_blocked_domains = $wpdb->get_results(
@@ -37,6 +37,7 @@ if ( $current_project_id > 0 ) {
             "SELECT domain FROM {$prefix}sdm_domains 
              WHERE project_id = %d 
                AND site_id IS NULL 
+               AND status = 'active' 
                AND is_blocked_provider = 0 
                AND is_blocked_government = 0",
             $current_project_id
@@ -45,6 +46,7 @@ if ( $current_project_id > 0 ) {
     );
 }
 
+// Генерируем nonce
 $main_nonce = sdm_create_main_nonce();
 ?>
 <div class="wrap">
@@ -113,7 +115,17 @@ $main_nonce = sdm_create_main_nonce();
                         </td>
                         <td class="column-main-domain">
                             <span class="sdm-display-value"><?php echo esc_html( $site->main_domain ); ?></span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="main_domain" value="<?php echo esc_attr( $site->main_domain ); ?>">
+                            <select class="sdm-edit-input sdm-hidden" name="main_domain" data-current="<?php echo esc_attr( $site->main_domain ); ?>">
+                                <option value=""><?php esc_html_e( 'Select a domain', 'spintax-domain-manager' ); ?></option>
+                                <?php if ( ! empty( $non_blocked_domains ) ) : ?>
+                                    <?php foreach ( $non_blocked_domains as $row ) : ?>
+                                        <option value="<?php echo esc_attr( $row['domain'] ); ?>"
+                                            <?php selected( $row['domain'], $site->main_domain ); ?>>
+                                            <?php echo esc_html( $row['domain'] ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td class="column-server-ip">
                             <span class="sdm-display-value"><?php echo esc_html( $site->server_ip ?: '(Not set)' ); ?></span>
@@ -165,7 +177,7 @@ $main_nonce = sdm_create_main_nonce();
         </div>
     </div>
 
-    <!-- Form for Adding a New Site (оставляем без изменений) -->
+    <!-- Form for Adding a New Site -->
     <h2><?php esc_html_e( 'Add New Site', 'spintax-domain-manager' ); ?></h2>
     <form id="sdm-add-site-form" class="sdm-form" method="post" action="">
         <?php sdm_nonce_field(); ?>
@@ -182,14 +194,16 @@ $main_nonce = sdm_create_main_nonce();
             <tr>
                 <th><label for="main_domain"><?php esc_html_e( 'Main Domain', 'spintax-domain-manager' ); ?></label></th>
                 <td>
-                    <input type="text" name="main_domain" id="main_domain" list="non_blocked_domains_list" placeholder="e.g. example.com" required>
-                    <datalist id="non_blocked_domains_list">
+                    <select name="main_domain" id="main_domain" required>
+                        <option value=""><?php esc_html_e( 'Select a domain', 'spintax-domain-manager' ); ?></option>
                         <?php if ( ! empty( $non_blocked_domains ) ) : ?>
                             <?php foreach ( $non_blocked_domains as $row ) : ?>
                                 <option value="<?php echo esc_attr( $row['domain'] ); ?>">
+                                    <?php echo esc_html( $row['domain'] ); ?>
+                                </option>
                             <?php endforeach; ?>
                         <?php endif; ?>
-                    </datalist>
+                    </select>
                 </td>
             </tr>
             <tr>

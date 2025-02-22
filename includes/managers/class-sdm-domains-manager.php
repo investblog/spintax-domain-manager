@@ -146,17 +146,107 @@ class SDM_Domains_Manager {
     }
 
     /**
- * Returns the total number of domains in the sdm_domains table.
- *
- * @return int Total count of domains.
- */
-public function count_domains() {
-    global $wpdb;
-    $table = $wpdb->prefix . 'sdm_domains';
-    $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-    return intval($count);
-}
-}
+     * Assigns multiple domains to a site.
+     *
+     * @param array $domain_ids Array of domain IDs to assign.
+     * @param int $site_id The ID of the site to assign domains to.
+     * @return array Associative array with keys:
+     *               - 'success' => number of successfully assigned domains
+     *               - 'failed' => number of failed assignments (due to conflicts or other errors)
+     *               - 'message' => status message
+     */
+    public function assign_domains_to_site( $domain_ids, $site_id ) {
+        global $wpdb;
+
+        $site_id = absint( $site_id );
+        if ( $site_id <= 0 ) {
+            return array(
+                'success' => 0,
+                'failed' => count( $domain_ids ),
+                'message' => __( 'Invalid site ID.', 'spintax-domain-manager' )
+            );
+        }
+
+        $success = 0;
+        $failed = 0;
+        $messages = array();
+
+        foreach ( $domain_ids as $domain_id ) {
+            $domain_id = absint( $domain_id );
+            if ( $domain_id <= 0 ) {
+                $failed++;
+                continue;
+            }
+
+            // Check if the domain is already assigned to another site
+            $current_site_id = $wpdb->get_var( $wpdb->prepare(
+                "SELECT site_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+                $domain_id
+            ));
+
+            if ( $current_site_id && $current_site_id != $site_id ) {
+                $failed++;
+                $messages[] = sprintf( __( 'Domain ID %d is already assigned to another site.', 'spintax-domain-manager' ), $domain_id );
+                continue;
+            }
+
+            // Check if the domain is blocked
+            $is_blocked = $wpdb->get_var( $wpdb->prepare(
+                "SELECT (is_blocked_provider OR is_blocked_government) FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+                $domain_id
+            ));
+
+            if ( $is_blocked ) {
+                $failed++;
+                $messages[] = sprintf( __( 'Domain ID %d is blocked and cannot be assigned.', 'spintax-domain-manager' ), $domain_id );
+                continue;
+            }
+
+            // Update the domain to assign it to the site
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'sdm_domains',
+                array( 'site_id' => $site_id, 'updated_at' => current_time('mysql') ),
+                array( 'id' => $domain_id ),
+                array( '%d', '%s' ),
+                array( '%d' )
+            );
+
+            if ( false !== $updated ) {
+                $success++;
+            } else {
+                $failed++;
+                $messages[] = sprintf( __( 'Failed to assign Domain ID %d.', 'spintax-domain-manager' ), $domain_id );
+            }
+        }
+
+        $message = sprintf(
+            __( '%d domains assigned successfully, %d failed.', 'spintax-domain-manager' ),
+            $success,
+            $failed
+        );
+        if ( ! empty( $messages ) ) {
+            $message .= ' ' . implode( ' ', $messages );
+        }
+
+        return array(
+            'success' => $success,
+            'failed' => $failed,
+            'message' => $message
+        );
+    }
+
+    /**
+     * Returns the total number of domains in the sdm_domains table.
+     *
+     * @return int Total count of domains.
+     */
+    public function count_domains() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'sdm_domains';
+        $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        return intval($count);
+    }
+} /*<-- Last! */
 
 /**
  * AJAX Handler: Fetch and sync domains (zones) for a project from CloudFlare,
@@ -198,4 +288,33 @@ function sdm_ajax_fetch_domains() {
     ) );
 }
 add_action( 'wp_ajax_sdm_fetch_domains', 'sdm_ajax_fetch_domains' );
+
+/**
+ * AJAX Handler: Assign Domains to Site
+ */
+function sdm_ajax_assign_domains_to_site() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $domain_ids = isset( $_POST['domain_ids'] ) ? json_decode( stripslashes( $_POST['domain_ids'] ), true ) : array();
+    $site_id = isset( $_POST['site_id'] ) ? absint( $_POST['site_id'] ) : 0;
+
+    if ( empty( $domain_ids ) || $site_id <= 0 ) {
+        wp_send_json_error( __( 'Invalid data provided.', 'spintax-domain-manager' ) );
+    }
+
+    $manager = new SDM_Domains_Manager();
+    $result = $manager->assign_domains_to_site( $domain_ids, $site_id );
+
+    if ( $result['success'] > 0 || $result['failed'] > 0 ) {
+        wp_send_json_success( array( 'message' => $result['message'] ) );
+    } else {
+        wp_send_json_error( $result['message'] );
+    }
+}
+add_action( 'wp_ajax_sdm_assign_domains_to_site', 'sdm_ajax_assign_domains_to_site' );
+
+
 

@@ -213,3 +213,30 @@
     color: #666;
     margin-top: 5px;
 }
+
+
+/* Styling for Select2 in inline editing */
+.sdm-main-domain-select {
+    width: 200px; /* Adjust width as needed */
+    padding: 4px;
+}
+
+.select2-container .select2-selection--single {
+    height: 30px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 30px;
+    padding-left: 5px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 30px;
+}
+
+/* Ensure Select2 is hidden by default in edit mode */
+.sdm-edit-input.sdm-main-domain-select.sdm-hidden {
+    display: none;
+}
