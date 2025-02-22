@@ -85,6 +85,7 @@ $main_nonce = sdm_create_main_nonce();
                 <th><?php esc_html_e( 'Icon', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Site Name', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Main Domain', 'spintax-domain-manager' ); ?></th>
+                <th><?php esc_html_e( 'Server IP', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Language', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Created At', 'spintax-domain-manager' ); ?></th>
                 <th><?php esc_html_e( 'Updated At', 'spintax-domain-manager' ); ?></th>
@@ -101,7 +102,7 @@ $main_nonce = sdm_create_main_nonce();
                                 if ( ! empty( $site->svg_icon ) ) {
                                     echo $site->svg_icon; // Выводим пользовательский SVG
                                 } else {
-                                    echo file_get_contents( SDM_PLUGIN_DIR . 'assets/icons/spintax-icon.svg' );
+                                    echo file_get_contents( SDM_PLUGIN_DIR . 'assets/icons/spintax-icon.svg' ); // Дефолтная иконка
                                 }
                                 ?>
                             </span>
@@ -114,7 +115,14 @@ $main_nonce = sdm_create_main_nonce();
                             <span class="sdm-display-value"><?php echo esc_html( $site->main_domain ); ?></span>
                             <input class="sdm-edit-input sdm-hidden" type="text" name="main_domain" value="<?php echo esc_attr( $site->main_domain ); ?>">
                         </td>
-                        <td><?php echo esc_html( $site->language ); ?></td>
+                        <td class="column-server-ip">
+                            <span class="sdm-display-value"><?php echo esc_html( $site->server_ip ?: '(Not set)' ); ?></span>
+                            <input class="sdm-edit-input sdm-hidden" type="text" name="server_ip" value="<?php echo esc_attr( $site->server_ip ?: '' ); ?>">
+                        </td>
+                        <td class="column-language">
+                            <span class="sdm-display-value"><?php echo esc_html( $site->language ?: '(Not set)' ); ?></span>
+                            <input class="sdm-edit-input sdm-hidden" type="text" name="language" value="<?php echo esc_attr( $site->language ?: '' ); ?>" placeholder="EN_en">
+                        </td>
                         <td><?php echo esc_html( $site->created_at ); ?></td>
                         <td><?php echo esc_html( $site->updated_at ); ?></td>
                         <td class="column-actions">
@@ -126,7 +134,7 @@ $main_nonce = sdm_create_main_nonce();
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr id="no-sites">
-                    <td colspan="7"><?php esc_html_e( 'No sites found for this project.', 'spintax-domain-manager' ); ?></td>
+                    <td colspan="8"><?php esc_html_e( 'No sites found for this project.', 'spintax-domain-manager' ); ?></td>
                 </tr>
             <?php endif; ?>
         </tbody>

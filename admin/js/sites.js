@@ -117,13 +117,13 @@ document.addEventListener('DOMContentLoaded', function() {
         var saveLink     = row.querySelector('.sdm-save-site');
 
         if (editMode) {
-            displayElems.forEach(function(el){ el.classList.add('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.remove('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.add('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.remove('sdm-hidden'); });
             editLink.classList.add('sdm-hidden');
             saveLink.classList.remove('sdm-hidden');
         } else {
-            displayElems.forEach(function(el){ el.classList.remove('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.add('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.remove('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.add('sdm-hidden'); });
             editLink.classList.remove('sdm-hidden');
             saveLink.classList.add('sdm-hidden');
         }
@@ -132,21 +132,78 @@ document.addEventListener('DOMContentLoaded', function() {
     function saveRow(row) {
         var siteId = row.getAttribute('data-site-id');
         var nonce  = row.getAttribute('data-update-nonce');
+
+        // Read the new values from input fields
         var siteNameInput   = row.querySelector('input[name="site_name"]');
         var mainDomainInput = row.querySelector('input[name="main_domain"]');
+        var serverIpInput   = row.querySelector('input[name="server_ip"]');
+        var languageInput   = row.querySelector('input[name="language"]');
         var siteName   = siteNameInput ? siteNameInput.value : '';
-        var mainDomain = mainDomainInput ? mainDomainInput.value : '';
+        var mainDomain = mainDomainInput ? mainDomainInput.value.trim() : '';
+        var serverIp   = serverIpInput ? serverIpInput.value.trim() : '';
+        var language   = languageInput ? languageInput.value.trim() : '';
         var saveLink = row.querySelector('.sdm-save-site');
 
-        // Replace the "Save" text with a spinner during the request
-        saveLink.innerHTML = '<span class="spinner is-active" style="float:none;margin:0;"></span>';
+        // Get the current main_domain from the display value
+        var currentMainDomainSpan = row.querySelector('.column-main-domain .sdm-display-value');
+        var currentMainDomain = currentMainDomainSpan ? currentMainDomainSpan.textContent.trim() : '';
 
+        // Validate main_domain only if it has changed
+        if (mainDomain) {
+            if (mainDomain !== currentMainDomain) {
+                // Show spinner while validating
+                saveLink.innerHTML = '<span class="spinner is-active" style="float:none;margin:0;"></span>';
+
+                var validateFormData = new FormData();
+                validateFormData.append('action', 'sdm_validate_domain');
+                validateFormData.append('domain', mainDomain);
+                validateFormData.append('sdm_main_nonce_field', nonce);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: validateFormData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    // Restore "Save" text after validation
+                    saveLink.innerHTML = 'Save';
+
+                    if (!data.success) {
+                        showSitesNotice('error', data.data);
+                        return;
+                    }
+
+                    // Proceed with saving if domain is valid
+                    saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, saveLink);
+                })
+                .catch(function(error) {
+                    console.error('Domain validation error:', error);
+                    saveLink.innerHTML = 'Save';
+                    showSitesNotice('error', 'Ajax request failed during domain validation.');
+                });
+            } else {
+                // If main_domain hasn't changed, proceed with saving without validation
+                saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, saveLink);
+            }
+        } else {
+            showSitesNotice('error', 'Main Domain is required.');
+        }
+    }
+
+    // Helper function to avoid code duplication
+    function saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, saveLink) {
         var formData = new FormData();
         formData.append('action', 'sdm_update_site');
         formData.append('sdm_main_nonce_field', nonce);
         formData.append('site_id', siteId);
         formData.append('site_name', siteName);
         formData.append('main_domain', mainDomain);
+        formData.append('server_ip', serverIp);
+        formData.append('language', language); // Add language to the form data
+
+        // Show spinner during save
+        saveLink.innerHTML = '<span class="spinner is-active" style="float:none;margin:0;"></span>';
 
         fetch(ajaxurl, {
             method: 'POST',
@@ -159,8 +216,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 var siteNameSpan   = row.querySelector('.column-site-name .sdm-display-value');
                 var mainDomainSpan = row.querySelector('.column-main-domain .sdm-display-value');
+                var serverIpSpan   = row.querySelector('.column-server-ip .sdm-display-value');
+                var languageSpan   = row.querySelector('.column-language .sdm-display-value');
                 if (siteNameSpan) siteNameSpan.textContent = siteName;
                 if (mainDomainSpan) mainDomainSpan.textContent = mainDomain;
+                if (serverIpSpan) serverIpSpan.textContent = serverIp ? serverIp : '(Not set)';
+                if (languageSpan) languageSpan.textContent = language ? language : '(Not set)';
                 toggleEditRow(row, false);
                 showSitesNotice('updated', data.data.message);
             } else {
@@ -173,7 +234,6 @@ document.addEventListener('DOMContentLoaded', function() {
             showSitesNotice('error', 'Ajax request failed.');
         });
     }
-
     // ----------------------------
     // Handle SVG Icon Editing
     // ----------------------------

@@ -86,16 +86,20 @@ class SDM_Sites_Manager {
 
         $site_name   = isset($data['site_name'])   ? sanitize_text_field($data['site_name'])   : $old->site_name;
         $main_domain = isset($data['main_domain']) ? sanitize_text_field($data['main_domain']) : $old->main_domain;
+        $server_ip   = isset($data['server_ip'])   ? sanitize_text_field($data['server_ip'])   : $old->server_ip;
+        $language    = isset($data['language'])    ? sanitize_text_field($data['language'])    : $old->language;
 
         $updated = $wpdb->update(
             $table,
             array(
                 'site_name'   => $site_name,
                 'main_domain' => $main_domain,
+                'server_ip'   => $server_ip,
+                'language'    => $language, // Add language update
                 'updated_at'  => current_time('mysql'),
             ),
             array( 'id' => $site_id ),
-            array( '%s','%s','%s' ),
+            array( '%s', '%s', '%s', '%s', '%s' ),
             array( '%d' )
         );
 
