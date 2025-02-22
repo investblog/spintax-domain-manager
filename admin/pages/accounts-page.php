@@ -30,7 +30,7 @@ $services = $service_manager->get_all_services();
     <div id="sdm-accounts-notice" class="sdm-notice"></div>
 
     <!-- Accounts Table -->
-    <table id="sdm-accounts-table" class="wp-list-table widefat fixed striped sdm-table">
+    <table id="sdm-accounts-table" class="wp-list-table widefat striped sdm-table">
         <thead>
             <tr>
                 <th><?php esc_html_e( 'Project ID', 'spintax-domain-manager' ); ?></th>
@@ -71,7 +71,7 @@ $services = $service_manager->get_all_services();
                             <span class="sdm-display-value">
                                 <?php echo esc_html( $account->service ); // from JOIN (service_name) ?>
                             </span>
-                            <select class="sdm-edit-input sdm-hidden" name="service">
+                            <select class="sdm-edit-input sdm-hidden sdm-select" name="service">
                                 <?php if ( ! empty( $services ) ) : ?>
                                     <?php foreach ( $services as $srv ) : ?>
                                         <option value="<?php echo esc_attr( $srv->service_name ); ?>" <?php selected( $account->service, $srv->service_name ); ?>>
@@ -87,13 +87,13 @@ $services = $service_manager->get_all_services();
                         <!-- Account Name -->
                         <td class="column-account-name">
                             <span class="sdm-display-value"><?php echo esc_html( $account->account_name ); ?></span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="account_name" value="<?php echo esc_attr( $account->account_name ); ?>">
+                            <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="account_name" value="<?php echo esc_attr( $account->account_name ); ?>">
                         </td>
 
                         <!-- Email -->
                         <td class="column-email">
                             <span class="sdm-display-value"><?php echo esc_html( $account->email ); ?></span>
-                            <input class="sdm-edit-input sdm-hidden" type="email" name="email" value="<?php echo esc_attr( $account->email ); ?>">
+                            <input class="sdm-edit-input sdm-hidden sdm-input" type="email" name="email" value="<?php echo esc_attr( $account->email ); ?>">
                         </td>
 
                         <!-- API Key -->
@@ -103,7 +103,7 @@ $services = $service_manager->get_all_services();
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
                                     : ''; ?>
                             </span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="api_key_enc"
+                            <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="api_key_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
                         </td>
 
@@ -114,7 +114,7 @@ $services = $service_manager->get_all_services();
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
                                     : ''; ?>
                             </span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="client_id_enc"
+                            <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="client_id_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
                         </td>
 
@@ -125,7 +125,7 @@ $services = $service_manager->get_all_services();
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
                                     : ''; ?>
                             </span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="client_secret_enc"
+                            <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="client_secret_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
                         </td>
 
@@ -136,7 +136,7 @@ $services = $service_manager->get_all_services();
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
                                     : ''; ?>
                             </span>
-                            <input class="sdm-edit-input sdm-hidden" type="text" name="refresh_token_enc"
+                            <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="refresh_token_enc"
                                    placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>">
                         </td>
 
@@ -147,7 +147,7 @@ $services = $service_manager->get_all_services();
                                     ? esc_html__( 'Encrypted', 'spintax-domain-manager' )
                                     : ''; ?>
                             </span>
-                            <textarea class="sdm-edit-input sdm-hidden" name="additional_data_enc" rows="2"
+                            <textarea class="sdm-edit-input sdm-hidden sdm-textarea" name="additional_data_enc" rows="2"
                                       placeholder="<?php esc_attr_e('Leave empty to keep existing', 'spintax-domain-manager'); ?>"></textarea>
                         </td>
 
@@ -187,9 +187,9 @@ $services = $service_manager->get_all_services();
             <?php sdm_nonce_field(); ?>
             <table class="sdm-form-table">
                 <tr>
-                    <th><label for="project_id"><?php esc_html_e( 'Project', 'spintax-domain-manager' ); ?></label></th>
+                    <th><label for="project_id" class="sdm-label"><?php esc_html_e( 'Project', 'spintax-domain-manager' ); ?></label></th>
                     <td>
-                        <select name="project_id" id="project_id" required>
+                        <select name="project_id" id="project_id" required class="sdm-select">
                             <?php foreach ( $all_projects as $proj ) : ?>
                                 <option value="<?php echo esc_attr( $proj->id ); ?>">
                                     <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
@@ -199,9 +199,9 @@ $services = $service_manager->get_all_services();
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="service"><?php esc_html_e( 'Service', 'spintax-domain-manager' ); ?></label></th>
+                    <th><label for="service" class="sdm-label"><?php esc_html_e( 'Service', 'spintax-domain-manager' ); ?></label></th>
                     <td>
-                        <select name="service" id="service">
+                        <select name="service" id="service" class="sdm-select">
                             <?php if ( ! empty( $services ) ) : ?>
                                 <?php foreach ( $services as $srv ) : ?>
                                     <option value="<?php echo esc_attr( $srv->service_name ); ?>">
@@ -215,36 +215,36 @@ $services = $service_manager->get_all_services();
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="account_name"><?php esc_html_e( 'Account Name (optional)', 'spintax-domain-manager' ); ?></label></th>
-                    <td><input type="text" name="account_name" id="account_name"></td>
+                    <th><label for="account_name" class="sdm-label"><?php esc_html_e( 'Account Name (optional)', 'spintax-domain-manager' ); ?></label></th>
+                    <td><input type="text" name="account_name" id="account_name" class="sdm-input"></td>
                 </tr>
                 <tr>
-                    <th><label for="email"><?php esc_html_e( 'Email (optional)', 'spintax-domain-manager' ); ?></label></th>
-                    <td><input type="email" name="email" id="email"></td>
+                    <th><label for="email" class="sdm-label"><?php esc_html_e( 'Email (optional)', 'spintax-domain-manager' ); ?></label></th>
+                    <td><input type="email" name="email" id="email" class="sdm-input"></td>
                 </tr>
                 <tr>
-                    <th><label for="api_key_enc"><?php esc_html_e( 'API Key', 'spintax-domain-manager' ); ?></label></th>
-                    <td><input type="text" name="api_key_enc" id="api_key_enc"></td>
+                    <th><label for="api_key_enc" class="sdm-label"><?php esc_html_e( 'API Key', 'spintax-domain-manager' ); ?></label></th>
+                    <td><input type="text" name="api_key_enc" id="api_key_enc" class="sdm-input"></td>
                 </tr>
                 <tr>
-                    <th><label for="client_id_enc"><?php esc_html_e( 'Client ID (optional)', 'spintax-domain-manager' ); ?></label></th>
-                    <td><input type="text" name="client_id_enc" id="client_id_enc"></td>
+                    <th><label for="client_id_enc" class="sdm-label"><?php esc_html_e( 'Client ID (optional)', 'spintax-domain-manager' ); ?></label></th>
+                    <td><input type="text" name="client_id_enc" id="client_id_enc" class="sdm-input"></td>
                 </tr>
                 <tr>
-                    <th><label for="client_secret_enc"><?php esc_html_e( 'Client Secret (optional)', 'spintax-domain-manager' ); ?></label></th>
-                    <td><input type="text" name="client_secret_enc" id="client_secret_enc"></td>
+                    <th><label for="client_secret_enc" class="sdm-label"><?php esc_html_e( 'Client Secret (optional)', 'spintax-domain-manager' ); ?></label></th>
+                    <td><input type="text" name="client_secret_enc" id="client_secret_enc" class="sdm-input"></td>
                 </tr>
                 <tr>
-                    <th><label for="refresh_token_enc"><?php esc_html_e( 'Refresh Token (optional)', 'spintax-domain-manager' ); ?></label></th>
-                    <td><input type="text" name="refresh_token_enc" id="refresh_token_enc"></td>
+                    <th><label for="refresh_token_enc" class="sdm-label"><?php esc_html_e( 'Refresh Token (optional)', 'spintax-domain-manager' ); ?></label></th>
+                    <td><input type="text" name="refresh_token_enc" id="refresh_token_enc" class="sdm-input"></td>
                 </tr>
                 <tr>
-                    <th><label for="additional_data_enc"><?php esc_html_e( 'Additional Data (JSON)', 'spintax-domain-manager' ); ?></label></th>
-                    <td><textarea name="additional_data_enc" id="additional_data_enc" rows="3"></textarea></td>
+                    <th><label for="additional_data_enc" class="sdm-label"><?php esc_html_e( 'Additional Data (JSON)', 'spintax-domain-manager' ); ?></label></th>
+                    <td><textarea name="additional_data_enc" id="additional_data_enc" rows="3" class="sdm-textarea"></textarea></td>
                 </tr>
             </table>
             <p class="submit">
-                <button type="submit" class="button button-primary"><?php esc_html_e( 'Add Account', 'spintax-domain-manager' ); ?></button>
+                <button type="submit" class="button button-primary sdm-action-button">Add Account</button>
             </p>
         </form>
     <?php endif; ?>

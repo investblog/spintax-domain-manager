@@ -190,17 +190,8 @@ class SDM_Domains_Manager {
                 continue;
             }
 
-            // Check if the domain is blocked
-            $is_blocked = $wpdb->get_var( $wpdb->prepare(
-                "SELECT (is_blocked_provider OR is_blocked_government) FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
-                $domain_id
-            ));
-
-            if ( $is_blocked ) {
-                $failed++;
-                $messages[] = sprintf( __( 'Domain ID %d is blocked and cannot be assigned.', 'spintax-domain-manager' ), $domain_id );
-                continue;
-            }
+            // Allow blocked domains to be assigned to sites (but not as main domains)
+            // No check for is_blocked_provider or is_blocked_government here
 
             // Update the domain to assign it to the site
             $updated = $wpdb->update(

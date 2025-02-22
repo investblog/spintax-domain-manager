@@ -1,7 +1,7 @@
 <?php
 /**
  * File: admin/pages/domains-page.php
- * Description: Displays the Domains interface for a selected project, with mass actions and individual domain actions.
+ * Description: Displays the Domains interface for a selected project, with mass actions and individual domain actions, including CloudFlare synchronization.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -64,7 +64,30 @@ $main_nonce = sdm_create_main_nonce();
     <!-- Notice container -->
     <div id="sdm-domains-notice" class="sdm-notice"></div>
 
-    <!-- Project Indicator (instead of selector in table) -->
+    <!-- Project Selector and Fetch Button -->
+    <form method="get" action="" class="sdm-project-form">
+        <input type="hidden" name="page" value="sdm-domains">
+        <label for="sdm-project-selector" class="sdm-label"><?php esc_html_e( 'Select Project:', 'spintax-domain-manager' ); ?></label>
+        <select id="sdm-project-selector" name="project_id" onchange="this.form.submit()" class="sdm-select">
+            <option value="0"><?php esc_html_e( '— Select —', 'spintax-domain-manager' ); ?></option>
+            <?php if ( ! empty( $all_projects ) ) : ?>
+                <?php foreach ( $all_projects as $proj ) : ?>
+                    <option value="<?php echo esc_attr( $proj->id ); ?>"
+                        <?php selected( $proj->id, $current_project_id ); ?>>
+                        <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
+                    </option>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </select>
+        <?php if ( $current_project_id > 0 ) : ?>
+            <button type="button" id="sdm-fetch-domains" class="button button-primary sdm-fetch-button" style="margin-left: 10px;">
+                <?php esc_html_e( 'Fetch Project Domains', 'spintax-domain-manager' ); ?>
+            </button>
+            <span id="sdm-fetch-domains-status" class="sdm-status"></span>
+        <?php endif; ?>
+    </form>
+
+    <!-- Project Indicator (additional context) -->
     <?php if ( $current_project_id > 0 ) : ?>
         <p class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
             <?php 
@@ -81,30 +104,7 @@ $main_nonce = sdm_create_main_nonce();
             ?>
         </p>
     <?php else : ?>
-        <!-- Project Selector -->
-        <form method="get" action="">
-            <input type="hidden" name="page" value="sdm-domains">
-            <label for="sdm-project-selector" class="sdm-label"><?php esc_html_e( 'Select Project:', 'spintax-domain-manager' ); ?></label>
-            <select id="sdm-project-selector" name="project_id" onchange="this.form.submit()" class="sdm-select">
-                <option value="0"><?php esc_html_e( '— Select —', 'spintax-domain-manager' ); ?></option>
-                <?php if ( ! empty( $all_projects ) ) : ?>
-                    <?php foreach ( $all_projects as $proj ) : ?>
-                        <option value="<?php echo esc_attr( $proj->id ); ?>"
-                            <?php selected( $proj->id, $current_project_id ); ?>>
-                            <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
-                        </option>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </select>
-            <?php if ( $current_project_id > 0 ) : ?>
-                <button type="button" id="sdm-fetch-domains" class="button button-primary sdm-fetch-button" style="margin-left: 10px;">
-                    <?php esc_html_e( 'Fetch Project Domains', 'spintax-domain-manager' ); ?>
-                </button>
-                <span id="sdm-fetch-domains-status" class="sdm-status"></span>
-            <?php endif; ?>
-        </form>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e( 'Please select a project to view its domains.', 'spintax-domain-manager' ); ?></p>
-        <?php return; ?>
     <?php endif; ?>
 
     <!-- Domains Table -->
@@ -154,7 +154,7 @@ $main_nonce = sdm_create_main_nonce();
                                     <?php echo esc_html( $domain->site_name ); ?>
                                 </a>
                                 <?php if ( $is_main_domain ) : ?>
-                                    <span class="sdm-main-domain-note" style="color: #a00; font-style: italic; font-size: 12px; margin-left: 5px;">(Main)</span>
+                                    <span class="sdm-main-domain-note">(Main)</span>
                                 <?php endif; ?>
                             <?php else : ?>
                                 (Unassigned)
@@ -185,7 +185,7 @@ $main_nonce = sdm_create_main_nonce();
                                         Unassign
                                     </a>
                                 <?php elseif ( $is_assigned && $is_main_domain ) : ?>
-                                    <span class="sdm-assigned-note"><?php esc_html_e( 'Assigned (Main)', 'spintax-domain-manager' ); ?></span>
+                                    <span class="sdm-assigned-note">Assigned (Main)</span>
                                 <?php else : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr( $domain->id ); ?>">
                                 <?php endif; ?>
