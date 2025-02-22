@@ -4,11 +4,14 @@ document.addEventListener('DOMContentLoaded', function() {
     var mainNonceField = document.getElementById('sdm-main-nonce');
     var mainNonce = mainNonceField ? mainNonceField.value : '';
 
+    // Get current project ID
+    var projectSelector = document.getElementById('sdm-project-selector');
+    var currentProjectId = projectSelector ? parseInt(projectSelector.value) : 0;
+
     // ----------------------------
     // 1. Fetch Project Domains
     // ----------------------------
     var fetchBtn = document.getElementById('sdm-fetch-domains');
-    var projectSelector = document.getElementById('sdm-project-selector');
     var fetchStatus = document.getElementById('sdm-fetch-domains-status');
 
     if (fetchBtn && projectSelector && fetchStatus) {
@@ -35,6 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 if (data.success) {
                     fetchStatus.textContent = 'Fetched ' + data.data.count + ' domains from CloudFlare.';
+                    fetchDomains(projectId); // Refresh table after fetch
                 } else {
                     fetchStatus.textContent = 'Error: ' + data.data;
                 }
@@ -47,7 +51,73 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 2. Mass Actions
+    // 2. Sorting and Search
+    // ----------------------------
+    var table = document.getElementById('sdm-domains-table');
+    var sortColumns = document.querySelectorAll('.sdm-sortable');
+    var searchInput = document.getElementById('sdm-domain-search');
+
+    let sortDirection = {};
+    let lastSortedColumn = null;
+
+    // Initialize sorting state
+    sortColumns.forEach(column => {
+        sortDirection[column.dataset.column] = 'asc';
+    });
+
+    // Handle sorting
+    sortColumns.forEach(column => {
+        column.addEventListener('click', function(e) {
+            e.preventDefault();
+            let columnName = this.dataset.column;
+            let direction = sortDirection[columnName] === 'asc' ? 'desc' : 'asc';
+
+            // Reset other columns' sort indicators
+            sortColumns.forEach(col => {
+                if (col !== this) {
+                    col.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+                    sortDirection[col.dataset.column] = 'asc';
+                }
+            });
+
+            // Toggle sort indicator on the clicked column
+            this.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+            this.classList.add('sdm-sorted-' + direction);
+            sortDirection[columnName] = direction;
+
+            // Fetch and sort domains
+            if (currentProjectId > 0) {
+                fetchDomains(currentProjectId, columnName, direction);
+            }
+
+            lastSortedColumn = columnName;
+        });
+    });
+
+    // Handle search
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(function() {
+            if (currentProjectId > 0) {
+                const searchTerm = searchInput.value.trim().toLowerCase();
+                console.log('Searching for:', searchTerm); // Debug
+                fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc', searchTerm);
+            }
+        }, 300));
+
+        // Show spinner while searching
+        searchInput.addEventListener('input', function() {
+            var spinner = document.createElement('span');
+            spinner.className = 'spinner is-active';
+            spinner.style.float = 'none';
+            spinner.style.margin = '0 5px';
+            searchInput.parentNode.appendChild(spinner);
+
+            setTimeout(() => spinner.remove(), 300); // Remove spinner after debounce delay
+        });
+    }
+
+    // ----------------------------
+    // 3. Mass Actions
     // ----------------------------
     var massActionSelect = document.getElementById('sdm-mass-action-select');
     var massActionApply  = document.getElementById('sdm-mass-action-apply');
@@ -109,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 if (data.success) {
                     showDomainsNotice('updated', data.data.message);
-                    location.reload();
+                    fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc'); // Refresh table
                 } else {
                     showDomainsNotice('error', data.data);
                 }
@@ -122,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 3. Delete Inactive Domains
+    // 4. Delete Inactive Domains
     // ----------------------------
     var deleteDomainButtons = document.querySelectorAll('.sdm-delete-domain');
     deleteDomainButtons.forEach(function(button) {
@@ -155,6 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     showDomainsNotice('updated', data.data.message);
                     row.parentNode.removeChild(row);
+                    fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc'); // Refresh table
                 } else {
                     showDomainsNotice('error', data.data);
                 }
@@ -169,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ----------------------------
-    // 4. Unassign Single Domain
+    // 5. Unassign Single Domain
     // ----------------------------
     var unassignButtons = document.querySelectorAll('.sdm-unassign');
     unassignButtons.forEach(function(button) {
@@ -207,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         row.querySelector('.sdm-main-domain-note').remove();
                     }
                     row.querySelector('.sdm-domain-checkbox').style.display = 'inline-block';
+                    fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc'); // Refresh table
                 } else {
                     showDomainsNotice('error', data.data);
                 }
@@ -221,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ----------------------------
-    // 5. Modal for Mass Adding Domains to CloudFlare
+    // 6. Modal for Mass Adding Domains to CloudFlare
     // ----------------------------
     var massAddModal = document.getElementById('sdm-mass-add-modal');
     var modalConfirm = document.getElementById('sdm-modal-confirm');
@@ -268,7 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     showDomainsNotice('updated', data.data.message);
                     closeMassAddModal();
-                    location.reload();
+                    fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc'); // Refresh table
                 } else {
                     showDomainsNotice('error', data.data);
                 }
@@ -288,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 6. Modal for Assigning Domains to Site
+    // 7. Modal for Assigning Domains to Site
     // ----------------------------
     var assignModal = document.getElementById('sdm-assign-to-site-modal');
     var assignConfirm = document.getElementById('sdm-assign-confirm');
@@ -364,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     showDomainsNotice('updated', data.data.message);
                     closeAssignToSiteModal();
-                    location.reload();
+                    fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc'); // Refresh table
                 } else {
                     showDomainsNotice('error', data.data);
                 }
@@ -389,7 +461,175 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 7. Helper: Show Domains Notice
+    // 8. Helper Functions
+    // ----------------------------
+
+    // Debounce function for search
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Fetch domains with sorting and search
+    function fetchDomains(projectId, sortColumn = 'created_at', sortDirection = 'desc', searchTerm = '') {
+        var formData = new FormData();
+        formData.append('action', 'sdm_fetch_domains_list');
+        formData.append('project_id', projectId);
+        formData.append('sort_column', sortColumn);
+        formData.append('sort_direction', sortDirection);
+        formData.append('search_term', searchTerm);
+        formData.append('sdm_main_nonce_field', mainNonce);
+
+        // Show spinner while fetching
+        var spinner = document.createElement('span');
+        spinner.className = 'spinner is-active';
+        spinner.style.float = 'none';
+        spinner.style.margin = '0 5px';
+        var table = document.getElementById('sdm-domains-table');
+        table.parentNode.insertBefore(spinner, table);
+
+        fetch(ajaxurl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            spinner.remove();
+            if (data.success) {
+                var tbody = document.querySelector('#sdm-domains-table tbody');
+                tbody.innerHTML = data.data.html;
+                // Reinitialize event listeners for new elements
+                initializeDynamicListeners();
+                // Update sort indicators
+                if (sortColumn) {
+                    var sortedColumn = document.querySelector(`.sdm-sortable[data-column="${sortColumn}"]`);
+                    if (sortedColumn) {
+                        sortedColumn.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+                        sortedColumn.classList.add('sdm-sorted-' + (sortDirection === 'desc' ? 'desc' : 'asc'));
+                    }
+                }
+            } else {
+                showDomainsNotice('error', data.data);
+            }
+        })
+        .catch(function(error) {
+            console.error('Fetch domains list error:', error);
+            showDomainsNotice('error', 'Ajax request failed.');
+            spinner.remove();
+        });
+    }
+
+    // Initialize dynamic event listeners (e.g., delete, unassign buttons)
+    function initializeDynamicListeners() {
+        var deleteDomainButtons = document.querySelectorAll('.sdm-delete-domain');
+        deleteDomainButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!confirm('Are you sure you want to delete this domain?')) return;
+
+                var row = this.closest('tr');
+                var domainId = row.getAttribute('data-domain-id');
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_delete_domain');
+                formData.append('domain_id', domainId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+
+                var spinner = document.createElement('span');
+                spinner.className = 'spinner is-active';
+                spinner.style.float = 'none';
+                spinner.style.margin = '0 5px';
+                this.innerHTML = '';
+                this.appendChild(spinner);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showDomainsNotice('updated', data.data.message);
+                        row.parentNode.removeChild(row);
+                        fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
+                    } else {
+                        showDomainsNotice('error', data.data);
+                    }
+                    spinner.remove();
+                })
+                .catch(function(error) {
+                    console.error('Delete domain error:', error);
+                    showDomainsNotice('error', 'Ajax request failed.');
+                    spinner.remove();
+                });
+            });
+        });
+
+        var unassignButtons = document.querySelectorAll('.sdm-unassign');
+        unassignButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!confirm('Are you sure you want to unassign this domain?')) return;
+
+                var row = this.closest('tr');
+                var domainId = row.getAttribute('data-domain-id');
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_unassign_domain');
+                formData.append('domain_id', domainId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+
+                var spinner = document.createElement('span');
+                spinner.className = 'spinner is-active';
+                spinner.style.float = 'none';
+                spinner.style.margin = '0 5px';
+                this.innerHTML = '';
+                this.appendChild(spinner);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showDomainsNotice('updated', data.data.message);
+                        row.querySelector('.sdm-site-link').parentNode.innerHTML = '(Unassigned)';
+                        row.querySelector('.sdm-unassign').remove();
+                        if (row.querySelector('.sdm-main-domain-note')) {
+                            row.querySelector('.sdm-main-domain-note').remove();
+                        }
+                        row.querySelector('.sdm-domain-checkbox').style.display = 'inline-block';
+                        fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
+                    } else {
+                        showDomainsNotice('error', data.data);
+                    }
+                    spinner.remove();
+                })
+                .catch(function(error) {
+                    console.error('Unassign domain error:', error);
+                    showDomainsNotice('error', 'Ajax request failed.');
+                    spinner.remove();
+                });
+            });
+        });
+    }
+
+    // Initialize dynamic listeners on page load
+    initializeDynamicListeners();
+
+    // ----------------------------
+    // 9. Helper: Show Domains Notice
     // ----------------------------
     function showDomainsNotice(type, message) {
         var noticeContainer = document.getElementById('sdm-domains-notice');

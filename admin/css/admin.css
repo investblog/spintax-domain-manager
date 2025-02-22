@@ -27,11 +27,43 @@
     background-color: #f5f5f5;
     font-weight: 600;
     text-align: left;
+    cursor: pointer;
+    position: relative;
+}
+.sdm-table th:hover {
+    background-color: #e5e5e5;
+}
+.sdm-table tbody tr:hover {
+    background-color: #f9f9f9;
+    transition: background-color 0.2s ease;
 }
 .sdm-display-value {
     display: inline-block;
     margin-right: 5px;
     color: #333;
+}
+
+/* Sorting indicators */
+.sdm-sortable {
+    position: relative;
+}
+.sdm-sorted-asc::after,
+.sdm-sorted-desc::after {
+    content: ' ';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+}
+.sdm-sorted-asc::after {
+    border-bottom: 5px solid #333;
+}
+.sdm-sorted-desc::after {
+    border-top: 5px solid #333;
 }
 
 /*--------------------------------------------------------------
@@ -82,6 +114,15 @@
     border-radius: 4px;
 }
 
+/* Стили для поля поиска */
+.sdm-input {
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 200px;
+}
+
 /*--------------------------------------------------------------
 4. WP-LIKE NOTICES
 --------------------------------------------------------------*/
@@ -129,7 +170,6 @@
     transition: opacity 0.2s ease, background-color 0.2s ease;
     cursor: pointer;
     border: none;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 .sdm-action-button:hover {
     opacity: 0.9;
@@ -185,8 +225,6 @@
     background: #f9f9f9;
     border: 1px solid #eee;
     border-radius: 4px;
-    font-size: 14px;
-    color: #666;
 }
 
 /* Стили для ярлыков */
@@ -245,7 +283,6 @@
     max-width: 500px;
     width: 90%;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    text-align: left;
 }
 
 .sdm-modal-close {
@@ -265,7 +302,6 @@
 /* Стили для действий в модальном окне */
 .sdm-modal-actions {
     text-align: right;
-    margin-top: 20px;
 }
 
 .sdm-modal-actions .sdm-action-button {
@@ -292,20 +328,15 @@
     color: #005177;
 }
 
-/* Стили для таблицы доменов */
-.sdm-table tbody tr:hover {
-    background-color: #f9f9f9;
-    transition: background-color 0.2s ease;
+/* Стили для фильтров и поиска */
+.sdm-filter-controls {
+    margin: 0 0 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
 }
 
-/* Стили для спиннера */
-.spinner {
-    float: none;
-    margin: 0 5px;
-    vertical-align: middle;
-}
-
-/* Стили для иконок в таблице */
+/* Styling for site icons in the table */
 .sdm-site-icon {
     display: inline-block;
     width: 24px;
@@ -328,13 +359,51 @@
 }
 
 .sdm-site-icon:hover svg {
-    opacity: 0.8;
+    opacity: 0.8; /* Легкая подсветка при наведении */
 }
 
-/* Центрирование иконок внутри контейнера */
 .sdm-site-icon svg {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%); /* Центрируем SVG в контейнере */
+}
+
+#sdm-edit-icon-form textarea {
+    width: 100%;
+    min-height: 100px;
+    font-family: monospace; /* Для читаемости кода SVG */
+}
+
+#sdm-edit-icon-form .description {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+
+/* Styling for Select2 in inline editing */
+.sdm-main-domain-select {
+    width: 200px; /* Adjust width as needed */
+    padding: 4px;
+}
+
+.select2-container .select2-selection--single {
+    height: 30px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 30px;
+    padding-left: 5px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 30px;
+}
+
+/* Ensure Select2 is hidden by default in edit mode */
+.sdm-edit-input.sdm-main-domain-select.sdm-hidden {
+    display: none;
 }

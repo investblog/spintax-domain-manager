@@ -1,7 +1,7 @@
 <?php
 /**
  * File: admin/pages/domains-page.php
- * Description: Displays the Domains interface for a selected project, with mass actions and individual domain actions, including CloudFlare synchronization.
+ * Description: Displays the Domains interface for a selected project, with mass actions, individual domain actions, and column sorting.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -89,7 +89,7 @@ $main_nonce = sdm_create_main_nonce();
 
     <!-- Project Indicator (additional context) -->
     <?php if ( $current_project_id > 0 ) : ?>
-        <p class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
+        <h3 class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
             <?php 
             $project_name = '';
             foreach ($all_projects as $proj) {
@@ -102,7 +102,7 @@ $main_nonce = sdm_create_main_nonce();
                 $current_project_id, 
                 esc_html( $project_name ?: 'Unknown' ) ); 
             ?>
-        </p>
+        </h3>
     <?php else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e( 'Please select a project to view its domains.', 'spintax-domain-manager' ); ?></p>
     <?php endif; ?>
@@ -111,21 +111,21 @@ $main_nonce = sdm_create_main_nonce();
     <table id="sdm-domains-table" class="wp-list-table widefat fixed striped sdm-table">
         <thead>
             <tr>
-                <!-- Domain -->
-                <th><?php esc_html_e( 'Domain', 'spintax-domain-manager' ); ?></th>
-                <!-- Site -->
-                <th><?php esc_html_e( 'Site', 'spintax-domain-manager' ); ?></th>
-                <!-- Abuse Status -->
-                <th><?php esc_html_e( 'Abuse Status', 'spintax-domain-manager' ); ?></th>
-                <!-- Blocked -->
-                <th><?php esc_html_e( 'Blocked', 'spintax-domain-manager' ); ?></th>
-                <!-- Status -->
-                <th><?php esc_html_e( 'Status', 'spintax-domain-manager' ); ?></th>
-                <!-- Last Checked -->
-                <th><?php esc_html_e( 'Last Checked', 'spintax-domain-manager' ); ?></th>
-                <!-- Created At -->
-                <th><?php esc_html_e( 'Created At', 'spintax-domain-manager' ); ?></th>
-                <!-- Actions -->
+                <!-- Domain (sortable) -->
+                <th class="sdm-sortable" data-column="domain"><?php esc_html_e( 'Domain', 'spintax-domain-manager' ); ?></th>
+                <!-- Site (sortable) -->
+                <th class="sdm-sortable" data-column="site_name"><?php esc_html_e( 'Site', 'spintax-domain-manager' ); ?></th>
+                <!-- Abuse Status (sortable) -->
+                <th class="sdm-sortable" data-column="abuse_status"><?php esc_html_e( 'Abuse Status', 'spintax-domain-manager' ); ?></th>
+                <!-- Blocked (sortable) -->
+                <th class="sdm-sortable" data-column="blocked"><?php esc_html_e( 'Blocked', 'spintax-domain-manager' ); ?></th>
+                <!-- Status (sortable) -->
+                <th class="sdm-sortable" data-column="status"><?php esc_html_e( 'Status', 'spintax-domain-manager' ); ?></th>
+                <!-- Last Checked (sortable) -->
+                <th class="sdm-sortable" data-column="last_checked"><?php esc_html_e( 'Last Checked', 'spintax-domain-manager' ); ?></th>
+                <!-- Created At (sortable) -->
+                <th class="sdm-sortable" data-column="created_at"><?php esc_html_e( 'Created At', 'spintax-domain-manager' ); ?></th>
+                <!-- Actions (non-sortable) -->
                 <th><?php esc_html_e( 'Actions', 'spintax-domain-manager' ); ?></th>
             </tr>
         </thead>
@@ -141,7 +141,14 @@ $main_nonce = sdm_create_main_nonce();
                     <tr id="domain-row-<?php echo esc_attr( $domain->id ); ?>"
                         data-domain-id="<?php echo esc_attr( $domain->id ); ?>"
                         data-update-nonce="<?php echo esc_attr( $main_nonce ); ?>"
-                        data-site-id="<?php echo esc_attr( $domain->site_id ); ?>">
+                        data-site-id="<?php echo esc_attr( $domain->site_id ); ?>"
+                        data-domain="<?php echo esc_attr( $domain->domain ); ?>"
+                        data-site-name="<?php echo esc_attr( $domain->site_name ?: '' ); ?>"
+                        data-abuse-status="<?php echo esc_attr( $domain->abuse_status ); ?>"
+                        data-blocked="<?php echo esc_attr( $is_blocked ? 'Yes' : 'No' ); ?>"
+                        data-status="<?php echo esc_attr( $domain->status ); ?>"
+                        data-last-checked="<?php echo esc_attr( $domain->last_checked ); ?>"
+                        data-created-at="<?php echo esc_attr( $domain->created_at ); ?>">
 
                         <!-- Domain -->
                         <td><?php echo esc_html( $domain->domain ); ?></td>
