@@ -407,3 +407,36 @@
 .sdm-edit-input.sdm-main-domain-select.sdm-hidden {
     display: none;
 }
+
+.sdm-redirect-arrow {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+.sdm-redirect-arrow::after {
+    content: '';
+    display: block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+}
+
+.sdm-redirect-arrow.main::after {
+    border-bottom: 5px solid #46b450; /* Зеленая стрелка вниз для Main */
+}
+
+.sdm-redirect-arrow.clue::after {
+    border-top: 5px solid #f7b500; /* Оранжевая стрелка вверх для Clue */
+}
+
+.sdm-redirect-arrow.hidden::after {
+    border-bottom: 5px solid #dc3232; /* Красная стрелка вниз для Hidden */
+}
+
+.sdm-blocked-domain {
+    color: #dc3232; /* Красный цвет для заблокированных доменов */
+}

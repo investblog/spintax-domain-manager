@@ -120,16 +120,32 @@ function sdm_check_main_nonce() {
     check_ajax_referer( SDM_NONCE_ACTION, SDM_NONCE_FIELD );
 }
 
+/**
+ * Enqueue admin assets including Flag Icons for language flags.
+ */
 function sdm_enqueue_admin_assets() {
     wp_enqueue_style( 'wp-admin' );
     wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array('jquery'), SDM_VERSION, true );
     wp_enqueue_script( 'sdm-domains-js', SDM_PLUGIN_URL . 'admin/js/domains.js', array('jquery'), SDM_VERSION, true );
     wp_enqueue_script( 'sdm-sites-js', SDM_PLUGIN_URL . 'admin/js/sites.js', array('jquery'), SDM_VERSION, true );
-    wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
-
-    // Подключаем Select2 только на страницах сайтов и доменов
+    
+    // Подключаем redirects.js только на странице редиректов
     $screen = get_current_screen();
-    if ( $screen && ( $screen->id === 'spintax-manager_page_sdm-sites' || $screen->id === 'spintax-manager_page_sdm-domains' ) ) {
+    if ( $screen && $screen->id === 'spintax-manager_page_sdm-redirects' ) {
+        wp_enqueue_script( 'sdm-redirects-js', SDM_PLUGIN_URL . 'admin/js/redirects.js', array('jquery'), SDM_VERSION, true );
+    }
+    
+    wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
+    
+    // Подключаем Flag Icons для отображения флажков языков
+    wp_enqueue_style( 'flag-icons', 'https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css', array(), '3.5.0' );
+
+    // Подключаем Select2 только на страницах сайтов, доменов и редиректов
+    if ( $screen && ( 
+        $screen->id === 'spintax-manager_page_sdm-sites' || 
+        $screen->id === 'spintax-manager_page_sdm-domains' || 
+        $screen->id === 'spintax-manager_page_sdm-redirects' 
+    ) ) {
         wp_enqueue_style( 'select2-css', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css', array(), '4.0.13' );
         wp_enqueue_script( 'select2', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js', array('jquery'), '4.0.13', true );
     }
