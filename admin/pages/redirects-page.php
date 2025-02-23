@@ -56,22 +56,27 @@ $redirects_manager = new SDM_Redirects_Manager();
     <!-- Notice container -->
     <div id="sdm-redirects-notice" class="sdm-notice"></div>
 
-    <!-- Project Selector -->
-    <form method="get" action="" class="sdm-project-form">
-        <input type="hidden" name="page" value="sdm-redirects">
-        <label for="sdm-project-selector" class="sdm-label"><?php esc_html_e( 'Select Project:', 'spintax-domain-manager' ); ?></label>
-        <select id="sdm-project-selector" name="project_id" onchange="this.form.submit()" class="sdm-select">
-            <option value="0"><?php esc_html_e( '— Select —', 'spintax-domain-manager' ); ?></option>
-            <?php if ( ! empty( $all_projects ) ) : ?>
-                <?php foreach ( $all_projects as $proj ) : ?>
-                    <option value="<?php echo esc_attr( $proj->id ); ?>"
-                        <?php selected( $proj->id, $current_project_id ); ?>>
-                        <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
-                    </option>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </select>
-    </form>
+    <!-- Project Selector and Action Button in the same line -->
+    <div style="margin: 10px 0 20px; display: flex; align-items: center; gap: 10px;">
+        <form method="get" action="" class="sdm-project-form" style="margin: 0;">
+            <input type="hidden" name="page" value="sdm-redirects">
+            <label for="sdm-project-selector" class="sdm-label" style="margin-right: 10px;"><?php esc_html_e( 'Select Project:', 'spintax-domain-manager' ); ?></label>
+            <select id="sdm-project-selector" name="project_id" onchange="this.form.submit()" class="sdm-select">
+                <option value="0"><?php esc_html_e( '— Select —', 'spintax-domain-manager' ); ?></option>
+                <?php if ( ! empty( $all_projects ) ) : ?>
+                    <?php foreach ( $all_projects as $proj ) : ?>
+                        <option value="<?php echo esc_attr( $proj->id ); ?>"
+                            <?php selected( $proj->id, $current_project_id ); ?>>
+                            <?php echo sprintf( '%d - %s', $proj->id, $proj->project_name ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </select>
+        </form>
+        <button id="sdm-sync-cloudflare" class="button sdm-action-button" style="background-color: #0073aa; color: #fff;">
+            <?php esc_html_e( 'Sync with CloudFlare', 'spintax-domain-manager' ); ?>
+        </button>
+    </div>
 
     <?php if ( $current_project_id === 0 ) : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e( 'Please select a project to view its redirects.', 'spintax-domain-manager' ); ?></p>
@@ -94,18 +99,12 @@ $redirects_manager = new SDM_Redirects_Manager();
         ?>
     </p>
 
-    <!-- Action Buttons -->
-    <div style="margin-bottom: 20px;">
-        <button id="sdm-sync-cloudflare" class="button sdm-action-button" style="background-color: #0073aa; color: #fff;">
-            <?php esc_html_e( 'Sync with CloudFlare', 'spintax-domain-manager' ); ?>
-        </button>
-    </div>
-
+    <!-- Остальная часть файла остается без изменений -->
     <?php if ( ! empty( $sites ) ) : ?>
         <?php foreach ( $sites as $site ) : ?>
             <h3><?php echo esc_html( $site->site_name ); ?>
                 <?php if ( ! empty( $site->svg_icon ) ) : ?>
-                    <span class="sdm-site-icon" style="vertical-align: middle; margin-left: 5px;" dangerouslySetInnerHTML={{__html: <?php echo htmlspecialchars( $site->svg_icon ); ?> }}></span>
+                    <span class="sdm-site-icon" style="vertical-align: middle; margin-left: 5px;"><?php echo wp_kses( $site->svg_icon, array( 'svg' => array( 'class' => true, 'width' => true, 'height' => true ), 'path' => array( 'd' => true ) ) ); ?></span>
                 <?php else : ?>
                     <span class="fi fi-<?php echo esc_attr( sdm_normalize_language_code( $site->language ?: 'en' ) ); ?>" style="vertical-align: middle; margin-left: 5px;"></span>
                 <?php endif; ?>

@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, является ли текущая страница страницей редиректов
+    var currentScreen = document.querySelector('body').className.match(/spintax-manager_page_sdm-redirects/);
+    if (!currentScreen) {
+        return; // Выходим, если это не страница редиректов
+    }
 
     // Get the global nonce from the hidden field
     var mainNonceField = document.getElementById('sdm-main-nonce');
@@ -43,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------
-    // 2. Delete Redirect
+    // 2. Delete Redirect, Create Default Redirect, Mass Actions, Sync with CloudFlare
     // ----------------------------
     function initializeDynamicListeners() {
         var deleteRedirectButtons = document.querySelectorAll('.sdm-delete-redirect');
@@ -319,4 +324,4 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-});
+}
