@@ -89,7 +89,7 @@ $main_nonce = sdm_create_main_nonce();
 
     <!-- Project Indicator (additional context) -->
     <?php if ( $current_project_id > 0 ) : ?>
-        <h3 class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
+        <h2 class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
             <?php 
             $project_name = '';
             foreach ($all_projects as $proj) {
@@ -102,7 +102,7 @@ $main_nonce = sdm_create_main_nonce();
                 $current_project_id, 
                 esc_html( $project_name ?: 'Unknown' ) ); 
             ?>
-        </h3>
+        </h2>
     <?php else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e( 'Please select a project to view its domains.', 'spintax-domain-manager' ); ?></p>
     <?php endif; ?>
@@ -125,8 +125,10 @@ $main_nonce = sdm_create_main_nonce();
                 <th class="sdm-sortable" data-column="last_checked"><?php esc_html_e( 'Last Checked', 'spintax-domain-manager' ); ?></th>
                 <!-- Created At (sortable) -->
                 <th class="sdm-sortable" data-column="created_at"><?php esc_html_e( 'Created At', 'spintax-domain-manager' ); ?></th>
-                <!-- Actions (non-sortable) -->
-                <th><?php esc_html_e( 'Actions', 'spintax-domain-manager' ); ?></th>
+                <!-- Actions (non-sortable, with checkbox) -->
+                <th><?php esc_html_e( 'Actions', 'spintax-domain-manager' ); ?>
+                    <input type="checkbox" id="sdm-select-all-domains" style="margin-left: 5px; vertical-align: middle;">
+                </th>
             </tr>
         </thead>
         <tbody>

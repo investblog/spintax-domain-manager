@@ -1,20 +1,5 @@
 <?php
-/**
- * File: includes/database.php
- *
- * Handles database creation and deletion for the Spintax Domain Manager.
- *
- * This file defines the following tables:
- * 1. sdm_projects: Top-level projects with global settings.
- *    - Added 'cf_settings' JSON column for storing Cloudflare and other project settings.
- * 2. sdm_sites: Sites belonging to a project.
- *    - Added fields: main_domain, last_domain, language.
- * 3. sdm_domains: Domains (Cloudflare zones) assigned to a project and optionally to a site.
- * 4. sdm_service_types: External service types available for accounts.
- * 5. sdm_accounts: External service accounts linked to a project (optionally overridden per site).
- *    - Replaced fixed ENUM 'service' with 'service_id' referencing sdm_service_types.
- * 6. sdm_redirects: Redirect rules associated with a site.
- */
+/* File: includes/database.php */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -105,16 +90,18 @@ function sdm_create_tables() {
         FOREIGN KEY (service_id) REFERENCES {$wpdb->prefix}sdm_service_types(id) ON DELETE RESTRICT
     ) $charset_collate;";
 
-    // 6) Redirects table: redirect rules associated with a site.
+    // 6) Redirects table: redirect rules associated with a domain.
     $redirects_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_redirects (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        site_id BIGINT UNSIGNED NOT NULL,
-        source_domain VARCHAR(255) NOT NULL,
-        target_domain VARCHAR(255) NOT NULL,
-        status_code ENUM('301','302') NOT NULL,
+        domain_id BIGINT UNSIGNED NOT NULL,
+        source_url VARCHAR(255) NOT NULL,
+        target_url VARCHAR(1024) NOT NULL,  -- Увеличен размер для поддержки длинных URL
+        type ENUM('301', '302') NOT NULL DEFAULT '301',
+        preserve_query_string BOOLEAN NOT NULL DEFAULT TRUE,
+        user_agent TEXT DEFAULT NULL,  -- Для хранения списка user-agent (например, Googlebot,YandexBot,BingBot)
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (site_id) REFERENCES {$wpdb->prefix}sdm_sites(id) ON DELETE CASCADE
+        FOREIGN KEY (domain_id) REFERENCES {$wpdb->prefix}sdm_domains(id) ON DELETE CASCADE
     ) $charset_collate;";
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
