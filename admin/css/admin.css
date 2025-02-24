@@ -2,7 +2,7 @@
 1. GLOBAL HELPER CLASSES
 --------------------------------------------------------------*/
 
-/* Hide elements with this class */
+/* Скрывает элемент */
 .sdm-hidden {
     display: none !important;
 }
@@ -11,7 +11,7 @@
 2. COMMON TABLE STYLING
 --------------------------------------------------------------*/
 
-/* Общие стили для таблиц */
+/* Общие стили таблиц */
 .sdm-table {
     margin-top: 1em;
     width: 100%;
@@ -37,13 +37,8 @@
     background-color: #f9f9f9;
     transition: background-color 0.2s ease;
 }
-.sdm-display-value {
-    display: inline-block;
-    margin-right: 5px;
-    color: #333;
-}
 
-/* Sorting indicators */
+/* Индикаторы сортировки */
 .sdm-sortable {
     position: relative;
 }
@@ -60,10 +55,10 @@
     border-right: 5px solid transparent;
 }
 .sdm-sorted-asc::after {
-    border-bottom: 5px solid #333;
+    border-bottom: 5px solid #0073aa; /* Акцентный синий WP */
 }
 .sdm-sorted-desc::after {
-    border-top: 5px solid #333;
+    border-top: 5px solid #0073aa;
 }
 
 /*--------------------------------------------------------------
@@ -114,13 +109,15 @@
     border-radius: 4px;
 }
 
-/* Стили для поля поиска */
+/* Поля поиска, селекты */
+.sdm-select,
 .sdm-input {
     padding: 6px 8px;
     font-size: 14px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    width: 200px;
+    background-color: #fff;
+    max-width: 300px;
 }
 
 /*--------------------------------------------------------------
@@ -159,7 +156,7 @@
 5. ACTION BUTTONS STYLING
 --------------------------------------------------------------*/
 
-/* Общие стили для кнопок действий */
+/* Базовые стили для кнопок-действий */
 .sdm-action-button {
     display: inline-block;
     padding: 6px 12px;
@@ -170,12 +167,13 @@
     transition: opacity 0.2s ease, background-color 0.2s ease;
     cursor: pointer;
     border: none;
+    color: #fff; /* Текст на кнопке */
 }
 .sdm-action-button:hover {
     opacity: 0.9;
-    color: #fff;
 }
-/* Модификаторы для кнопок */
+
+/* Дополнительные модификаторы */
 .sdm-edit {
     background-color: #0073aa;
     color: #fff;
@@ -197,29 +195,44 @@
     color: #fff;
 }
 
-/* Стили для кнопки загрузки доменов */
+/* Пример кнопки для загрузки доменов */
 .sdm-fetch-button {
     padding: 6px 16px;
 }
 
-/* Статус загрузки */
+/* Стили для статуса (спиннер, тексты) */
 .sdm-status {
     margin-left: 10px;
     font-size: 13px;
     color: #666;
 }
 
-/* Стили для селекторов */
-.sdm-select {
-    padding: 6px 8px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #fff;
-    max-width: 300px;
+/* Кнопки-иконки (мини) */
+.sdm-action-button.sdm-mini-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; 
+    height: 24px;
+    padding: 0;
+    margin-left: 5px;
+    background-color: transparent; 
+    color: #999; /* если ваш SVG использует fill="currentColor" */
+    vertical-align: middle;
+}
+.sdm-action-button.sdm-mini-icon img {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+.sdm-action-button.sdm-mini-icon:hover {
+    opacity: 0.8;
 }
 
-/* Стили для индикатора проекта */
+/*--------------------------------------------------------------
+6. PROJECT / INDICATOR / LABELS
+--------------------------------------------------------------*/
+
 .sdm-project-indicator {
     padding: 8px 12px;
     background: #f9f9f9;
@@ -227,32 +240,144 @@
     border-radius: 4px;
 }
 
-/* Стили для ярлыков */
 .sdm-label {
     margin-right: 10px;
     font-weight: 600;
     color: #444;
 }
 
-/* Стили для текстовых областей */
-.sdm-textarea {
-    width: 100%;
-    min-height: 120px;
-    padding: 8px;
-    font-size: 14px;
+/*--------------------------------------------------------------
+7. TABLE-RELATED STYLES (REDIRECT ARROWS, BLOCKED DOMAINS, ETC.)
+--------------------------------------------------------------*/
+
+/* Arrow icon if used in table cells (optional) */
+.sdm-arrow {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+.sdm-arrow img {
+    width: 16px;
+    height: 16px;
+}
+
+.sdm-redirect-type-cell svg {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+/* Если в файле svg есть fill="currentColor", тогда color решает цвет заливки */
+.sdm-redirect-type-main svg {
+    color: #46b450;
+}
+.sdm-redirect-type-glue svg {
+    color: #f7b500;
+}
+.sdm-redirect-type-hidden svg {
+    color: #dc3232;
+}
+
+
+/* Highlight for blocked domain */
+.sdm-blocked-domain {
+    color: #dc3232;
+    font-weight: 600;
+}
+
+/* Styling for "No redirect" text */
+.sdm-no-redirect {
+    color: #999;
+    font-style: italic;
+}
+
+/* Add an arrow (→) after the domain in the left column, without breaking text selection */
+.sdm-has-arrow {
+    position: relative;
+}
+.sdm-has-arrow::after {
+    content: "→";
+    margin-left: 8px;
+    color: #999;
+    pointer-events: none;
+    font-weight: 600;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Color the arrow based on redirect type */
+.sdm-has-arrow[data-redirect-type="glue"]::after {
+    color: #f7b500;
+}
+.sdm-has-arrow[data-redirect-type="hidden"]::after {
+    color: #dc3232;
+}
+.sdm-has-arrow[data-redirect-type="main"]::after {
+    color: #46b450;
+}
+
+/* For icons displayed in the second column */
+.sdm-type-icon img {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+/* Столбец с иконкой текущего типа */
+.sdm-redirect-type-cell {
+    position: relative;
+    min-width: 60px; /* немного места */
+}
+
+/* Отображение текущей иконки, по желанию */
+.sdm-redirect-type-display {
+    cursor: pointer; /* чтобы показывать, что по клику откроется селектор */
+}
+.sdm-redirect-type-display img {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+/* Скрытый блок с вариантами (появится при клике) */
+.sdm-redirect-type-selector {
+    position: absolute;
+    background: #fff;
     border: 1px solid #ccc;
+    padding: 4px 6px;
     border-radius: 4px;
-    resize: vertical;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    z-index: 999;
+    margin-top: 4px; /* чтобы немного отступить от иконки */
+    white-space: nowrap;
 }
 
-/* Стили для списка выбранных доменов в модальном окне */
-.sdm-selected-domains li {
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
-    color: #333;
+.sdm-redirect-type-selector button.sdm-type-option {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    margin: 0 2px;
+    padding: 0;
 }
 
-/* Стили для модальных окон */
+.sdm-redirect-type-selector button.sdm-type-option img {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+/* При наведении можно чуть затемнять */
+.sdm-redirect-type-selector button.sdm-type-option:hover {
+    opacity: 0.8;
+}
+
+
+/*--------------------------------------------------------------
+8. MODALS (если используются)
+--------------------------------------------------------------*/
+
 .sdm-modal {
     position: fixed;
     top: 0;
@@ -294,49 +419,21 @@
     color: #666;
     transition: color 0.2s ease;
 }
-
 .sdm-modal-close:hover {
     color: #dc3232;
 }
 
-/* Стили для действий в модальном окне */
 .sdm-modal-actions {
     text-align: right;
 }
-
 .sdm-modal-actions .sdm-action-button {
     margin-left: 10px;
 }
 
-/* Стили для заметок */
-.sdm-assigned-note,
-.sdm-main-domain-note {
-    color: #a00;
-    font-style: italic;
-    font-size: 12px;
-    margin-left: 5px;
-}
+/*--------------------------------------------------------------
+9. SITE ICONS (e.g. flags or custom SVG)
+--------------------------------------------------------------*/
 
-/* Стили для ссылок на сайт */
-.sdm-site-link {
-    color: #0073aa;
-    text-decoration: none;
-}
-
-.sdm-site-link:hover {
-    text-decoration: underline;
-    color: #005177;
-}
-
-/* Стили для фильтров и поиска */
-.sdm-filter-controls {
-    margin: 0 0 20px;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-/* Styling for site icons in the table */
 .sdm-site-icon {
     display: inline-block;
     width: 24px;
@@ -347,96 +444,19 @@
     line-height: 0;
     position: relative;
 }
-
 .sdm-site-icon svg {
     width: 100%;
     height: 100%;
-    max-width: 24px;
-    max-height: 24px;
     fill: currentColor;
-    vertical-align: top;
-    object-fit: contain;
-}
-
-.sdm-site-icon:hover svg {
-    opacity: 0.8; /* Легкая подсветка при наведении */
-}
-
-.sdm-site-icon svg {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%); /* Центрируем SVG в контейнере */
+    transform: translate(-50%, -50%);
+}
+.sdm-site-icon:hover svg {
+    opacity: 0.8;
 }
 
-#sdm-edit-icon-form textarea {
-    width: 100%;
-    min-height: 100px;
-    font-family: monospace; /* Для читаемости кода SVG */
-}
-
-#sdm-edit-icon-form .description {
-    font-size: 12px;
-    color: #666;
-    margin-top: 5px;
-}
-
-
-/* Styling for Select2 in inline editing */
-.sdm-main-domain-select {
-    width: 200px; /* Adjust width as needed */
-    padding: 4px;
-}
-
-.select2-container .select2-selection--single {
-    height: 30px;
-    border: 1px solid #ccc;
-    border-radius: 2px;
-}
-
-.select2-container--default .select2-selection--single .select2-selection__rendered {
-    line-height: 30px;
-    padding-left: 5px;
-}
-
-.select2-container--default .select2-selection--single .select2-selection__arrow {
-    height: 30px;
-}
-
-/* Ensure Select2 is hidden by default in edit mode */
-.sdm-edit-input.sdm-main-domain-select.sdm-hidden {
-    display: none;
-}
-
-.sdm-redirect-arrow {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    margin-left: 5px;
-    vertical-align: middle;
-}
-
-.sdm-redirect-arrow::after {
-    content: '';
-    display: block;
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-}
-
-.sdm-redirect-arrow.main::after {
-    border-bottom: 5px solid #46b450; /* Зеленая стрелка вниз для Main */
-}
-
-.sdm-redirect-arrow.clue::after {
-    border-top: 5px solid #f7b500; /* Оранжевая стрелка вверх для Clue */
-}
-
-.sdm-redirect-arrow.hidden::after {
-    border-bottom: 5px solid #dc3232; /* Красная стрелка вниз для Hidden */
-}
-
-.sdm-blocked-domain {
-    color: #dc3232; /* Красный цвет для заблокированных доменов */
-}
+/*--------------------------------------------------------------
+(При необходимости расширяйте дальше)
+--------------------------------------------------------------*/

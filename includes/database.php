@@ -97,7 +97,7 @@ function sdm_create_tables() {
         source_url VARCHAR(255) NOT NULL,
         target_url VARCHAR(1024) NOT NULL,  -- Увеличен размер для поддержки длинных URL
         type ENUM('301', '302') NOT NULL DEFAULT '301',
-        redirect_type ENUM('main', 'clue', 'hidden') NOT NULL DEFAULT 'main',  -- Новый тип редиректа
+        redirect_type ENUM('main', 'glue', 'hidden') NOT NULL DEFAULT 'main',  -- Новый тип редиректа
         preserve_query_string BOOLEAN NOT NULL DEFAULT TRUE,
         user_agent TEXT DEFAULT NULL,  -- Для хранения списка user-agent (например, Googlebot,YandexBot,BingBot)
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -1,7 +1,8 @@
 <?php
 /**
  * File: admin/pages/redirects-page.php
- * Description: Displays the Redirects interface for a selected project, with mass actions, grouping by sites, and CloudFlare sync.
+ * Description: Displays the Redirects interface for a selected project, 
+ *              with mass actions, grouping by sites, and CloudFlare sync.
  */
 
 if (!defined('ABSPATH')) {
@@ -64,9 +65,11 @@ $main_nonce = sdm_create_main_nonce();
                     break;
                 }
             }
-            echo sprintf(__('Viewing redirects for project: %d - %s', 'spintax-domain-manager'), 
+            echo sprintf(
+                __('Viewing redirects for project: %d - %s', 'spintax-domain-manager'), 
                 $current_project_id, 
-                esc_html($project_name ?: 'Unknown')); 
+                esc_html($project_name ?: 'Unknown')
+            ); 
             ?>
         </p>
     <?php else : ?>
@@ -76,7 +79,7 @@ $main_nonce = sdm_create_main_nonce();
     <!-- Container for AJAX-loaded content -->
     <div id="sdm-redirects-container">
         <?php if ($current_project_id > 0) : ?>
-            <!-- Скрипт удалён, инициализация теперь в JavaScript -->
+            <!-- Таблица инициализируется через JS (fetchRedirects), см. ниже -->
         <?php endif; ?>
     </div>
 </div>
