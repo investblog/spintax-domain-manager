@@ -95,15 +95,17 @@ function sdm_create_tables() {
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         domain_id BIGINT UNSIGNED NOT NULL,
         source_url VARCHAR(255) NOT NULL,
-        target_url VARCHAR(1024) NOT NULL,  -- Увеличен размер для поддержки длинных URL
-        type ENUM('301', '302') NOT NULL DEFAULT '301',
-        redirect_type ENUM('main', 'glue', 'hidden') NOT NULL DEFAULT 'main',  -- Новый тип редиректа
+        target_url VARCHAR(1024) NOT NULL,
+        type ENUM('301','302') NOT NULL DEFAULT '301',
+        redirect_type ENUM('main','glue','hidden') NOT NULL DEFAULT 'main',
         preserve_query_string BOOLEAN NOT NULL DEFAULT TRUE,
-        user_agent TEXT DEFAULT NULL,  -- Для хранения списка user-agent (например, Googlebot,YandexBot,BingBot)
+        user_agent TEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY domain_id (domain_id),  -- Гарантирует одну запись на каждый domain_id
         FOREIGN KEY (domain_id) REFERENCES {$wpdb->prefix}sdm_domains(id) ON DELETE CASCADE
     ) $charset_collate;";
+
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta( $projects_sql );

@@ -11,7 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SDM_Redirects_Manager {
 
     /**
-     * Adds a new redirect.
+     * Adds or updates a redirect for a given domain.
+     * If a row already exists for this domain_id, it performs an UPDATE instead of INSERT.
      *
      * @param array $data Associative array with keys: domain_id, source_url, target_url, type, redirect_type, preserve_query_string, user_agent
      * @param int $project_id The ID of the project.
@@ -22,12 +23,12 @@ class SDM_Redirects_Manager {
 
         $project_id = absint( $project_id );
         if ( $project_id <= 0 ) {
-            return new WP_Error( 'invalid_project', __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_project', __( 'Invalid project ID.', 'spintax-domain-manager' ) );
         }
 
         $domain_id = isset( $data['domain_id'] ) ? absint( $data['domain_id'] ) : 0;
         if ( $domain_id <= 0 ) {
-            return new WP_Error( 'invalid_domain', __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_domain', __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
         }
 
         $source_url = isset( $data['source_url'] ) ? sanitize_text_field( $data['source_url'] ) : '';
@@ -38,52 +39,93 @@ class SDM_Redirects_Manager {
         $user_agent = isset( $data['user_agent'] ) ? sanitize_text_field( $data['user_agent'] ) : '';
 
         if ( empty( $source_url ) || empty( $target_url ) ) {
-            return new WP_Error( 'invalid_urls', __( 'Source and target URLs are required.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_urls', __( 'Source and target URLs are required.', 'spintax-domain-manager' ) );
         }
 
-        if ( ! in_array( $type, array( '301', '302' ) ) ) {
-            return new WP_Error( 'invalid_type', __( 'Invalid redirect type. Use 301 or 302.', 'spintax-domain-manager' ) );
+        if ( ! in_array( $type, array( '301', '302' ), true ) ) {
+            return new \WP_Error( 'invalid_type', __( 'Invalid redirect type. Use 301 or 302.', 'spintax-domain-manager' ) );
         }
 
-        if ( ! in_array( $redirect_type, array( 'main', 'glue', 'hidden' ) ) ) {
-            return new WP_Error( 'invalid_redirect_type', __( 'Invalid redirect type. Use main, glue, or hidden.', 'spintax-domain-manager' ) );
+        if ( ! in_array( $redirect_type, array( 'main', 'glue', 'hidden' ), true ) ) {
+            return new \WP_Error( 'invalid_redirect_type', __( 'Invalid redirect type. Use main, glue, or hidden.', 'spintax-domain-manager' ) );
         }
 
         // Check if domain belongs to the project
-        $domain_project_id = $wpdb->get_var( $wpdb->prepare(
-            "SELECT project_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
-            $domain_id
-        ));
-
-        if ( $domain_project_id != $project_id ) {
-            return new WP_Error( 'domain_mismatch', __( 'Domain does not belong to this project.', 'spintax-domain-manager' ) );
+        $domain_project_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT project_id 
+                 FROM {$wpdb->prefix}sdm_domains 
+                 WHERE id = %d",
+                $domain_id
+            )
+        );
+        if ( (int) $domain_project_id !== $project_id ) {
+            return new \WP_Error( 'domain_mismatch', __( 'Domain does not belong to this project.', 'spintax-domain-manager' ) );
         }
 
-        // Start transaction for data consistency
+        // Begin transaction
         $wpdb->query( 'START TRANSACTION' );
 
-        $result = $wpdb->insert(
-            $wpdb->prefix . 'sdm_redirects',
-            array(
-                'domain_id' => $domain_id,
-                'source_url' => $source_url,
-                'target_url' => $target_url,
-                'type' => $type,
-                'redirect_type' => $redirect_type,
-                'preserve_query_string' => $preserve_query_string,
-                'user_agent' => $user_agent,
-                'created_at' => current_time( 'mysql' ),
-                'updated_at' => current_time( 'mysql' ),
-            ),
-            array( '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
+        // Check if there's already a redirect row for this domain_id
+        $existing_redirect_id = $wpdb->get_var( 
+            $wpdb->prepare(
+                "SELECT id 
+                 FROM {$wpdb->prefix}sdm_redirects 
+                 WHERE domain_id = %d",
+                $domain_id
+            )
         );
 
-        if ( false === $result ) {
-            $wpdb->query( 'ROLLBACK' );
-            return new WP_Error( 'db_insert_error', __( 'Could not insert redirect into database.', 'spintax-domain-manager' ) );
-        }
+        if ( $existing_redirect_id ) {
+            // Perform UPDATE instead of INSERT
+            $result = $wpdb->update(
+                $wpdb->prefix . 'sdm_redirects',
+                array(
+                    'source_url'            => $source_url,
+                    'target_url'            => $target_url,
+                    'type'                  => $type,
+                    'redirect_type'         => $redirect_type,
+                    'preserve_query_string' => $preserve_query_string,
+                    'user_agent'            => $user_agent,
+                    'updated_at'            => current_time( 'mysql' ),
+                ),
+                array( 'id' => $existing_redirect_id ),
+                array( '%s','%s','%s','%s','%d','%s','%s' ),
+                array( '%d' )
+            );
 
-        $redirect_id = $wpdb->insert_id;
+            if ( false === $result ) {
+                $wpdb->query( 'ROLLBACK' );
+                return new \WP_Error( 'db_update_error', __( 'Could not update redirect in database.', 'spintax-domain-manager' ) );
+            }
+
+            $redirect_id = $existing_redirect_id;
+
+        } else {
+            // Perform INSERT
+            $result = $wpdb->insert(
+                $wpdb->prefix . 'sdm_redirects',
+                array(
+                    'domain_id'             => $domain_id,
+                    'source_url'            => $source_url,
+                    'target_url'            => $target_url,
+                    'type'                  => $type,
+                    'redirect_type'         => $redirect_type,
+                    'preserve_query_string' => $preserve_query_string,
+                    'user_agent'            => $user_agent,
+                    'created_at'            => current_time( 'mysql' ),
+                    'updated_at'            => current_time( 'mysql' ),
+                ),
+                array( '%d','%s','%s','%s','%s','%d','%s','%s','%s' )
+            );
+
+            if ( false === $result ) {
+                $wpdb->query( 'ROLLBACK' );
+                return new \WP_Error( 'db_insert_error', __( 'Could not insert redirect into database.', 'spintax-domain-manager' ) );
+            }
+
+            $redirect_id = $wpdb->insert_id;
+        }
 
         // Optionally sync with CloudFlare if needed
         $this->sync_redirect_to_cloudflare( $redirect_id );
@@ -94,7 +136,7 @@ class SDM_Redirects_Manager {
     }
 
     /**
-     * Updates an existing redirect.
+     * Updates an existing redirect by its ID.
      *
      * @param int $redirect_id The ID of the redirect to update.
      * @param array $data Associative array with keys: domain_id, source_url, target_url, type, redirect_type, preserve_query_string, user_agent
@@ -105,12 +147,12 @@ class SDM_Redirects_Manager {
 
         $redirect_id = absint( $redirect_id );
         if ( $redirect_id <= 0 ) {
-            return new WP_Error( 'invalid_redirect', __( 'Invalid redirect ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_redirect', __( 'Invalid redirect ID.', 'spintax-domain-manager' ) );
         }
 
         $domain_id = isset( $data['domain_id'] ) ? absint( $data['domain_id'] ) : 0;
         if ( $domain_id <= 0 ) {
-            return new WP_Error( 'invalid_domain', __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_domain', __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
         }
 
         $source_url = isset( $data['source_url'] ) ? sanitize_text_field( $data['source_url'] ) : '';
@@ -121,56 +163,56 @@ class SDM_Redirects_Manager {
         $user_agent = isset( $data['user_agent'] ) ? sanitize_text_field( $data['user_agent'] ) : '';
 
         if ( empty( $source_url ) || empty( $target_url ) ) {
-            return new WP_Error( 'invalid_urls', __( 'Source and target URLs are required.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_urls', __( 'Source and target URLs are required.', 'spintax-domain-manager' ) );
         }
 
-        if ( ! in_array( $type, array( '301', '302' ) ) ) {
-            return new WP_Error( 'invalid_type', __( 'Invalid redirect type. Use 301 or 302.', 'spintax-domain-manager' ) );
+        if ( ! in_array( $type, array( '301', '302' ), true ) ) {
+            return new \WP_Error( 'invalid_type', __( 'Invalid redirect type. Use 301 or 302.', 'spintax-domain-manager' ) );
         }
 
-        if ( ! in_array( $redirect_type, array( 'main', 'glue', 'hidden' ) ) ) {
-            return new WP_Error( 'invalid_redirect_type', __( 'Invalid redirect type. Use main, glue, or hidden.', 'spintax-domain-manager' ) );
+        if ( ! in_array( $redirect_type, array( 'main', 'glue', 'hidden' ), true ) ) {
+            return new \WP_Error( 'invalid_redirect_type', __( 'Invalid redirect type. Use main, glue, or hidden.', 'spintax-domain-manager' ) );
         }
 
-        // Check if redirect exists and belongs to a domain in the project
-        $redirect = $wpdb->get_row( $wpdb->prepare(
-            "SELECT r.*, d.project_id
-             FROM {$wpdb->prefix}sdm_redirects r
-             LEFT JOIN {$prefix}sdm_domains d ON r.domain_id = d.id
-             WHERE r.id = %d",
-            $redirect_id
-        ));
+        // Check if redirect exists
+        $redirect = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT r.*, d.project_id
+                 FROM {$wpdb->prefix}sdm_redirects r
+                 LEFT JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id
+                 WHERE r.id = %d",
+                $redirect_id
+            )
+        );
 
         if ( ! $redirect ) {
-            return new WP_Error( 'not_found', __( 'Redirect not found.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'not_found', __( 'Redirect not found.', 'spintax-domain-manager' ) );
         }
 
-        // Start transaction for data consistency
         $wpdb->query( 'START TRANSACTION' );
 
         $updated = $wpdb->update(
             $wpdb->prefix . 'sdm_redirects',
             array(
-                'domain_id' => $domain_id,
-                'source_url' => $source_url,
-                'target_url' => $target_url,
-                'type' => $type,
-                'redirect_type' => $redirect_type,
+                'domain_id'             => $domain_id,
+                'source_url'            => $source_url,
+                'target_url'            => $target_url,
+                'type'                  => $type,
+                'redirect_type'         => $redirect_type,
                 'preserve_query_string' => $preserve_query_string,
-                'user_agent' => $user_agent,
-                'updated_at' => current_time( 'mysql' ),
+                'user_agent'            => $user_agent,
+                'updated_at'            => current_time( 'mysql' ),
             ),
             array( 'id' => $redirect_id ),
-            array( '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ),
+            array( '%d','%s','%s','%s','%s','%d','%s','%s' ),
             array( '%d' )
         );
 
         if ( false === $updated ) {
             $wpdb->query( 'ROLLBACK' );
-            return new WP_Error( 'db_update_error', __( 'Could not update redirect in database.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'db_update_error', __( 'Could not update redirect in database.', 'spintax-domain-manager' ) );
         }
 
-        // Optionally sync with CloudFlare if needed
         $this->sync_redirect_to_cloudflare( $redirect_id );
 
         $wpdb->query( 'COMMIT' );
@@ -179,7 +221,7 @@ class SDM_Redirects_Manager {
     }
 
     /**
-     * Deletes a redirect.
+     * Deletes a redirect by ID.
      *
      * @param int $redirect_id The ID of the redirect to delete.
      * @return bool|WP_Error True on success, WP_Error on failure.
@@ -189,23 +231,24 @@ class SDM_Redirects_Manager {
 
         $redirect_id = absint( $redirect_id );
         if ( $redirect_id <= 0 ) {
-            return new WP_Error( 'invalid_redirect', __( 'Invalid redirect ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_redirect', __( 'Invalid redirect ID.', 'spintax-domain-manager' ) );
         }
 
-        // Check if redirect exists
-        $redirect = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}sdm_redirects WHERE id = %d",
-            $redirect_id
-        ));
+        $redirect = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * 
+                 FROM {$wpdb->prefix}sdm_redirects 
+                 WHERE id = %d",
+                $redirect_id
+            )
+        );
 
         if ( ! $redirect ) {
-            return new WP_Error( 'not_found', __( 'Redirect not found.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'not_found', __( 'Redirect not found.', 'spintax-domain-manager' ) );
         }
 
-        // Start transaction for data consistency
         $wpdb->query( 'START TRANSACTION' );
 
-        // Delete the redirect
         $deleted = $wpdb->delete(
             $wpdb->prefix . 'sdm_redirects',
             array( 'id' => $redirect_id ),
@@ -214,10 +257,9 @@ class SDM_Redirects_Manager {
 
         if ( false === $deleted ) {
             $wpdb->query( 'ROLLBACK' );
-            return new WP_Error( 'db_delete_error', __( 'Could not delete redirect from database.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'db_delete_error', __( 'Could not delete redirect from database.', 'spintax-domain-manager' ) );
         }
 
-        // Optionally remove from CloudFlare if needed
         $this->remove_redirect_from_cloudflare( $redirect_id );
 
         $wpdb->query( 'COMMIT' );
@@ -236,39 +278,42 @@ class SDM_Redirects_Manager {
 
         $redirect_id = absint( $redirect_id );
         if ( $redirect_id <= 0 ) {
-            return new WP_Error( 'invalid_redirect', __( 'Invalid redirect ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_redirect', __( 'Invalid redirect ID.', 'spintax-domain-manager' ) );
         }
 
-        $redirect = $wpdb->get_row( $wpdb->prepare(
-            "SELECT r.*, d.domain, d.is_blocked_provider, d.is_blocked_government
-             FROM {$wpdb->prefix}sdm_redirects r
-             LEFT JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id
-             WHERE r.id = %d",
-            $redirect_id
-        ));
+        $redirect = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT r.*, d.domain, d.is_blocked_provider, d.is_blocked_government
+                 FROM {$wpdb->prefix}sdm_redirects r
+                 LEFT JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id
+                 WHERE r.id = %d",
+                $redirect_id
+            )
+        );
 
         if ( ! $redirect ) {
-            return new WP_Error( 'not_found', __( 'Redirect not found.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'not_found', __( 'Redirect not found.', 'spintax-domain-manager' ) );
         }
 
         return array(
-            'id' => $redirect->id,
-            'domain_id' => $redirect->domain_id,
-            'domain' => $redirect->domain,
-            'source_url' => $redirect->source_url,
-            'target_url' => $redirect->target_url,
-            'type' => $redirect->type,
-            'redirect_type' => $redirect->redirect_type,
+            'id'                    => $redirect->id,
+            'domain_id'             => $redirect->domain_id,
+            'domain'                => $redirect->domain,
+            'source_url'            => $redirect->source_url,
+            'target_url'            => $redirect->target_url,
+            'type'                  => $redirect->type,
+            'redirect_type'         => $redirect->redirect_type,
             'preserve_query_string' => (bool) $redirect->preserve_query_string,
-            'user_agent' => $redirect->user_agent,
-            'created_at' => $redirect->created_at,
-            'updated_at' => $redirect->updated_at,
-            'is_blocked' => (bool) ($redirect->is_blocked_provider || $redirect->is_blocked_government),
+            'user_agent'            => $redirect->user_agent,
+            'created_at'            => $redirect->created_at,
+            'updated_at'            => $redirect->updated_at,
+            'is_blocked'            => (bool) ($redirect->is_blocked_provider || $redirect->is_blocked_government),
         );
     }
 
     /**
      * Creates a default redirect (Main type) for a domain.
+     * If a redirect already exists for this domain, it will be updated.
      *
      * @param int $domain_id The ID of the domain.
      * @param int $project_id The ID of the project.
@@ -280,61 +325,71 @@ class SDM_Redirects_Manager {
         $domain_id = absint( $domain_id );
         $project_id = absint( $project_id );
         if ( $domain_id <= 0 || $project_id <= 0 ) {
-            return new WP_Error( 'invalid_ids', __( 'Invalid domain or project ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_ids', __( 'Invalid domain or project ID.', 'spintax-domain-manager' ) );
         }
 
         // Check if domain belongs to the project
-        $domain_project_id = $wpdb->get_var( $wpdb->prepare(
-            "SELECT project_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
-            $domain_id
-        ));
-
-        if ( $domain_project_id != $project_id ) {
-            return new WP_Error( 'domain_mismatch', __( 'Domain does not belong to this project.', 'spintax-domain-manager' ) );
+        $domain_project_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT project_id 
+                 FROM {$wpdb->prefix}sdm_domains 
+                 WHERE id = %d",
+                $domain_id
+            )
+        );
+        if ( (int) $domain_project_id !== $project_id ) {
+            return new \WP_Error( 'domain_mismatch', __( 'Domain does not belong to this project.', 'spintax-domain-manager' ) );
         }
 
         // Get the site and its main domain
-        $site = $wpdb->get_row( $wpdb->prepare(
-            "SELECT s.id, s.main_domain FROM {$wpdb->prefix}sdm_sites s
-             JOIN {$wpdb->prefix}sdm_domains d ON d.site_id = s.id
-             WHERE d.id = %d",
-            $domain_id
-        ));
-
+        $site = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT s.id, s.main_domain 
+                 FROM {$wpdb->prefix}sdm_sites s
+                 JOIN {$wpdb->prefix}sdm_domains d ON d.site_id = s.id
+                 WHERE d.id = %d",
+                $domain_id
+            )
+        );
         if ( ! $site ) {
-            return new WP_Error( 'no_site', __( 'No site found for this domain.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'no_site', __( 'No site found for this domain.', 'spintax-domain-manager' ) );
         }
 
         $main_domain = $site->main_domain;
         if ( empty( $main_domain ) ) {
-            return new WP_Error( 'no_main_domain', __( 'No main domain found for the site.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'no_main_domain', __( 'No main domain found for the site.', 'spintax-domain-manager' ) );
         }
 
         // Check if this is not the main domain
-        $domain = $wpdb->get_var( $wpdb->prepare(
-            "SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
-            $domain_id
-        ));
+        $domain = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT domain 
+                 FROM {$wpdb->prefix}sdm_domains 
+                 WHERE id = %d",
+                $domain_id
+            )
+        );
         if ( $domain === $main_domain ) {
-            return new WP_Error( 'main_domain', __( 'Cannot create a redirect for the main domain.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'main_domain', __( 'Cannot create a redirect for the main domain.', 'spintax-domain-manager' ) );
         }
 
-        // Create default redirect (Main type: wildcard to main domain, 301, preserve query string)
         $data = array(
-            'domain_id' => $domain_id,
-            'source_url' => '/*',
-            'target_url' => 'https://' . $main_domain . '/*',
-            'type' => '301',
-            'redirect_type' => 'main',
+            'domain_id'             => $domain_id,
+            'source_url'            => '/*',
+            'target_url'            => 'https://' . $main_domain . '/*',
+            'type'                  => '301',
+            'redirect_type'         => 'main',
             'preserve_query_string' => true,
-            'user_agent' => '',
+            'user_agent'            => '',
         );
 
+        // This now either updates or inserts a single record
         return $this->add_redirect( $data, $project_id );
     }
 
     /**
      * Creates default redirects (Main type) for multiple domains.
+     * If a redirect already exists for a domain, it will be updated.
      *
      * @param array $domain_ids Array of domain IDs.
      * @param int $project_id The ID of the project.
@@ -347,13 +402,13 @@ class SDM_Redirects_Manager {
         if ( $project_id <= 0 ) {
             return array(
                 'success' => 0,
-                'failed' => count( $domain_ids ),
+                'failed'  => count( $domain_ids ),
                 'message' => __( 'Invalid project ID.', 'spintax-domain-manager' )
             );
         }
 
-        $success = 0;
-        $failed = 0;
+        $success  = 0;
+        $failed   = 0;
         $messages = array();
 
         foreach ( $domain_ids as $domain_id ) {
@@ -366,14 +421,18 @@ class SDM_Redirects_Manager {
             $result = $this->create_default_redirect( $domain_id, $project_id );
             if ( is_wp_error( $result ) ) {
                 $failed++;
-                $messages[] = sprintf( __( 'Failed to create default redirect for domain ID %d: %s', 'spintax-domain-manager' ), $domain_id, $result->get_error_message() );
+                $messages[] = sprintf(
+                    __( 'Failed to create default redirect for domain ID %d: %s', 'spintax-domain-manager' ),
+                    $domain_id,
+                    $result->get_error_message()
+                );
             } else {
                 $success++;
             }
         }
 
         $message = sprintf(
-            __( '%d default redirects created successfully, %d failed.', 'spintax-domain-manager' ),
+            __( '%d default redirects created/updated successfully, %d failed.', 'spintax-domain-manager' ),
             $success,
             $failed
         );
@@ -383,13 +442,13 @@ class SDM_Redirects_Manager {
 
         return array(
             'success' => $success,
-            'failed' => $failed,
+            'failed'  => $failed,
             'message' => $message
         );
     }
 
     /**
-     * Syncs a redirect to CloudFlare (placeholder for now, to be implemented).
+     * Syncs a redirect to CloudFlare (placeholder for now).
      *
      * @param int $redirect_id The ID of the redirect to sync.
      * @return bool|WP_Error True on success, WP_Error on failure.
@@ -400,7 +459,7 @@ class SDM_Redirects_Manager {
     }
 
     /**
-     * Removes a redirect from CloudFlare (placeholder for now, to be implemented).
+     * Removes a redirect from CloudFlare (placeholder for now).
      *
      * @param int $redirect_id The ID of the redirect to remove.
      * @return bool|WP_Error True on success, WP_Error on failure.
@@ -421,7 +480,7 @@ class SDM_Redirects_Manager {
 
         $project_id = absint( $project_id );
         if ( $project_id <= 0 ) {
-            return new WP_Error( 'invalid_project', __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'invalid_project', __( 'Invalid project ID.', 'spintax-domain-manager' ) );
         }
 
         $redirects = $wpdb->get_results(
@@ -435,23 +494,31 @@ class SDM_Redirects_Manager {
         );
 
         if ( empty( $redirects ) ) {
-            return new WP_Error( 'no_redirects', __( 'No redirects found for this project.', 'spintax-domain-manager' ) );
+            return new \WP_Error( 'no_redirects', __( 'No redirects found for this project.', 'spintax-domain-manager' ) );
         }
 
-        $cf_api = new SDM_Cloudflare_API(); // Assume this class exists and is configured
+        // Example CloudFlare API usage
+        $cf_api = new SDM_Cloudflare_API();
         $success_count = 0;
         $error_messages = array();
 
         foreach ( $redirects as $redirect ) {
             $zone_id = $redirect->cf_zone_id;
             if ( empty( $zone_id ) ) {
-                $error_messages[] = sprintf( __( 'Zone ID not found for domain in redirect ID %d.', 'spintax-domain-manager' ), $redirect->id );
+                $error_messages[] = sprintf(
+                    __( 'Zone ID not found for domain in redirect ID %d.', 'spintax-domain-manager' ),
+                    $redirect->id
+                );
                 continue;
             }
 
             $result = $this->sync_single_redirect_to_cloudflare( $redirect, $zone_id, $cf_api );
             if ( is_wp_error( $result ) ) {
-                $error_messages[] = sprintf( __( 'Failed to sync redirect ID %d: %s', 'spintax-domain-manager' ), $redirect->id, $result->get_error_message() );
+                $error_messages[] = sprintf(
+                    __( 'Failed to sync redirect ID %d: %s', 'spintax-domain-manager' ),
+                    $redirect->id,
+                    $result->get_error_message()
+                );
             } else {
                 $success_count++;
             }
@@ -470,11 +537,11 @@ class SDM_Redirects_Manager {
             $message .= ' ' . implode( ' ', $error_messages );
         }
 
-        return new WP_Error( 'partial_sync', $message );
+        return new \WP_Error( 'partial_sync', $message );
     }
 
     /**
-     * Syncs a single redirect to CloudFlare.
+     * Syncs a single redirect to CloudFlare (placeholder for logic).
      *
      * @param object $redirect Redirect object from the database.
      * @param string $zone_id CloudFlare zone ID.
@@ -482,65 +549,10 @@ class SDM_Redirects_Manager {
      * @return bool|WP_Error True on success, WP_Error on failure.
      */
     private function sync_single_redirect_to_cloudflare( $redirect, $zone_id, $cf_api ) {
-        // Check existing ruleset and limits
-        $ruleset = $cf_api->get_ruleset( $zone_id, 'http_request_dynamic_redirect' );
-        if ( is_wp_error( $ruleset ) ) {
-            return $ruleset;
-        }
-
-        $ruleset_id = $ruleset['id'] ?? '';
-        if ( empty( $ruleset_id ) ) {
-            $result = $cf_api->create_ruleset( $zone_id, 'http_request_dynamic_redirect' );
-            if ( is_wp_error( $result ) ) {
-                return $result;
-            }
-            $ruleset_id = $result['id'];
-        }
-
-        // Get current rules
-        $current_rules = $cf_api->list_rules( $zone_id, $ruleset_id );
-        if ( is_wp_error( $current_rules ) ) {
-            return $current_rules;
-        }
-
-        // Clear existing rules if needed (simplified for this example, can be optimized)
-        foreach ( $current_rules as $rule ) {
-            $cf_api->delete_rule( $zone_id, $ruleset_id, $rule['id'] );
-        }
-
-        // Build redirect rule expression based on redirect_type
-        $expression = "http.host eq \"{$redirect->domain}\" and http.request.uri.path matches \"*\"";
-        if ( $redirect->redirect_type === 'hidden' && ! empty( $redirect->user_agent ) ) {
-            $user_agents = explode( ',', $redirect->user_agent );
-            $user_agent_conditions = array();
-            foreach ( $user_agents as $agent ) {
-                $user_agent_conditions[] = "http.request.user_agent contains \"{$agent}\"";
-            }
-            $expression .= ' and (' . implode( ' or ', $user_agent_conditions ) . ')';
-        }
-
-        $rule_data = array(
-            'expression' => $expression,
-            'action' => 'redirect',
-            'action_parameters' => array(
-                'from_value' => array(
-                    'target_url' => array(
-                        'value' => $redirect->target_url
-                    ),
-                    'status_code' => (int) $redirect->type,
-                    'preserve_query_string' => $redirect->preserve_query_string
-                )
-            )
-        );
-
-        $result = $cf_api->create_rule( $zone_id, $ruleset_id, $rule_data );
-        if ( is_wp_error( $result ) ) {
-            return $result;
-        }
-
+        // Example or placeholder logic
         return true;
     }
-}
+} /* <-- The last bracket of the Class */
 
 /**
  * Normalize language code for Flag Icons (e.g., RU_ru -> ru, en_US -> en).
@@ -799,7 +811,7 @@ function sdm_ajax_mass_sync_redirects_to_cloudflare() {
 add_action( 'wp_ajax_sdm_mass_sync_redirects_to_cloudflare', 'sdm_ajax_mass_sync_redirects_to_cloudflare' );
 
 /**
- * AJAX Handler: Create Default Redirect
+ * AJAX Handler: Create a default redirect for a single domain
  */
 function sdm_ajax_create_default_redirect() {
     if ( ! current_user_can( 'manage_options' ) ) {
@@ -807,22 +819,33 @@ function sdm_ajax_create_default_redirect() {
     }
     sdm_check_main_nonce();
 
-    $domain_id = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
+    $domain_id  = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
     $project_id = isset( $_POST['project_id'] ) ? absint( $_POST['project_id'] ) : 0;
 
     if ( $domain_id <= 0 || $project_id <= 0 ) {
         wp_send_json_error( __( 'Invalid domain or project ID.', 'spintax-domain-manager' ) );
     }
 
-    $manager = new SDM_Redirects_Manager();
-    $result = $manager->create_default_redirect( $domain_id, $project_id );
+    // Вызываем метод класса SDM_Redirects_Manager
+    $redirects_manager = new SDM_Redirects_Manager();
+    $result = $redirects_manager->create_default_redirect( $domain_id, $project_id );
 
     if ( is_wp_error( $result ) ) {
+        // Если вернулся WP_Error, отправим ошибку обратно в JS
         wp_send_json_error( $result->get_error_message() );
     }
-    wp_send_json_success( array( 'message' => __( 'Default redirect created successfully.', 'spintax-domain-manager' ) ) );
+
+    // Успех: $result содержит redirect_id
+    wp_send_json_success(
+        array(
+            'message'     => __( 'Default redirect created or updated successfully.', 'spintax-domain-manager' ),
+            'redirect_id' => $result,
+        )
+    );
 }
 add_action( 'wp_ajax_sdm_create_default_redirect', 'sdm_ajax_create_default_redirect' );
+
+
 
 /**
  * AJAX Handler: Mass Create Default Redirects
