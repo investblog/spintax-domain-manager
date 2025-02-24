@@ -936,6 +936,7 @@ function sdm_ajax_fetch_redirects_list() {
 
     ob_start();
 
+    // Получаем сайты проекта
     $sites = $wpdb->get_results(
         $wpdb->prepare(
             "SELECT s.id, s.site_name, s.language, s.svg_icon, s.main_domain
@@ -997,14 +998,15 @@ function sdm_ajax_fetch_redirects_list() {
                         if (in_array($sort_column, $valid_columns)) {
                             if ($sort_column === 'redirect_status') {
                                 $order_by = "ORDER BY COALESCE(r.redirect_type, 'no_redirect') "
-                                            . ($sort_direction === 'desc' ? 'DESC' : 'ASC');
+                                          . ($sort_direction === 'desc' ? 'DESC' : 'ASC');
                             } else {
                                 $order_by = "ORDER BY d.{$sort_column} "
-                                            . ($sort_direction === 'desc' ? 'DESC' : 'ASC');
+                                          . ($sort_direction === 'desc' ? 'DESC' : 'ASC');
                             }
                         }
                     }
 
+                    // Выбираем домены + их редиректы (LEFT JOIN)
                     $domains = $wpdb->get_results(
                         $wpdb->prepare(
                             "SELECT d.*, 
@@ -1017,10 +1019,10 @@ function sdm_ajax_fetch_redirects_list() {
                                     r.user_agent, 
                                     r.created_at AS redirect_created_at
                              FROM {$prefix}sdm_domains d
-                             LEFT JOIN {$prefix}sdm_redirects r 
+                             LEFT JOIN {$prefix}sdm_redirects r
                                    ON d.id = r.domain_id
                              WHERE d.project_id = %d
-                               AND d.site_id = %d
+                               AND d.site_id    = %d
                              $order_by",
                             $project_id,
                             $site->id
@@ -1029,8 +1031,10 @@ function sdm_ajax_fetch_redirects_list() {
 
                     if (!empty($domains)) :
                         foreach ($domains as $domain) :
-                            $is_blocked    = ($domain->is_blocked_provider || $domain->is_blocked_government);
-                            $redirect      = (object) array(
+                            // Определяем блокировку
+                            $is_blocked = ($domain->is_blocked_provider || $domain->is_blocked_government);
+                            // Собираем редирект-данные
+                            $redirect = (object) array(
                                 'id'                    => $domain->redirect_id,
                                 'domain_id'             => $domain->id,
                                 'source_url'            => $domain->source_url,
@@ -1044,7 +1048,7 @@ function sdm_ajax_fetch_redirects_list() {
                             $redirect_type  = $redirect->id ? $redirect->redirect_type : '';
                             $is_main_domain = ($domain->domain === $site->main_domain);
 
-                            // Left column: domain + arrow if there's a redirect
+                            // Для стрелки (sdm-has-arrow) если редирект есть и это не главный домен
                             $has_redirect_arrow = ($redirect->id && !$is_main_domain) ? 'sdm-has-arrow' : '';
                             ?>
                             <tr id="redirect-row-<?php echo esc_attr($domain->id); ?>"
@@ -1058,44 +1062,39 @@ function sdm_ajax_fetch_redirects_list() {
                                 data-type="<?php echo esc_attr($redirect->type ?: ''); ?>"
                                 data-created-at="<?php echo esc_attr($redirect->created_at ?: ''); ?>">
 
+                                <!-- 1-я колонка: Домен (+ красная подсветка, если заблокирован) -->
                                 <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?> <?php echo esc_attr($has_redirect_arrow); ?>"
                                     data-redirect-type="<?php echo esc_attr($redirect_type ?: 'none'); ?>">
                                     <?php echo esc_html($domain->domain); ?>
                                 </td>
 
+                                <!-- 2-я колонка: инлайн-иконка + target (или "No redirect") + скрытый блок для выбора -->
                                 <td class="sdm-redirect-type-cell"
                                     data-redirect-id="<?php echo esc_attr($redirect->id); ?>"
                                     data-current-type="<?php echo esc_attr($redirect_type ?: 'main'); ?>">
 
                                     <?php if ($redirect->id) : ?>
                                         <?php
-                                            // Получаем инлайн-SVG для текущего типа
                                             $svg_markup = sdm_get_inline_redirect_svg($redirect_type ?: 'main');
                                         ?>
                                         <?php if (!empty($svg_markup)) : ?>
                                             <span class="sdm-redirect-type-display sdm-redirect-type-<?php echo esc_attr($redirect_type ?: 'main'); ?>">
-                                                <!-- Выводим иконку -->
                                                 <?php echo $svg_markup; ?>
                                             </span>
-                                            <!-- Показываем целевой домен (или URL), если есть -->
                                             <?php if (!empty($redirect->target_url)) : ?>
                                                 <span class="sdm-target-domain" style="margin-left: 6px;">
                                                     <?php echo esc_html($redirect->target_url); ?>
                                                 </span>
                                             <?php endif; ?>
                                         <?php else : ?>
-                                            <em style="color:#999;">
-                                                <?php esc_html_e('Unknown icon', 'spintax-domain-manager'); ?>
-                                            </em>
+                                            <em style="color:#999;"><?php esc_html_e('Unknown icon', 'spintax-domain-manager'); ?></em>
                                         <?php endif; ?>
 
                                     <?php else : ?>
-                                        <em style="color:#999;">
-                                            <?php esc_html_e('No redirect', 'spintax-domain-manager'); ?>
-                                        </em>
+                                        <em style="color:#999;"><?php esc_html_e('No redirect', 'spintax-domain-manager'); ?></em>
                                     <?php endif; ?>
 
-                                    <!-- Скрытый селектор для inline-edit типа редиректа -->
+                                    <!-- Скрытый блок со сменой типа -->
                                     <div class="sdm-redirect-type-selector" style="display: none;">
                                         <button type="button" class="sdm-type-option" data-value="main">
                                             <?php echo sdm_get_inline_redirect_svg('main'); ?>
@@ -1109,7 +1108,7 @@ function sdm_ajax_fetch_redirects_list() {
                                     </div>
                                 </td>
 
-
+                                <!-- 3-я колонка: чекбокс + кнопки -->
                                 <td>
                                     <?php if (!$is_main_domain) : ?>
                                         <input type="checkbox"
@@ -1174,8 +1173,6 @@ function sdm_ajax_fetch_redirects_list() {
     wp_send_json_success(array('html' => $html));
 }
 add_action('wp_ajax_sdm_fetch_redirects_list', 'sdm_ajax_fetch_redirects_list');
-
-
 
 
 /**
