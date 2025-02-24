@@ -324,4 +324,4 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-}
+});
