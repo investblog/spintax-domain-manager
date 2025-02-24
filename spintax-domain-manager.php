@@ -145,8 +145,11 @@ function sdm_enqueue_admin_assets() {
     wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
 
     // Flag icons, etc...
-    wp_enqueue_style( 'flag-icons', 'https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css', array(), '3.5.0' );
-    
-    // If needed, enqueue Select2 for certain screens, etc...
+    wp_enqueue_style(
+        'flag-icons',
+        'https://cdn.jsdelivr.net/npm/flag-icons/css/flag-icons.min.css',
+        array(),
+        '6.6.6'
+    );
 }
 add_action( 'admin_enqueue_scripts', 'sdm_enqueue_admin_assets' );

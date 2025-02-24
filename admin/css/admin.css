@@ -282,10 +282,10 @@
 
 /* Highlight for blocked domain */
 .sdm-blocked-domain {
-    color: #dc3232;
+    color: #dc3232 !important;
     font-weight: 600;
+   /* background-color: #ffebee;*/
 }
-
 /* Styling for "No redirect" text */
 .sdm-no-redirect {
     color: #999;
@@ -460,3 +460,30 @@
 /*--------------------------------------------------------------
 (При необходимости расширяйте дальше)
 --------------------------------------------------------------*/
+tr[data-redirect-type="main"] {
+    background-color: #f0f8f0;
+}
+tr[data-redirect-type="glue"] {
+    background-color: #fef8e7;
+}
+tr[data-redirect-type="hidden"] {
+    background-color: #fef0f0;
+}
+
+.sdm-redirect-type-display {
+    position: relative;
+}
+.sdm-redirect-type-display:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1;
+}

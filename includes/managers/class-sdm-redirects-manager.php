@@ -950,9 +950,8 @@ function sdm_ajax_fetch_redirects_list() {
     if (!empty($sites)) :
         foreach ($sites as $site) : ?>
             <h3>
-                <?php echo esc_html($site->site_name); ?>
-                <?php if (!empty($site->svg_icon)) : ?>
-                    <span class="sdm-site-icon" style="vertical-align: middle; margin-left: 5px;">
+                    <?php if (!empty($site->svg_icon)) : ?>
+                    <span class="sdm-site-icon" style="vertical-align: middle; margin-right: 5px;">
                         <?php 
                         echo wp_kses(
                             $site->svg_icon,
@@ -967,6 +966,7 @@ function sdm_ajax_fetch_redirects_list() {
                     <span class="fi fi-<?php echo esc_attr(sdm_normalize_language_code($site->language ?: 'en')); ?>" 
                           style="vertical-align: middle; margin-left: 5px;"></span>
                 <?php endif; ?>
+                <?php echo esc_html($site->site_name); ?>
             </h3>
             <p>
                 <?php 
