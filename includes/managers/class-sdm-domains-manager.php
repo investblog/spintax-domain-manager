@@ -260,12 +260,13 @@ class SDM_Domains_Manager {
 
         // Check if the domain is the main domain for its site
         $is_main_domain = $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}sdm_sites 
-             WHERE site_id = %d 
+            "SELECT COUNT(*) FROM {$wpdb->prefix}sdm_sites
+             WHERE id = %d
                AND main_domain = (SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d)",
             $current_site_id,
             $domain_id
         ));
+
 
         if ( $is_main_domain > 0 ) {
             return array(
