@@ -40,6 +40,16 @@ function sdm_admin_menu() {
         'sdm_projects_dashboard'
     );
 
+    // Submenu: Accounts
+    add_submenu_page(
+        'sdm-dashboard',
+        __('Accounts', 'spintax-domain-manager'),
+        __('Accounts', 'spintax-domain-manager'),
+        'manage_options',
+        'sdm-accounts',
+        'sdm_accounts_dashboard'
+    );
+    
     // Submenu: Sites
     add_submenu_page(
         'sdm-dashboard',
@@ -60,16 +70,16 @@ function sdm_admin_menu() {
         'sdm_domains_dashboard'
     );
 
-    // Submenu: Accounts
+    // Submenu: Redirects
     add_submenu_page(
         'sdm-dashboard',
-        __('Accounts', 'spintax-domain-manager'),
-        __('Accounts', 'spintax-domain-manager'),
+        __('Redirects', 'spintax-domain-manager'),
+        __('Redirects', 'spintax-domain-manager'),
         'manage_options',
-        'sdm-accounts',
-        'sdm_accounts_dashboard'
+        'sdm-redirects',
+        'sdm_redirects_dashboard'
     );
-    
+
     // Submenu: Services (новый пункт)
     add_submenu_page(
         'sdm-dashboard',
@@ -80,15 +90,6 @@ function sdm_admin_menu() {
         'sdm_services_dashboard'
     );
 
-    // Submenu: Redirects
-    add_submenu_page(
-        'sdm-dashboard',
-        __('Redirects', 'spintax-domain-manager'),
-        __('Redirects', 'spintax-domain-manager'),
-        'manage_options',
-        'sdm-redirects',
-        'sdm_redirects_dashboard'
-    );
 
     // Submenu: Settings
     add_submenu_page(

@@ -470,74 +470,62 @@ class SDM_Redirects_Manager {
     }
 
     /**
-     * Syncs all redirects for a project to CloudFlare.
+     * Полностью пересобираем CloudFlare-редиректы для ВСЕХ доменов проекта.
      *
      * @param int $project_id The ID of the project.
-     * @return bool|WP_Error True on success, WP_Error on failure.
+     * @return true|WP_Error
      */
     public function sync_redirects_to_cloudflare( $project_id ) {
         global $wpdb;
-
         $project_id = absint( $project_id );
         if ( $project_id <= 0 ) {
-            return new \WP_Error( 'invalid_project', __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+            return new WP_Error( 'invalid_project', 'Invalid project ID.' );
         }
-
-        $redirects = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT r.*, d.cf_zone_id
-                 FROM {$wpdb->prefix}sdm_redirects r
-                 LEFT JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id
-                 WHERE d.project_id = %d",
-                $project_id
-            )
-        );
-
-        if ( empty( $redirects ) ) {
-            return new \WP_Error( 'no_redirects', __( 'No redirects found for this project.', 'spintax-domain-manager' ) );
+        
+        // Получаем креденшелы через статический метод SDM_Cloudflare_API::get_project_cf_credentials()
+        $creds = SDM_Cloudflare_API::get_project_cf_credentials( $project_id );
+        if ( is_wp_error($creds) ) {
+            return $creds;
         }
-
-        // Example CloudFlare API usage
-        $cf_api = new SDM_Cloudflare_API();
+        
+        // Создаем экземпляр CloudFlare API с полученными креденшелами
+        $cf_api = new SDM_Cloudflare_API( $creds );
+        
+        // Получаем все cf_zone_id данного проекта
+        $zone_ids = $wpdb->get_col( $wpdb->prepare("
+            SELECT DISTINCT d.cf_zone_id
+            FROM {$wpdb->prefix}sdm_domains d
+            WHERE d.project_id = %d
+              AND d.cf_zone_id != ''
+              AND d.cf_zone_id IS NOT NULL
+        ", $project_id ) );
+        
+        if ( empty($zone_ids) ) {
+            return new WP_Error( 'no_zones', 'No CloudFlare zones found for this project.' );
+        }
+        
         $success_count = 0;
-        $error_messages = array();
-
-        foreach ( $redirects as $redirect ) {
-            $zone_id = $redirect->cf_zone_id;
-            if ( empty( $zone_id ) ) {
-                $error_messages[] = sprintf(
-                    __( 'Zone ID not found for domain in redirect ID %d.', 'spintax-domain-manager' ),
-                    $redirect->id
-                );
-                continue;
-            }
-
-            $result = $this->sync_single_redirect_to_cloudflare( $redirect, $zone_id, $cf_api );
-            if ( is_wp_error( $result ) ) {
-                $error_messages[] = sprintf(
-                    __( 'Failed to sync redirect ID %d: %s', 'spintax-domain-manager' ),
-                    $redirect->id,
-                    $result->get_error_message()
-                );
+        $errors = [];
+        
+        foreach ( $zone_ids as $zone_id ) {
+            $result = $cf_api->rebuild_redirect_rules( $zone_id );
+            if ( is_wp_error($result) ) {
+                $errors[] = sprintf('[Zone %s]: %s', $zone_id, $result->get_error_message() );
             } else {
                 $success_count++;
             }
         }
-
-        if ( empty( $error_messages ) ) {
-            return true;
+        
+        if ( ! empty($errors) ) {
+            $msg = sprintf('Rebuilt CF rulesets: %d success, %d failed. Errors: %s',
+                $success_count,
+                count($errors),
+                implode(' | ', $errors)
+            );
+            return new WP_Error( 'partial_sync', $msg );
         }
-
-        $message = sprintf(
-            __( '%d redirects synced successfully, %d failed.', 'spintax-domain-manager' ),
-            $success_count,
-            count( $error_messages )
-        );
-        if ( ! empty( $error_messages ) ) {
-            $message .= ' ' . implode( ' ', $error_messages );
-        }
-
-        return new \WP_Error( 'partial_sync', $message );
+        
+        return true;
     }
 
     /**
@@ -674,7 +662,7 @@ function sdm_ajax_sync_redirects_to_cloudflare() {
     }
     sdm_check_main_nonce();
 
-    $project_id = isset( $_POST['project_id'] ) ? absint( $_POST['project_id'] ) : 0;
+    $project_id = isset($_POST['project_id']) ? absint($_POST['project_id']) : 0;
     if ( $project_id <= 0 ) {
         wp_send_json_error( __( 'Invalid project ID.', 'spintax-domain-manager' ) );
     }
@@ -683,11 +671,14 @@ function sdm_ajax_sync_redirects_to_cloudflare() {
     $result = $manager->sync_redirects_to_cloudflare( $project_id );
 
     if ( is_wp_error( $result ) ) {
+        error_log( 'sync_redirects_to_cloudflare error: ' . $result->get_error_message() );
         wp_send_json_error( $result->get_error_message() );
     }
     wp_send_json_success( array( 'message' => __( 'Redirects synced with CloudFlare successfully.', 'spintax-domain-manager' ) ) );
 }
 add_action( 'wp_ajax_sdm_sync_redirects_to_cloudflare', 'sdm_ajax_sync_redirects_to_cloudflare' );
+
+
 
 /**
  * AJAX Handler: Mass Delete Redirects
