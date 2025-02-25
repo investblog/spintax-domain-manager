@@ -469,8 +469,14 @@ function sdm_ajax_fetch_domains_list() {
         wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
     }
     sdm_check_main_nonce();
+        
+    $main_nonce = isset($_POST['sdm_main_nonce_field']) ? sanitize_text_field($_POST['sdm_main_nonce_field']) : '';
 
-    $project_id = isset( $_POST['project_id'] ) ? absint( $_POST['project_id'] ) : 0;
+
+    $project_id = isset($_POST['project_id']) ? absint($_POST['project_id']) : 0;
+    if ($project_id <= 0) {
+        wp_send_json_error('Invalid project ID.');
+    }
     $sort_column = isset( $_POST['sort_column'] ) ? sanitize_text_field( $_POST['sort_column'] ) : 'created_at';
     $sort_direction = isset( $_POST['sort_direction'] ) ? ( $_POST['sort_direction'] === 'desc' ? 'DESC' : 'ASC' ) : 'DESC';
     $search_term = isset( $_POST['search_term'] ) ? sanitize_text_field( $_POST['search_term'] ) : '';
@@ -481,9 +487,6 @@ function sdm_ajax_fetch_domains_list() {
 
     global $wpdb;
     $prefix = $wpdb->prefix;
-
-    // Debug: Log the search term
-    error_log('Search term: ' . $search_term);
 
     // Build the SQL query with sorting and search
     $sql = $wpdb->prepare(
@@ -552,7 +555,7 @@ function sdm_ajax_fetch_domains_list() {
             $html .= '<td>' . esc_html( $domain->domain ) . '</td>';
             $html .= '<td>';
             if ( $is_assigned ) {
-                $html .= '<a href="?page=sdm-sites&project_id=' . esc_attr( $current_project_id ) . '&site_id=' . esc_attr( $domain->site_id ) . '" class="sdm-site-link">' . esc_html( $domain->site_name ) . '</a>';
+                $html .= '<a href="?page=sdm-sites&project_id=' . esc_attr( $project_id ) . '&site_id=' . esc_attr( $domain->site_id ) . '" class="sdm-site-link">' . esc_html( $domain->site_name ) . '</a>';
                 if ( $is_main_domain ) {
                     $html .= '<span class="sdm-main-domain-note">(Main)</span>';
                 }

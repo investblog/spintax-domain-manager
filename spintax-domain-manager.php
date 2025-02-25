@@ -126,25 +126,54 @@ function sdm_check_main_nonce() {
 function sdm_enqueue_admin_assets() {
     wp_enqueue_style( 'wp-admin' );
 
-    // Your other scripts
     wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array('jquery'), SDM_VERSION, true );
     wp_enqueue_script( 'sdm-domains-js', SDM_PLUGIN_URL . 'admin/js/domains.js', array('jquery'), SDM_VERSION, true );
     wp_enqueue_script( 'sdm-sites-js', SDM_PLUGIN_URL . 'admin/js/sites.js', array('jquery'), SDM_VERSION, true );
 
     $screen = get_current_screen();
-    if ( $screen && $screen->id === 'spintax-manager_page_sdm-redirects' ) {
-        // Enqueue redirects.js
-        wp_enqueue_script( 'sdm-redirects-js', SDM_PLUGIN_URL . 'admin/js/redirects.js', array('jquery'), SDM_VERSION, true );
 
-        // Localize a variable so we can reference plugin URL in JS
+    // Подключаем redirects.js и локализацию только на странице редиректов
+    if ( $screen && $screen->id === 'spintax-manager_page_sdm-redirects' ) {
+        wp_enqueue_script(
+            'sdm-redirects-js',
+            SDM_PLUGIN_URL . 'admin/js/redirects.js',
+            array('jquery'),
+            SDM_VERSION,
+            true
+        );
         wp_localize_script( 'sdm-redirects-js', 'SDM_Data', array(
-            'pluginUrl' => SDM_PLUGIN_URL, // used for icon paths
+            'pluginUrl' => SDM_PLUGIN_URL,
         ));
     }
 
-    wp_enqueue_style( 'sdm-admin-css', SDM_PLUGIN_URL . 'admin/css/admin.css', array(), SDM_VERSION );
+    // Подключаем Select2 на страницах доменов и редиректов
+    if ( $screen && in_array( $screen->id, array(
+        'spintax-manager_page_sdm-domains',
+        'spintax-manager_page_sdm-redirects'
+    ), true ) ) {
+        wp_enqueue_style(
+            'select2-css',
+            'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css',
+            array(),
+            '4.0.13'
+        );
+        wp_enqueue_script(
+            'select2',
+            'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js',
+            array('jquery'),
+            '4.0.13',
+            true
+        );
+    }
 
-    // Flag icons, etc...
+    wp_enqueue_style(
+        'sdm-admin-css',
+        SDM_PLUGIN_URL . 'admin/css/admin.css',
+        array(),
+        SDM_VERSION
+    );
+
+    // Подключаем флаги (flag-icons)
     wp_enqueue_style(
         'flag-icons',
         'https://cdn.jsdelivr.net/npm/flag-icons/css/flag-icons.min.css',
