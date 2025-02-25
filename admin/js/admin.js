@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
 
-    // -------------------------------------------------
+// -------------------------------------------------
     // 1) Copy Encryption Key
     // -------------------------------------------------
     var copyButton = document.getElementById('sdm_copy_key_button');
@@ -9,18 +9,54 @@ document.addEventListener('DOMContentLoaded', function() {
     if (copyButton && keyField) {
         copyButton.addEventListener('click', function() {
             keyField.select();
-            keyField.setSelectionRange(0, 99999);
+            keyField.setSelectionRange(0, 99999); // Для совместимости с мобильными устройствами
+
             try {
                 var successful = document.execCommand('copy');
                 if (successful) {
-                    alert('Encryption key copied to clipboard.');
+                    showWPNotice('Encryption key copied to clipboard.', 'success');
                 } else {
-                    alert('Failed to copy the key.');
+                    showWPNotice('Failed to copy the key.', 'error');
                 }
             } catch (err) {
-                alert('Error copying the key.');
+                showWPNotice('Error copying the key: ' + err.message, 'error');
             }
         });
+    }
+
+    function showWPNotice(message, type) {
+        // Создаем элемент уведомления в стиле WordPress
+        var notice = document.createElement('div');
+        notice.className = 'notice notice-' + (type === 'success' ? 'updated' : 'error') + ' is-dismissible';
+        notice.innerHTML = '<p>' + message + '</p><button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button>';
+
+        // Находим место для вставки уведомления (под заголовком страницы)
+        var header = document.querySelector('.wrap h1');
+        if (header) {
+            // Вставляем уведомление сразу после заголовка
+            var wrap = header.closest('.wrap');
+            if (wrap) {
+                wrap.insertBefore(notice, wrap.querySelector('.wrap > *:nth-child(2)') || wrap.firstChild.nextSibling);
+            } else {
+                document.body.insertBefore(notice, document.body.firstChild.nextSibling);
+            }
+        } else {
+            // Если заголовок не найден, вставляем в начало #wpbody-content
+            var noticesContainer = document.getElementById('wpbody-content') || document.body;
+            noticesContainer.insertBefore(notice, noticesContainer.firstChild);
+        }
+
+        // Удаляем уведомление при клике на "dismiss"
+        notice.querySelector('.notice-dismiss').addEventListener('click', function() {
+            notice.remove();
+        });
+
+        // Автоматическое удаление через 5 секунд
+        setTimeout(function() {
+            if (notice.parentNode) {
+                notice.remove();
+            }
+        }, 5000);
     }
 
     // -------------------------------------------------

@@ -209,20 +209,48 @@ function sdm_settings_section_callback() {
  * Encryption key field callback
  */
 function sdm_encryption_key_field_callback() {
-    // Retrieve the encryption key from the options
+    // Получаем текущий ключ из базы данных
     $encryption_key = get_option('sdm_encryption_key', '');
-    
-    // If no key is set, generate a new one (32 characters) using WordPress function.
-    if ( empty( $encryption_key ) ) {
+    $is_key_saved = !empty($encryption_key); // Проверяем, сохранен ли ключ
+
+    // Если ключ еще не сохранен, генерируем новый
+    if (!$is_key_saved) {
         $encryption_key = wp_generate_password(32, false, false);
     }
-    
-    // Output a readonly input field and a copy button
-    echo '<input type="text" id="sdm_encryption_key_field" name="sdm_encryption_key" value="' . esc_attr( $encryption_key ) . '" class="regular-text" readonly />';
-    echo '<button type="button" id="sdm_copy_key_button" class="button">' . esc_html__( 'Copy Key', 'spintax-domain-manager' ) . '</button>';
-    
-    // Info text
-    echo '<p class="description">' . esc_html__( 'This key is used to encrypt sensitive account data. You can copy it for backup purposes.', 'spintax-domain-manager' ) . '</p>';
+
+    // Определяем класс для иконки в зависимости от состояния
+    $icon_class = $is_key_saved ? 'sdm-redirect-type-hidden' : 'sdm-redirect-type-main';
+
+    // Читаем содержимое SVG-файла
+    $svg_path = SDM_PLUGIN_DIR . 'assets/icons/hidden.svg';
+    $svg_content = '';
+    if (file_exists($svg_path)) {
+        $svg_content = file_get_contents($svg_path);
+        // Удаляем ненужные атрибуты, если они есть (например, width, height, чтобы стили управляли размером)
+        $svg_content = preg_replace('/<svg[^>]+>/', '<svg>', $svg_content, 1); // Убираем атрибуты, оставляя только тег
+        $svg_content = str_replace('width="16" height="16"', '', $svg_content); // Убираем фиксированные размеры
+    } else {
+        $svg_content = '<svg width="16" height="16" fill="currentColor"><path d="M12 4.5v.5h-.5V3.5H11V4H4v-.5h-.5v.5h-.5v-.5C3 3.224 3.224 3 3.5 3h9c.276 0 .5.224.5.5zM3.5 13c-.276 0-.5-.224-.5-.5v-.5h.5v.5h.5v-.5h7v.5h.5v-.5h.5v.5c0 .276-.224.5-.5.5h-9zM11 7v4H5V7h6m.5-1H4.5c-.275 0-.5.225-.5.5v4c0 .275.225.5.5.5h7c.275 0 .5-.225.5-.5V6.5c0-.275-.225-.5-.5-.5z"/></svg>';
+        // Простой запасной SVG, если файл не найден (иконка замка)
+    }
+
+    // Поле ввода и кнопка (без описания внутри)
+    echo '<div class="sdm-encryption-key-wrapper">';
+    echo '<input type="text" id="sdm_encryption_key_field" name="sdm_encryption_key" value="' . esc_attr($encryption_key) . '" class="regular-text" ' . ($is_key_saved ? 'readonly' : '') . ' />';
+
+    // Кнопка с инлайновой иконкой (иконка справа от текста)
+    echo '<button type="button" id="sdm_copy_key_button" class="button">';
+    echo esc_html($is_key_saved ? 'Key Saved' : 'Copy Key');
+    echo '<span class="' . esc_attr($icon_class) . '" style="margin-left: 8px;">';
+    echo $svg_content; // Вставляем инлайновый SVG
+    echo '</span>';
+    echo '</button>';
+    echo '</div>';
+
+    // Описание под формой
+    echo '<p class="description" style="margin-top: 10px;">' . 
+         esc_html__('This key will be used to encrypt sensitive data. It won’t be saved until you submit the form.', 'spintax-domain-manager') . 
+         '</p>';
 }
 
 /**
