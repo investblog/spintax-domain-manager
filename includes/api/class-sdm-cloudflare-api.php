@@ -193,40 +193,56 @@ class SDM_Cloudflare_API {
         return $json;
     }
 
+
     /**
-     * Удаляет все Page Rules, у которых description начинается с "SDM".
+     * Удаляет все Page Rules в указанной зоне.
      *
-     * @param string $zone_id
+     * @param string $zone_id Идентификатор зоны.
      * @return true|WP_Error
      */
     public function delete_sdm_page_rules( $zone_id ) {
-        // 1) Получаем список Page Rules
-        $list_resp = $this->api_request_extended(
-            "zones/{$zone_id}/pagerules",
-            array(),
-            'GET'
-        );
-        if ( is_wp_error($list_resp) ) {
-            return $list_resp;
-        }
-        if ( empty($list_resp['result']) ) {
-            // нет никаких Page Rules
-            return true;
-        }
+        $per_page = 50;
+        $page = 1;
+        $errors = [];
 
-        // 2) Удаляем только те, у которых description начинается с "SDM"
-        foreach ( $list_resp['result'] as $pageRule ) {
-            if ( ! empty($pageRule['description']) && strpos($pageRule['description'], 'SDM') === 0 ) {
+        do {
+            $list_resp = $this->api_request_extended(
+                "zones/{$zone_id}/pagerules",
+                ['per_page' => $per_page, 'page' => $page],
+                'GET'
+            );
+
+            if ( is_wp_error($list_resp) ) {
+                error_log("Failed to list Page Rules for zone {$zone_id}: " . $list_resp->get_error_message());
+                return $list_resp;
+            }
+
+            if ( empty($list_resp['result']) ) {
+                break;
+            }
+
+            foreach ( $list_resp['result'] as $pageRule ) {
                 $rule_id = $pageRule['id'];
+                $target_value = $pageRule['targets'][0]['constraint']['value'] ?? 'unknown';
+                $desc = $pageRule['description'] ?? '';
+                error_log("Deleting Page Rule {$rule_id} with target '{$target_value}' and description '{$desc}'");
                 $delete_resp = $this->api_request_extended(
                     "zones/{$zone_id}/pagerules/{$rule_id}",
-                    array(),
+                    [],
                     'DELETE'
                 );
                 if ( is_wp_error($delete_resp) ) {
-                    return $delete_resp;
+                    $errors[] = "Failed to delete Page Rule {$rule_id}: " . $delete_resp->get_error_message();
+                    continue;
                 }
             }
+
+            $total_pages = isset($list_resp['result_info']['total_pages']) ? (int) $list_resp['result_info']['total_pages'] : 1;
+            $page++;
+        } while ( $page <= $total_pages );
+
+        if ( !empty($errors) ) {
+            return new WP_Error( 'partial_delete', implode(' | ', $errors) );
         }
         return true;
     }

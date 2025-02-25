@@ -434,70 +434,75 @@ class SDM_Redirects_Manager {
 
     /**
      * Syncs Main‑redirects via CloudFlare Page Rules.
-     * For each zone:
-     *   1. Delete existing Page Rules whose description starts with "SDM".
-     *   2. For each main redirect, create a Page Rule.
+     * 1. Удаляет все существующие Page Rules в каждой зоне.
+     * 2. Создаёт новые Page Rules для каждого main-редиректа.
      *
      * @param int $project_id
      * @return true|WP_Error
      */
     public function sync_main_redirects_to_page_rules( $project_id ) {
         global $wpdb;
-        $project_id = absint( $project_id );
+        $project_id = absint($project_id);
         if ( $project_id <= 0 ) {
             return new WP_Error( 'invalid_project', 'Invalid project ID.' );
         }
         $creds = SDM_Cloudflare_API::get_project_cf_credentials( $project_id );
-        if ( is_wp_error( $creds ) ) {
+        if ( is_wp_error($creds) ) {
             return $creds;
         }
         $cf_api = new SDM_Cloudflare_API( $creds );
-        // Get all main redirects for this project.
+
+        // Получаем все main-редиректы для проекта
         $redirects = $wpdb->get_results( $wpdb->prepare( "
             SELECT r.*, d.domain, d.cf_zone_id 
             FROM {$wpdb->prefix}sdm_redirects r 
             JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id 
             WHERE d.project_id = %d AND r.redirect_type = 'main'
         ", $project_id ) );
-        $errors = array();
+
+        $errors = [];
         $success_count = 0;
-        $byZone = array();
+        $byZone = [];
         foreach ( $redirects as $r ) {
-            if ( empty( $r->cf_zone_id ) ) {
+            if ( empty($r->cf_zone_id) ) {
                 continue;
             }
             $byZone[$r->cf_zone_id][] = $r;
         }
+
         foreach ( $byZone as $zone_id => $zoneRedirects ) {
-            // 1) Delete existing Page Rules starting with "SDM".
+            // 1. Удаляем все Page Rules в зоне
             $delResp = $cf_api->delete_sdm_page_rules( $zone_id );
-            if ( is_wp_error( $delResp ) ) {
+            if ( is_wp_error($delResp) ) {
+                error_log("Failed to delete all Page Rules for zone {$zone_id}: " . $delResp->get_error_message());
                 $errors[] = "Zone {$zone_id}: " . $delResp->get_error_message();
                 continue;
             }
-            // 2) Create new Page Rules.
+
+            // 2. Создаём новые Page Rules
             foreach ( $zoneRedirects as $redirect ) {
-                // sourcePattern: "https://{old_domain}/*"
                 $sourcePattern = "https://{$redirect->domain}/*";
-                // Extract clean domain from target_url. (E.g. from "https://pinup.cam/*" get "pinup.cam")
                 $targetDomain = $this->extract_domain_from_url( $redirect->target_url );
-                if ( empty( $targetDomain ) ) {
+                if ( empty($targetDomain) ) {
                     $errors[] = "Domain ID {$redirect->domain_id}: cannot extract domain from target_url";
                     continue;
                 }
-                // Build target URL: "https://{new_domain}/$1"
                 $targetUrl = "https://{$targetDomain}/\$1";
                 $status_code = (int) $redirect->type;
                 $desc = "SDM domain_id={$redirect->domain_id}";
-                $prResp = $cf_api->create_page_rule( $redirect->cf_zone_id, $sourcePattern, $targetUrl, $status_code, $desc );
-                if ( is_wp_error( $prResp ) ) {
-                    $errors[] = sprintf( 'Domain ID %d: %s', $redirect->domain_id, $prResp->get_error_message() );
+
+                error_log("Creating Page Rule for zone {$zone_id}: {$sourcePattern} -> {$targetUrl}");
+                $prResp = $cf_api->create_page_rule( $zone_id, $sourcePattern, $targetUrl, $status_code, $desc );
+                if ( is_wp_error($prResp) ) {
+                    error_log("Failed to create Page Rule for domain ID {$redirect->domain_id}: " . $prResp->get_error_message());
+                    $errors[] = "Domain ID {$redirect->domain_id}: " . $prResp->get_error_message();
                 } else {
                     $success_count++;
                 }
             }
         }
-        if ( ! empty($errors) ) {
+
+        if ( !empty($errors) ) {
             $msg = sprintf( 'Main redirects: %d page rules created successfully, %d failed. Errors: %s', $success_count, count($errors), implode(' | ', $errors) );
             return new WP_Error( 'partial_sync', $msg );
         }
@@ -525,17 +530,41 @@ class SDM_Redirects_Manager {
 
     /**
      * Syncs all redirects (Main + Glue) to CloudFlare.
+     *
+     * @param int $project_id
+     * @return true|WP_Error
      */
     public function sync_redirects_to_cloudflare( $project_id ) {
+        $messages = [];
+        $errors = [];
+
+        // Синхронизация Main-редиректов
         $mainResult = $this->sync_main_redirects_to_page_rules( $project_id );
         if ( is_wp_error( $mainResult ) ) {
-            return $mainResult;
+            $errors[] = $mainResult->get_error_message();
+        } else {
+            $messages[] = "Main redirects synced successfully.";
         }
+
+        // Синхронизация Glue-редиректов
         $glueResult = $this->sync_glue_redirects_to_cloudflare( $project_id );
         if ( is_wp_error( $glueResult ) ) {
-            return $glueResult;
+            $error_message = $glueResult->get_error_message();
+            if ( $glueResult->get_error_code() === 'no_zones' ) {
+                $messages[] = "Glue redirects: " . $error_message; // Информационное сообщение
+            } else {
+                $errors[] = "Glue redirects: " . $error_message;
+            }
+        } else {
+            $messages[] = "Glue redirects synced successfully.";
         }
-        return true;
+
+        // Формируем итоговый результат
+        $final_message = implode(' | ', array_merge($messages, $errors));
+        if ( !empty($errors) ) {
+            return new WP_Error( 'partial_sync', $final_message );
+        }
+        return $final_message; // Возвращаем строку при успехе
     }
 
     /**
@@ -544,7 +573,7 @@ class SDM_Redirects_Manager {
     private function sync_single_redirect_to_cloudflare( $redirect, $zone_id, $cf_api ) {
         return true;
     }
-}
+} /*Last bracket of Class*/
 
 /**
  * Normalize language code for Flag Icons.
