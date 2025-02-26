@@ -375,22 +375,6 @@ class SDM_Redirects_Manager {
     }
 
     /**
-     * Syncs a redirect to CloudFlare (placeholder).
-     */
-    private function sync_redirect_to_cloudflare( $redirect_id ) {
-        // Placeholder for CloudFlare integration.
-        return true;
-    }
-
-    /**
-     * Removes a redirect from CloudFlare (placeholder).
-     */
-    private function remove_redirect_from_cloudflare( $redirect_id ) {
-        // Placeholder for CloudFlare integration.
-        return true;
-    }
-
-    /**
      * Syncs Glue‑redirects via CloudFlare Rulesets.
      */
     public function sync_glue_redirects_to_cloudflare( $project_id ) {
@@ -511,7 +495,7 @@ class SDM_Redirects_Manager {
 
     /**
      * Helper: Extracts the domain from a URL.
-     * For example, from "https://pinup.cam/*" returns "pinup.cam".
+     * For example, from "https://domain.com/*" returns "domain.com".
      *
      * @param string $url
      * @return string
@@ -568,12 +552,133 @@ class SDM_Redirects_Manager {
     }
 
     /**
-     * Placeholder for syncing a single redirect.
+     * Public method to sync selected redirects to CloudFlare.
+     *
+     * @param int   $project_id Project ID.
+     * @param array $domain_ids Array of domain IDs to sync.
+     * @return true|WP_Error|string
      */
-    private function sync_single_redirect_to_cloudflare( $redirect, $zone_id, $cf_api ) {
-        return true;
+    public function sync_selected_redirects_to_cloudflare($project_id, $domain_ids) {
+        return $this->mass_sync_redirects_to_cloudflare($project_id, $domain_ids);
     }
-} /*Last bracket of Class*/
+
+
+
+    /**
+     * Syncs redirects for selected domains to CloudFlare (Main + Glue).
+     *
+     * @param int   $project_id Project ID.
+     * @param array $domain_ids Array of domain IDs to sync.
+     * @return true|WP_Error|string
+     */
+    private function mass_sync_redirects_to_cloudflare($project_id, $domain_ids) {
+        global $wpdb;
+        $project_id = absint($project_id);
+        if ($project_id <= 0 || empty($domain_ids)) {
+            return new WP_Error('invalid_input', 'Invalid project ID or no domains selected.');
+        }
+
+        // Получаем редиректы только для выбранных domain_ids
+        $redirects = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT r.*, d.domain, d.cf_zone_id 
+                 FROM {$wpdb->prefix}sdm_redirects r 
+                 JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id 
+                 WHERE d.project_id = %d 
+                   AND r.domain_id IN (" . implode(',', array_fill(0, count($domain_ids), '%d')) . ")",
+                array_merge([$project_id], array_map('absint', $domain_ids))
+            )
+        );
+
+        if (empty($redirects)) {
+            return new WP_Error('no_redirects', 'No redirects found for the selected domains.');
+        }
+
+        $creds = SDM_Cloudflare_API::get_project_cf_credentials($project_id);
+        if (is_wp_error($creds)) {
+            return $creds;
+        }
+
+        $cf_api = new SDM_Cloudflare_API($creds);
+
+        $messages = [];
+        $errors = [];
+
+        // Группируем редиректы по зонам
+        $byZone = [];
+        foreach ($redirects as $r) {
+            if (empty($r->cf_zone_id)) {
+                $errors[] = sprintf('Domain ID %d: No Cloudflare zone ID.', $r->domain_id);
+                continue;
+            }
+            $byZone[$r->cf_zone_id][] = $r;
+        }
+
+        // Синхронизация Main-редиректов
+        $main_success_count = 0;
+        foreach ($byZone as $zone_id => $zoneRedirects) {
+            $mainRedirects = array_filter($zoneRedirects, function($r) {
+                return $r->redirect_type === 'main';
+            });
+
+            if (!empty($mainRedirects)) {
+                // Удаляем все существующие Page Rules в зоне
+                $delResp = $cf_api->delete_sdm_page_rules($zone_id);
+                if (is_wp_error($delResp)) {
+                    $errors[] = sprintf('Zone %s: Failed to delete Page Rules - %s', $zone_id, $delResp->get_error_message());
+                    continue;
+                }
+
+                // Создаем новые Page Rules для main-редиректов
+                foreach ($mainRedirects as $redirect) {
+                    $sourcePattern = "https://{$redirect->domain}/*";
+                    $targetDomain = $this->extract_domain_from_url($redirect->target_url);
+                    if (empty($targetDomain)) {
+                        $errors[] = sprintf('Domain ID %d: Cannot extract domain from target_url', $redirect->domain_id);
+                        continue;
+                    }
+                    $targetUrl = "https://{$targetDomain}/\$1";
+                    $status_code = (int) $redirect->type;
+                    $desc = "SDM domain_id={$redirect->domain_id}";
+
+                    $prResp = $cf_api->create_page_rule($zone_id, $sourcePattern, $targetUrl, $status_code, $desc);
+                    if (is_wp_error($prResp)) {
+                        $errors[] = sprintf('Domain ID %d: %s', $redirect->domain_id, $prResp->get_error_message());
+                    } else {
+                        $main_success_count++;
+                    }
+                }
+            }
+        }
+
+        // Синхронизация Glue-редиректов
+        $glue_success_count = 0;
+        foreach ($byZone as $zone_id => $zoneRedirects) {
+            $glueRedirects = array_filter($zoneRedirects, function($r) {
+                return $r->redirect_type === 'glue';
+            });
+
+            if (!empty($glueRedirects)) {
+                $result = $cf_api->rebuild_redirect_rules($zone_id);
+                if (is_wp_error($result)) {
+                    $errors[] = sprintf('Zone %s: Glue sync failed - %s', $zone_id, $result->get_error_message());
+                } else {
+                    $glue_success_count += count($glueRedirects);
+                }
+            }
+        }
+
+        // Формируем результат
+        $messages[] = sprintf('Main redirects: %d synced successfully.', $main_success_count);
+        $messages[] = sprintf('Glue redirects: %d synced successfully.', $glue_success_count);
+
+        $final_message = implode(' | ', array_merge($messages, $errors));
+        if (!empty($errors)) {
+            return new WP_Error('partial_sync', $final_message);
+        }
+        return $final_message; // Возвращаем строку при успехе
+    }
+} /* <------------------------Last bracket of Class*/
 
 /**
  * Normalize language code for Flag Icons.
@@ -1132,6 +1237,9 @@ function sdm_get_inline_redirect_svg( $redirect_type ) {
     return $svg_content;
 }
 
+/**
+ * AJAX Handler: Mass Sync Redirects to CloudFlare for selected domains.
+ */
 function sdm_ajax_mass_sync_redirects_to_cloudflare() {
     if (!current_user_can('manage_options')) {
         wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
@@ -1145,72 +1253,14 @@ function sdm_ajax_mass_sync_redirects_to_cloudflare() {
         wp_send_json_error(__('No domains selected or invalid project ID.', 'spintax-domain-manager'));
     }
 
-    global $wpdb;
-    $redirects = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT r.*, d.cf_zone_id, d.domain 
-             FROM {$wpdb->prefix}sdm_redirects r 
-             JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id 
-             WHERE r.domain_id IN (" . implode(',', array_fill(0, count($domain_ids), '%d')) . ") 
-               AND d.project_id = %d",
-            array_merge(array_map('absint', $domain_ids), [$project_id])
-        )
-    );
-
-    if (empty($redirects)) {
-        wp_send_json_error(__('No redirects found for the selected domains.', 'spintax-domain-manager'));
-    }
-
     $manager = new SDM_Redirects_Manager();
-    $creds = SDM_Cloudflare_API::get_project_cf_credentials($project_id);
-    if (is_wp_error($creds)) {
-        wp_send_json_error($creds->get_error_message());
+    $result = $manager->sync_selected_redirects_to_cloudflare($project_id, $domain_ids);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error($result->get_error_message());
     }
 
-    $cf_api = new SDM_Cloudflare_API($creds);
-    $success = 0;
-    $failed = 0;
-    $errors = [];
-
-    foreach ($redirects as $redirect) {
-        if (empty($redirect->cf_zone_id)) {
-            $failed++;
-            $errors[] = sprintf(__('Domain ID %d: No Cloudflare zone ID.', 'spintax-domain-manager'), $redirect->domain_id);
-            continue;
-        }
-
-        if ($redirect->redirect_type === 'main') {
-            $sourcePattern = "https://{$redirect->domain}/*";
-            $targetDomain = $manager->extract_domain_from_url($redirect->target_url); // Вызов через $manager
-            if (empty($targetDomain)) {
-                $failed++;
-                $errors[] = sprintf(__('Domain ID %d: Cannot extract target domain from %s', 'spintax-domain-manager'), $redirect->domain_id, $redirect->target_url);
-                continue;
-            }
-            $targetUrl = "https://{$targetDomain}/\$1";
-            $status_code = (int) $redirect->type;
-            $desc = "SDM domain_id={$redirect->domain_id}";
-            $result = $cf_api->create_page_rule($redirect->cf_zone_id, $sourcePattern, $targetUrl, $status_code, $desc);
-        } else if ($redirect->redirect_type === 'glue') {
-            $result = $cf_api->rebuild_redirect_rules($redirect->cf_zone_id);
-        } else {
-            $result = true; // Hidden пока не синхронизируется
-        }
-
-        if (is_wp_error($result)) {
-            $failed++;
-            $errors[] = sprintf(__('Domain ID %d: %s', 'spintax-domain-manager'), $redirect->domain_id, $result->get_error_message());
-        } else {
-            $success++;
-        }
-    }
-
-    $message = sprintf(__('%d redirects synced successfully, %d failed.', 'spintax-domain-manager'), $success, $failed);
-    if (!empty($errors)) {
-        $message .= ' ' . implode(' ', $errors);
-    }
-
-    wp_send_json_success(['message' => $message]);
+    wp_send_json_success(['message' => $result]);
 }
 add_action('wp_ajax_sdm_mass_sync_redirects_to_cloudflare', 'sdm_ajax_mass_sync_redirects_to_cloudflare');
 ?>
