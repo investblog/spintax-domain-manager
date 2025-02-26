@@ -146,10 +146,11 @@ function sdm_enqueue_admin_assets() {
         ));
     }
 
-    // Подключаем Select2 на страницах доменов и редиректов
+    // Подключаем Select2 на страницах доменов, редиректов и сайтов
     if ( $screen && in_array( $screen->id, array(
         'spintax-manager_page_sdm-domains',
-        'spintax-manager_page_sdm-redirects'
+        'spintax-manager_page_sdm-redirects',
+        'spintax-manager_page_sdm-sites' // Добавлена страница сайтов
     ), true ) ) {
         wp_enqueue_style(
             'select2-css',
