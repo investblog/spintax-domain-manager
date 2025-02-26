@@ -874,21 +874,27 @@ function sdm_ajax_update_redirect_type() {
         wp_send_json_error(__('Redirect not found.', 'spintax-domain-manager'));
     }
 
-    // Получаем домен из таблицы sdm_domains
-    $domain = $wpdb->get_var(
-        $wpdb->prepare("SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d", $redirect->domain_id)
+    // Получаем site_id и main_domain из sdm_sites через sdm_domains
+    $site = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT s.main_domain 
+             FROM {$wpdb->prefix}sdm_sites s 
+             JOIN {$wpdb->prefix}sdm_domains d ON d.site_id = s.id 
+             WHERE d.id = %d",
+            $redirect->domain_id
+        )
     );
-    if (!$domain) {
-        wp_send_json_error(__('Domain not found.', 'spintax-domain-manager'));
+    if (!$site || empty($site->main_domain)) {
+        wp_send_json_error(__('Main domain not found for this site.', 'spintax-domain-manager'));
     }
 
-    // Формируем target_url в зависимости от типа
-    $target_url = "https://{$domain}";
+    // Формируем target_url на основе главного домена сайта
+    $target_url = "https://{$site->main_domain}";
     if ($new_type === 'main') {
         $target_url .= '/*';
     } else if ($new_type === 'glue') {
         $target_url .= '/';
-    } // Для hidden оставляем просто https://domain.com
+    } // Для hidden оставляем чистый https://main_domain
 
     // Обновляем redirect_type и target_url
     $updated = $wpdb->update(
