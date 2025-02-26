@@ -563,9 +563,8 @@ class SDM_Redirects_Manager {
     }
 
 
-
     /**
-     * Syncs redirects for selected domains to CloudFlare (Main + Glue).
+     * Syncs redirects for selected domains to CloudFlare (Main + Glue), removes all existing rules and recreates active ones.
      *
      * @param int   $project_id Project ID.
      * @param array $domain_ids Array of domain IDs to sync.
@@ -578,7 +577,7 @@ class SDM_Redirects_Manager {
             return new WP_Error('invalid_input', 'Invalid project ID or no domains selected.');
         }
 
-        // Получаем редиректы только для выбранных domain_ids
+        // Получаем активные редиректы для выбранных domain_ids
         $redirects = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT r.*, d.domain, d.cf_zone_id 
@@ -590,8 +589,20 @@ class SDM_Redirects_Manager {
             )
         );
 
-        if (empty($redirects)) {
-            return new WP_Error('no_redirects', 'No redirects found for the selected domains.');
+        // Получаем все зоны для выбранных доменов (даже без редиректов)
+        $zones = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT DISTINCT cf_zone_id 
+                 FROM {$wpdb->prefix}sdm_domains 
+                 WHERE project_id = %d 
+                   AND id IN (" . implode(',', array_fill(0, count($domain_ids), '%d')) . ") 
+                   AND cf_zone_id IS NOT NULL AND cf_zone_id != ''",
+                array_merge([$project_id], array_map('absint', $domain_ids))
+            )
+        );
+
+        if (empty($zones)) {
+            return new WP_Error('no_zones', 'No Cloudflare zones found for the selected domains.');
         }
 
         $creds = SDM_Cloudflare_API::get_project_cf_credentials($project_id);
@@ -614,22 +625,41 @@ class SDM_Redirects_Manager {
             $byZone[$r->cf_zone_id][] = $r;
         }
 
-        // Синхронизация Main-редиректов
+        // Обрабатываем каждую зону
         $main_success_count = 0;
-        foreach ($byZone as $zone_id => $zoneRedirects) {
-            $mainRedirects = array_filter($zoneRedirects, function($r) {
-                return $r->redirect_type === 'main';
-            });
+        $glue_success_count = 0;
+        foreach ($zones as $zone_id) {
+            // 1. Удаляем все Page Rules в зоне (для Main)
+            $delPageRulesResp = $cf_api->delete_sdm_page_rules($zone_id);
+            if (is_wp_error($delPageRulesResp)) {
+                $errors[] = sprintf('Zone %s: Failed to delete Page Rules - %s', $zone_id, $delPageRulesResp->get_error_message());
+            }
 
-            if (!empty($mainRedirects)) {
-                // Удаляем все существующие Page Rules в зоне
-                $delResp = $cf_api->delete_sdm_page_rules($zone_id);
-                if (is_wp_error($delResp)) {
-                    $errors[] = sprintf('Zone %s: Failed to delete Page Rules - %s', $zone_id, $delResp->get_error_message());
-                    continue;
+            // 2. Удаляем все rulesets в фазе http_request_dynamic_redirect (для Glue)
+            $existingRulesets = $cf_api->api_request_extended("zones/$zone_id/rulesets", ['per_page' => 50], 'GET');
+            if (!is_wp_error($existingRulesets) && !empty($existingRulesets['result'])) {
+                foreach ($existingRulesets['result'] as $ruleset) {
+                    if (isset($ruleset['phase']) && $ruleset['phase'] === 'http_request_dynamic_redirect') {
+                        $delRulesetResp = $cf_api->api_request_extended(
+                            "zones/$zone_id/rulesets/" . $ruleset['id'],
+                            [],
+                            'DELETE'
+                        );
+                        if (is_wp_error($delRulesetResp)) {
+                            $errors[] = sprintf('Zone %s: Failed to delete ruleset %s - %s', $zone_id, $ruleset['id'], $delRulesetResp->get_error_message());
+                        }
+                    }
                 }
+            }
 
-                // Создаем новые Page Rules для main-редиректов
+            // 3. Пересоздаем активные редиректы для зоны (если они есть)
+            if (isset($byZone[$zone_id])) {
+                $zoneRedirects = $byZone[$zone_id];
+
+                // Main-редиректы
+                $mainRedirects = array_filter($zoneRedirects, function($r) {
+                    return $r->redirect_type === 'main';
+                });
                 foreach ($mainRedirects as $redirect) {
                     $sourcePattern = "https://{$redirect->domain}/*";
                     $targetDomain = $this->extract_domain_from_url($redirect->target_url);
@@ -648,22 +678,41 @@ class SDM_Redirects_Manager {
                         $main_success_count++;
                     }
                 }
-            }
-        }
 
-        // Синхронизация Glue-редиректов
-        $glue_success_count = 0;
-        foreach ($byZone as $zone_id => $zoneRedirects) {
-            $glueRedirects = array_filter($zoneRedirects, function($r) {
-                return $r->redirect_type === 'glue';
-            });
+                // Glue-редиректы
+                $glueRedirects = array_filter($zoneRedirects, function($r) {
+                    return $r->redirect_type === 'glue';
+                });
+                if (!empty($glueRedirects)) {
+                    $rules = [];
+                    foreach ($glueRedirects as $redirect) {
+                        $rules[] = [
+                            'action' => 'redirect',
+                            'description' => "SDM domain_id={$redirect->domain_id}",
+                            'expression' => '(http.request.uri.path eq "/")',
+                            'action_parameters' => [
+                                'from_value' => [
+                                    'target_url' => ['value' => rtrim($redirect->target_url, '/')],
+                                    'status_code' => (int) $redirect->type,
+                                    'preserve_query_string' => (bool) $redirect->preserve_query_string,
+                                ],
+                            ],
+                        ];
+                    }
 
-            if (!empty($glueRedirects)) {
-                $result = $cf_api->rebuild_redirect_rules($zone_id);
-                if (is_wp_error($result)) {
-                    $errors[] = sprintf('Zone %s: Glue sync failed - %s', $zone_id, $result->get_error_message());
-                } else {
-                    $glue_success_count += count($glueRedirects);
+                    $body = [
+                        'name' => 'SDM Rebuilt Redirects ' . date('Y-m-d H:i:s'),
+                        'description' => 'All WP sdm_redirects re-created for GLUE',
+                        'kind' => 'zone',
+                        'phase' => 'http_request_dynamic_redirect',
+                        'rules' => $rules,
+                    ];
+                    $createResp = $cf_api->api_request_extended("zones/$zone_id/rulesets", [], 'POST', $body);
+                    if (is_wp_error($createResp)) {
+                        $errors[] = sprintf('Zone %s: Glue sync failed - %s', $zone_id, $createResp->get_error_message());
+                    } else {
+                        $glue_success_count += count($glueRedirects);
+                    }
                 }
             }
         }
@@ -676,7 +725,7 @@ class SDM_Redirects_Manager {
         if (!empty($errors)) {
             return new WP_Error('partial_sync', $final_message);
         }
-        return $final_message; // Возвращаем строку при успехе
+        return $final_message;
     }
 } /* <------------------------Last bracket of Class*/
 
