@@ -699,47 +699,59 @@ add_action( 'wp_ajax_sdm_sync_redirects_to_cloudflare', 'sdm_ajax_sync_redirects
  * AJAX Handler: Mass Delete Redirects
  */
 function sdm_ajax_mass_delete_redirects() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
     }
     sdm_check_main_nonce();
-    $redirect_ids = isset( $_POST['redirect_ids'] ) ? json_decode( stripslashes($_POST['redirect_ids']), true ) : array();
-    if ( empty( $redirect_ids ) ) {
-        wp_send_json_error( __( 'No redirects selected.', 'spintax-domain-manager' ) );
+
+    $domain_ids = isset($_POST['domain_ids']) ? json_decode(stripslashes($_POST['domain_ids']), true) : [];
+    if (empty($domain_ids)) {
+        wp_send_json_error(__('No domains selected.', 'spintax-domain-manager'));
     }
+
+    global $wpdb;
+    $redirect_ids = $wpdb->get_col(
+        $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}sdm_redirects WHERE domain_id IN (" . implode(',', array_fill(0, count($domain_ids), '%d')) . ")",
+            ...array_map('absint', $domain_ids)
+        )
+    );
+
+    if (empty($redirect_ids)) {
+        wp_send_json_error(__('No redirects found for the selected domains.', 'spintax-domain-manager'));
+    }
+
     $manager = new SDM_Redirects_Manager();
     $success = 0;
     $failed = 0;
-    $messages = array();
-    foreach ( $redirect_ids as $redirect_id ) {
-        $redirect_id = absint( $redirect_id );
-        if ( $redirect_id <= 0 ) {
+    $messages = [];
+
+    foreach ($redirect_ids as $redirect_id) {
+        $result = $manager->delete_redirect($redirect_id);
+        if (is_wp_error($result)) {
             $failed++;
-            continue;
-        }
-        $result = $manager->delete_redirect( $redirect_id );
-        if ( is_wp_error( $result ) ) {
-            $failed++;
-            $messages[] = sprintf( __( 'Failed to delete redirect ID %d: %s', 'spintax-domain-manager' ), $redirect_id, $result->get_error_message() );
+            $messages[] = sprintf(__('Failed to delete redirect ID %d: %s', 'spintax-domain-manager'), $redirect_id, $result->get_error_message());
         } else {
             $success++;
         }
     }
+
     $message = sprintf(
-        __( '%d redirects deleted successfully, %d failed.', 'spintax-domain-manager' ),
+        __('%d redirects deleted successfully, %d failed.', 'spintax-domain-manager'),
         $success,
         $failed
     );
-    if ( ! empty( $messages ) ) {
-        $message .= ' ' . implode( ' ', $messages );
+    if (!empty($messages)) {
+        $message .= ' ' . implode(' ', $messages);
     }
-    if ( $success > 0 || $failed > 0 ) {
-        wp_send_json_success( array( 'message' => $message ) );
+
+    if ($success > 0 || $failed > 0) {
+        wp_send_json_success(['message' => $message]);
     } else {
-        wp_send_json_error( $message );
+        wp_send_json_error($message);
     }
 }
-add_action( 'wp_ajax_sdm_mass_delete_redirects', 'sdm_ajax_mass_delete_redirects' );
+add_action('wp_ajax_sdm_mass_delete_redirects', 'sdm_ajax_mass_delete_redirects');
 
 /**
  * AJAX Handler: Sync Main Redirects via Page Rules.
@@ -840,30 +852,66 @@ add_action( 'wp_ajax_sdm_mass_create_default_redirects', 'sdm_ajax_mass_create_d
  * AJAX Handler: Update redirect_type.
  */
 function sdm_ajax_update_redirect_type() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
     }
     sdm_check_main_nonce();
-    $redirect_id = isset( $_POST['redirect_id'] ) ? absint($_POST['redirect_id']) : 0;
-    $new_type = isset( $_POST['new_type'] ) ? sanitize_text_field($_POST['new_type']) : '';
-    if ( empty($redirect_id) || ! in_array($new_type, array('main','glue','hidden'), true) ) {
-        wp_send_json_error( __( 'Invalid parameters.', 'spintax-domain-manager' ) );
+
+    $redirect_id = isset($_POST['redirect_id']) ? absint($_POST['redirect_id']) : 0;
+    $new_type = isset($_POST['new_type']) ? sanitize_text_field($_POST['new_type']) : '';
+
+    if (empty($redirect_id) || !in_array($new_type, array('main', 'glue', 'hidden'), true)) {
+        wp_send_json_error(__('Invalid parameters.', 'spintax-domain-manager'));
     }
+
     global $wpdb;
-    $table = $wpdb->prefix . 'sdm_redirects';
+
+    // Получаем текущую запись редиректа
+    $redirect = $wpdb->get_row(
+        $wpdb->prepare("SELECT domain_id FROM {$wpdb->prefix}sdm_redirects WHERE id = %d", $redirect_id)
+    );
+    if (!$redirect) {
+        wp_send_json_error(__('Redirect not found.', 'spintax-domain-manager'));
+    }
+
+    // Получаем домен из таблицы sdm_domains
+    $domain = $wpdb->get_var(
+        $wpdb->prepare("SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d", $redirect->domain_id)
+    );
+    if (!$domain) {
+        wp_send_json_error(__('Domain not found.', 'spintax-domain-manager'));
+    }
+
+    // Формируем target_url в зависимости от типа
+    $target_url = "https://{$domain}";
+    if ($new_type === 'main') {
+        $target_url .= '/*';
+    } else if ($new_type === 'glue') {
+        $target_url .= '/';
+    } // Для hidden оставляем просто https://domain.com
+
+    // Обновляем redirect_type и target_url
     $updated = $wpdb->update(
-        $table,
-        array('redirect_type' => $new_type),
+        $wpdb->prefix . 'sdm_redirects',
+        array(
+            'redirect_type' => $new_type,
+            'target_url' => $target_url
+        ),
         array('id' => $redirect_id),
-        array('%s'),
+        array('%s', '%s'),
         array('%d')
     );
+
     if ($updated === false) {
-        wp_send_json_error( __( 'Database update failed.', 'spintax-domain-manager' ) );
+        wp_send_json_error(__('Database update failed.', 'spintax-domain-manager'));
     }
-    wp_send_json_success( array( 'message' => __( 'Redirect type updated.', 'spintax-domain-manager' ) ) );
+
+    wp_send_json_success(array(
+        'message' => __('Redirect type updated.', 'spintax-domain-manager'),
+        'target_url' => $target_url
+    ));
 }
-add_action( 'wp_ajax_sdm_update_redirect_type', 'sdm_ajax_update_redirect_type' );
+add_action('wp_ajax_sdm_update_redirect_type', 'sdm_ajax_update_redirect_type');
 
 /**
  * AJAX Handler: Fetch Redirects List with Sorting.
@@ -1039,11 +1087,12 @@ function sdm_ajax_fetch_redirects_list() {
                 </tbody>
             </table>
             <div class="sdm-mass-actions" style="margin: 20px 0;">
-                <select class="sdm-mass-action-select-site" data-site-id="<?php echo esc_attr($site->id); ?>">
-                    <option value=""><?php esc_html_e('Select Mass Action', 'spintax-domain-manager'); ?></option>
-                    <option value="create_default"><?php esc_html_e('Create Default Redirects', 'spintax-domain-manager'); ?></option>
-                    <option value="sync_cloudflare"><?php esc_html_e('Sync with CloudFlare', 'spintax-domain-manager'); ?></option>
-                </select>
+            <select class="sdm-mass-action-select-site" data-site-id="<?php echo esc_attr($site->id); ?>">
+                <option value=""><?php esc_html_e('Select Mass Action', 'spintax-domain-manager'); ?></option>
+                <option value="create_default"><?php esc_html_e('Create Default Redirects', 'spintax-domain-manager'); ?></option>
+                <option value="mass_delete"><?php esc_html_e('Delete Selected', 'spintax-domain-manager'); ?></option>
+                <option value="sync_cloudflare"><?php esc_html_e('Sync with CloudFlare', 'spintax-domain-manager'); ?></option>
+            </select>
                 <button class="button button-primary sdm-mass-action-apply-site" data-site-id="<?php echo esc_attr($site->id); ?>">
                     <?php esc_html_e('Apply', 'spintax-domain-manager'); ?>
                 </button>
@@ -1076,4 +1125,86 @@ function sdm_get_inline_redirect_svg( $redirect_type ) {
     $svg_content = preg_replace('/(<svg[^>]*>)/i', '$1' . $title, $svg_content, 1);
     return $svg_content;
 }
+
+function sdm_ajax_mass_sync_redirects_to_cloudflare() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $domain_ids = isset($_POST['domain_ids']) ? json_decode(stripslashes($_POST['domain_ids']), true) : [];
+    $project_id = isset($_POST['project_id']) ? absint($_POST['project_id']) : 0;
+
+    if (empty($domain_ids) || $project_id <= 0) {
+        wp_send_json_error(__('No domains selected or invalid project ID.', 'spintax-domain-manager'));
+    }
+
+    global $wpdb;
+    $redirects = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT r.*, d.cf_zone_id, d.domain 
+             FROM {$wpdb->prefix}sdm_redirects r 
+             JOIN {$wpdb->prefix}sdm_domains d ON r.domain_id = d.id 
+             WHERE r.domain_id IN (" . implode(',', array_fill(0, count($domain_ids), '%d')) . ") 
+               AND d.project_id = %d",
+            array_merge(array_map('absint', $domain_ids), [$project_id])
+        )
+    );
+
+    if (empty($redirects)) {
+        wp_send_json_error(__('No redirects found for the selected domains.', 'spintax-domain-manager'));
+    }
+
+    $manager = new SDM_Redirects_Manager();
+    $creds = SDM_Cloudflare_API::get_project_cf_credentials($project_id);
+    if (is_wp_error($creds)) {
+        wp_send_json_error($creds->get_error_message());
+    }
+
+    $cf_api = new SDM_Cloudflare_API($creds);
+    $success = 0;
+    $failed = 0;
+    $errors = [];
+
+    foreach ($redirects as $redirect) {
+        if (empty($redirect->cf_zone_id)) {
+            $failed++;
+            $errors[] = sprintf(__('Domain ID %d: No Cloudflare zone ID.', 'spintax-domain-manager'), $redirect->domain_id);
+            continue;
+        }
+
+        if ($redirect->redirect_type === 'main') {
+            $sourcePattern = "https://{$redirect->domain}/*";
+            $targetDomain = $manager->extract_domain_from_url($redirect->target_url); // Вызов через $manager
+            if (empty($targetDomain)) {
+                $failed++;
+                $errors[] = sprintf(__('Domain ID %d: Cannot extract target domain from %s', 'spintax-domain-manager'), $redirect->domain_id, $redirect->target_url);
+                continue;
+            }
+            $targetUrl = "https://{$targetDomain}/\$1";
+            $status_code = (int) $redirect->type;
+            $desc = "SDM domain_id={$redirect->domain_id}";
+            $result = $cf_api->create_page_rule($redirect->cf_zone_id, $sourcePattern, $targetUrl, $status_code, $desc);
+        } else if ($redirect->redirect_type === 'glue') {
+            $result = $cf_api->rebuild_redirect_rules($redirect->cf_zone_id);
+        } else {
+            $result = true; // Hidden пока не синхронизируется
+        }
+
+        if (is_wp_error($result)) {
+            $failed++;
+            $errors[] = sprintf(__('Domain ID %d: %s', 'spintax-domain-manager'), $redirect->domain_id, $result->get_error_message());
+        } else {
+            $success++;
+        }
+    }
+
+    $message = sprintf(__('%d redirects synced successfully, %d failed.', 'spintax-domain-manager'), $success, $failed);
+    if (!empty($errors)) {
+        $message .= ' ' . implode(' ', $errors);
+    }
+
+    wp_send_json_success(['message' => $message]);
+}
+add_action('wp_ajax_sdm_mass_sync_redirects_to_cloudflare', 'sdm_ajax_mass_sync_redirects_to_cloudflare');
 ?>

@@ -234,6 +234,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (action === 'create_default') {
                     if (!confirm('Are you sure you want to create default redirects for the selected domains in this site?')) return;
                     massActionAPI('sdm_mass_create_default_redirects', selected, applyBtn);
+                } else if (action === 'mass_delete') {
+                    if (!confirm('Are you sure you want to delete the selected redirects?')) return;
+                    massActionAPI('sdm_mass_delete_redirects', selected, applyBtn);
                 } else if (action === 'sync_cloudflare') {
                     if (!confirm('Are you sure you want to sync the selected redirects with CloudFlare for this site?')) return;
                     massActionAPI('sdm_mass_sync_redirects_to_cloudflare', selected, applyBtn);
@@ -337,18 +340,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         var displaySpan = cell.querySelector('.sdm-redirect-type-display');
                         displaySpan.classList.remove('sdm-redirect-type-' + oldType);
                         displaySpan.classList.add('sdm-redirect-type-' + newType);
+                        displaySpan.innerHTML = btn.innerHTML;
 
-                        // Replace displaySpan content with the entire HTML of the clicked button (includes <svg>)
-                        var newSvgMarkup = btn.innerHTML;
-                        displaySpan.innerHTML = newSvgMarkup;
+                        var targetSpan = cell.querySelector('.sdm-target-domain');
+                        if (targetSpan && data.data.target_url) {
+                            targetSpan.textContent = data.data.target_url;
+                        }
 
                         cell.querySelector('.sdm-redirect-type-selector').style.display = 'none';
+                        showRedirectsNotice('updated', data.data.message);
                     } else {
                         console.error(data.data || 'Error updating redirect type');
+                        showRedirectsNotice('error', data.data);
                     }
                 })
                 .catch(function(error) {
                     console.error('AJAX error:', error);
+                    showRedirectsNotice('error', 'Ajax request failed.');
                 });
             }
         });
