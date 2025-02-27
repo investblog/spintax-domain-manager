@@ -1,527 +1,471 @@
 /*--------------------------------------------------------------
 1. GLOBAL HELPER CLASSES
 --------------------------------------------------------------*/
-
-/* Скрывает элемент */
+:root {
+  --sdm-border: #eee;
+  --sdm-border-radius: 4px;
+  --sdm-bg-light: #fff;
+  --sdm-bg-th: #f5f5f5;
+  --sdm-bg-th-hover: #e5e5e5;
+  --sdm-bg-tr-hover: #f9f9f9;
+  --sdm-accent: #0073aa;
+  --sdm-green: #46b450;
+  --sdm-red: #dc3232;
+  --sdm-yellow: #f7b500;
+  --sdm-gray: #ccc;
+  --sdm-dark-gray: #444;
+  --sdm-notice-blue: #2271b1;
+  --sdm-notice-error-bg: #fef2f2;
+  --sdm-notice-success-bg: #f7fcf2;
+  --sdm-shadow-light: rgba(0,0,0,0.05);
+  --sdm-shadow-medium: rgba(0,0,0,0.15);
+}
 .sdm-hidden {
-    display: none !important;
+  display: none !important;
 }
 
 /*--------------------------------------------------------------
 2. COMMON TABLE STYLING
 --------------------------------------------------------------*/
-
-/* Общие стили таблиц */
 .sdm-table {
-    margin-top: 1em;
-    width: 100%;
-    border-collapse: collapse;
+  margin-top: 1em;
+  width: 100%;
+  border-collapse: collapse;
 }
 .sdm-table th,
 .sdm-table td {
-    padding: 10px;
-    vertical-align: middle;
-    border-bottom: 1px solid #eee;
+  padding: 10px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--sdm-border);
 }
 .sdm-table th {
-    background-color: #f5f5f5;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-    position: relative;
+  background-color: var(--sdm-bg-th);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
 }
 .sdm-table th:hover {
-    background-color: #e5e5e5;
+  background-color: var(--sdm-bg-th-hover);
 }
 .sdm-table tbody tr:hover {
-    background-color: #f9f9f9;
-    transition: background-color 0.2s ease;
+  background-color: var(--sdm-bg-tr-hover);
+  transition: background-color 0.2s ease;
 }
-
-/* Индикаторы сортировки */
 .sdm-sortable {
-    position: relative;
+  position: relative;
 }
 .sdm-sorted-asc::after,
 .sdm-sorted-desc::after {
-    content: ' ';
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
+  content: ' ';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
 }
 .sdm-sorted-asc::after {
-    border-bottom: 5px solid #0073aa; /* Акцентный синий WP */
+  border-bottom: 5px solid var(--sdm-accent);
 }
 .sdm-sorted-desc::after {
-    border-top: 5px solid #0073aa;
+  border-top: 5px solid var(--sdm-accent);
 }
 
 /*--------------------------------------------------------------
 3. COMMON FORM STYLING
 --------------------------------------------------------------*/
-
-/* Общие стили для форм */
 .sdm-form {
-    max-width: 600px;
-    margin: 20px 0;
-    background: #fff;
-    padding: 15px;
-    border: 1px solid #eee;
-    border-radius: 4px;
+  max-width: 600px;
+  margin: 20px 0;
+  background: var(--sdm-bg-light);
+  padding: 15px;
+  border: 1px solid var(--sdm-border);
+  border-radius: var(--sdm-border-radius);
 }
 .sdm-form .sdm-form-table {
-    width: 100%;
-    border-collapse: collapse;
+  width: 100%;
+  border-collapse: collapse;
 }
 .sdm-form .sdm-form-table th {
-    text-align: left;
-    width: 120px;
-    vertical-align: top;
-    padding: 8px 10px;
-    font-weight: 600;
-    color: #444;
+  text-align: left;
+  width: 120px;
+  vertical-align: top;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--sdm-dark-gray);
 }
 .sdm-form .sdm-form-table td {
-    padding: 8px 10px;
+  padding: 8px 10px;
 }
 .sdm-form input[type="text"],
 .sdm-form input[type="email"],
 .sdm-form textarea,
 .sdm-form select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 6px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 14px;
-    line-height: 1.4;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--sdm-gray);
+  border-radius: var(--sdm-border-radius);
+  font-size: 14px;
+  line-height: 1.4;
 }
 .sdm-form .button-primary,
 .sdm-form .button {
-    margin-top: 15px;
-    padding: 8px 16px;
-    font-size: 14px;
-    border-radius: 4px;
+  margin-top: 15px;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: var(--sdm-border-radius);
 }
-
-/* Поля поиска, селекты */
 .sdm-select,
 .sdm-input {
-    padding: 6px 8px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #fff;
-    max-width: 300px;
+  padding: 6px 8px;
+  font-size: 14px;
+  border: 1px solid var(--sdm-gray);
+  border-radius: var(--sdm-border-radius);
+  background-color: var(--sdm-bg-light);
+  max-width: 300px;
 }
 
 /*--------------------------------------------------------------
 4. WP-LIKE NOTICES
 --------------------------------------------------------------*/
-
 .sdm-notice .notice,
 .sdm-notice .updated,
 .sdm-notice .error {
-    padding: 12px 15px;
-    margin: 15px 0;
-    border-left: 4px solid #2271b1;
-    background-color: #fff;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+  padding: 12px 15px;
+  margin: 15px 0;
+  border-left: 4px solid var(--sdm-notice-blue);
+  background-color: var(--sdm-bg-light);
+  box-shadow: 0 1px 1px var(--sdm-shadow-light);
 }
 .sdm-notice .notice-error,
 .sdm-notice .error {
-    border-left-color: #dc3232;
-    background-color: #fef2f2;
+  border-left-color: var(--sdm-red);
+  background-color: var(--sdm-notice-error-bg);
 }
 .sdm-notice .notice-success,
 .sdm-notice .updated {
-    border-left-color: #46b450;
-    background-color: #f7fcf2;
+  border-left-color: var(--sdm-green);
+  background-color: var(--sdm-notice-success-bg);
 }
 .sdm-notice .notice-dismiss {
-    padding: 5px 10px;
-    font-size: 16px;
-    line-height: 1;
-    background: transparent;
-    border: none;
-    cursor: pointer;
+  padding: 5px 10px;
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 /*--------------------------------------------------------------
 5. ACTION BUTTONS STYLING
 --------------------------------------------------------------*/
-
-/* Базовые стили для кнопок-действий */
 .sdm-action-button {
-    display: inline-block;
-    padding: 6px 12px;
-    font-size: 13px;
-    border-radius: 4px;
-    text-decoration: none;
-    margin-right: 5px;
-    transition: opacity 0.2s ease, background-color 0.2s ease;
-    cursor: pointer;
-    border: none;
-    color: #fff; /* Текст на кнопке */
+  display: inline-block;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: var(--sdm-border-radius);
+  text-decoration: none;
+  margin-right: 5px;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+  color: var(--sdm-bg-light);
 }
 .sdm-action-button:hover {
-    opacity: 0.9;
+  opacity: 0.9;
 }
-
-/* Дополнительные модификаторы */
 .sdm-edit {
-    background-color: #0073aa;
-    color: #fff;
+  background-color: var(--sdm-accent);
+  color: var(--sdm-bg-light);
 }
 .sdm-save {
-    background-color: #46b450;
-    color: #fff;
+  background-color: var(--sdm-green);
+  color: var(--sdm-bg-light);
 }
 .sdm-delete {
-    background-color: #dc3232;
-    color: #fff;
+  background-color: var(--sdm-red);
+  color: var(--sdm-bg-light);
 }
-.sdm-unassign {
-    background-color: #f7b500;
-    color: #fff;
-}
+.sdm-unassign,
 .sdm-test {
-    background-color: #f7b500;
-    color: #fff;
+  background-color: var(--sdm-yellow);
+  color: var(--sdm-bg-light);
 }
-
-/* Пример кнопки для загрузки доменов */
 .sdm-fetch-button {
-    padding: 6px 16px;
+  padding: 6px 16px;
 }
-
-/* Стили для статуса (спиннер, тексты) */
 .sdm-status {
-    margin-left: 10px;
-    font-size: 13px;
-    color: #666;
+  margin-left: 10px;
+  font-size: 13px;
+  color: #666;
 }
-
-/* Кнопки-иконки (мини) */
 .sdm-action-button.sdm-mini-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px; 
-    height: 24px;
-    padding: 0;
-    margin-left: 5px;
-    background-color: transparent; 
-    color: #999; /* если ваш SVG использует fill="currentColor" */
-    vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: 5px;
+  background-color: transparent;
+  color: #999;
+  vertical-align: middle;
 }
 .sdm-action-button.sdm-mini-icon img {
-    width: 20px;
-    height: 20px;
-    display: block;
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 .sdm-action-button.sdm-mini-icon:hover {
-    opacity: 0.8;
+  opacity: 0.8;
 }
 
 /*--------------------------------------------------------------
 6. PROJECT / INDICATOR / LABELS
 --------------------------------------------------------------*/
-
 .sdm-project-indicator {
-    padding: 8px 12px;
-    background: #f9f9f9;
-    border: 1px solid #eee;
-    border-radius: 4px;
+  padding: 8px 12px;
+  background: var(--sdm-bg-tr-hover);
+  border: 1px solid var(--sdm-border);
+  border-radius: var(--sdm-border-radius);
 }
-
 .sdm-label {
-    margin-right: 10px;
-    font-weight: 600;
-    color: #444;
+  margin-right: 10px;
+  font-weight: 600;
+  color: var(--sdm-dark-gray);
 }
 
 /*--------------------------------------------------------------
 7. TABLE-RELATED STYLES (REDIRECT ARROWS, BLOCKED DOMAINS, ETC.)
 --------------------------------------------------------------*/
-
-/* Arrow icon if used in table cells (optional) */
 .sdm-arrow {
-    display: inline-flex;
-    align-items: center;
-    margin-right: 5px;
-    vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 5px;
+  vertical-align: middle;
 }
 .sdm-arrow img {
-    width: 16px;
-    height: 16px;
+  width: 16px;
+  height: 16px;
 }
-
 .sdm-redirect-type-cell svg {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
-
-/* Если в файле svg есть fill="currentColor", тогда color решает цвет заливки */
 .sdm-redirect-type-main svg {
-    color: #46b450;
+  color: var(--sdm-green);
 }
 .sdm-redirect-type-glue svg {
-    color: #f7b500;
+  color: var(--sdm-yellow);
 }
 .sdm-redirect-type-hidden svg {
-    color: #dc3232;
+  color: var(--sdm-red);
 }
-
-
-/* Highlight for blocked domain */
 .sdm-blocked-domain {
-    color: #dc3232 !important;
-    font-weight: 600;
-   /* background-color: #ffebee;*/
+  color: var(--sdm-red) !important;
+  font-weight: 600;
 }
-/* Styling for "No redirect" text */
 .sdm-no-redirect {
-    color: #999;
-    font-style: italic;
+  color: #999;
+  font-style: italic;
 }
-
-/* Add an arrow (→) after the domain in the left column, without breaking text selection */
 .sdm-has-arrow {
-    position: relative;
+  position: relative;
 }
 .sdm-has-arrow::after {
-    content: "→";
-    margin-left: 8px;
-    color: #999;
-    pointer-events: none;
-    font-weight: 600;
-    display: inline-block;
-    vertical-align: middle;
+  content: "→";
+  margin-left: 8px;
+  color: #999;
+  pointer-events: none;
+  font-weight: 600;
+  display: inline-block;
+  vertical-align: middle;
 }
-
-/* Color the arrow based on redirect type */
 .sdm-has-arrow[data-redirect-type="glue"]::after {
-    color: #f7b500;
+  color: var(--sdm-yellow);
 }
 .sdm-has-arrow[data-redirect-type="hidden"]::after {
-    color: #dc3232;
+  color: var(--sdm-red);
 }
 .sdm-has-arrow[data-redirect-type="main"]::after {
-    color: #46b450;
+  color: var(--sdm-green);
 }
-
-/* For icons displayed in the second column */
 .sdm-type-icon img {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
-    margin-right: 6px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 6px;
 }
-
-/* Столбец с иконкой текущего типа */
 .sdm-redirect-type-cell {
-    position: relative;
-    min-width: 60px; /* немного места */
+  position: relative;
+  min-width: 60px;
 }
-
-/* Отображение текущей иконки, по желанию */
 .sdm-redirect-type-display {
-    cursor: pointer; /* чтобы показывать, что по клику откроется селектор */
+  cursor: pointer;
 }
 .sdm-redirect-type-display img {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
-
-/* Скрытый блок с вариантами (появится при клике) */
 .sdm-redirect-type-selector {
-    position: absolute;
-    background: #fff;
-    border: 1px solid #ccc;
-    padding: 4px 6px;
-    border-radius: 4px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    z-index: 999;
-    margin-top: 4px; /* чтобы немного отступить от иконки */
-    white-space: nowrap;
+  position: absolute;
+  background: var(--sdm-bg-light);
+  border: 1px solid var(--sdm-gray);
+  padding: 4px 6px;
+  border-radius: var(--sdm-border-radius);
+  box-shadow: 0 2px 6px var(--sdm-shadow-medium);
+  z-index: 999;
+  margin-top: 4px;
+  white-space: nowrap;
 }
-
 .sdm-redirect-type-selector button.sdm-type-option {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    margin: 0 2px;
-    padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  margin: 0 2px;
+  padding: 0;
 }
-
 .sdm-redirect-type-selector button.sdm-type-option img {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
-
-/* При наведении можно чуть затемнять */
 .sdm-redirect-type-selector button.sdm-type-option:hover {
-    opacity: 0.8;
+  opacity: 0.8;
 }
-
 
 /*--------------------------------------------------------------
 8. MODALS (если используются)
 --------------------------------------------------------------*/
-
 .sdm-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10000;
-    display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: none;
 }
-
 .sdm-modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
 }
-
 .sdm-modal-content {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: #fff;
-    padding: 20px;
-    border-radius: 6px;
-    max-width: 500px;
-    width: 90%;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--sdm-bg-light);
+  padding: 20px;
+  border-radius: 6px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
-
 .sdm-modal-close {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    font-size: 20px;
-    cursor: pointer;
-    color: #666;
-    transition: color 0.2s ease;
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  transition: color 0.2s ease;
 }
 .sdm-modal-close:hover {
-    color: #dc3232;
+  color: var(--sdm-red);
 }
-
 .sdm-modal-actions {
-    text-align: right;
+  text-align: right;
 }
 .sdm-modal-actions .sdm-action-button {
-    margin-left: 10px;
+  margin-left: 10px;
 }
 
 /*--------------------------------------------------------------
 9. SITE ICONS (e.g. flags or custom SVG)
 --------------------------------------------------------------*/
-
 .sdm-site-icon {
-    display: inline-block;
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    vertical-align: middle;
-    overflow: hidden;
-    line-height: 0;
-    position: relative;
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  vertical-align: middle;
+  overflow: hidden;
+  line-height: 0;
+  position: relative;
 }
 .sdm-site-icon svg {
-    width: 100%;
-    height: 100%;
-    fill: currentColor;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 .sdm-site-icon:hover svg {
-    opacity: 0.8;
+  opacity: 0.8;
 }
-
-/*--------------------------------------------------------------
-(При необходимости расширяйте дальше)
---------------------------------------------------------------*/
 tr[data-redirect-type="main"] {
-    background-color: #f0f8f0;
+  background-color: #f0f8f0;
 }
 tr[data-redirect-type="glue"] {
-    background-color: #fef8e7;
+  background-color: #fef8e7;
 }
 tr[data-redirect-type="hidden"] {
-    background-color: #fef0f0;
+  background-color: #fef0f0;
 }
-
 .sdm-redirect-type-display {
-    position: relative;
+  position: relative;
 }
 .sdm-redirect-type-display:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #333;
-    color: #fff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    z-index: 1;
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: var(--sdm-bg-light);
+  padding: 4px 8px;
+  border-radius: var(--sdm-border-radius);
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1;
 }
-
-/* Стили для обёрнутого контейнера поля ключа */
 .sdm-encryption-key-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px; /* Отступ между полем и кнопкой */
-    margin-bottom: 10px; /* Стандартный отступ для WordPress */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
 }
-
-/* Стили для кнопки с иконкой */
 #sdm_copy_key_button {
-    display: flex;
-    align-items: center;
-    gap: 4px; /* Отступ между текстом и иконкой внутри кнопки */
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-
-/* Стили для иконок внутри кнопки (используем твои классы) */
 .sdm-redirect-type-main svg {
-    fill: #46b450; /* Зеленый цвет для несохраненного ключа */
+  fill: var(--sdm-green);
 }
-
 .sdm-redirect-type-hidden svg {
-    fill: #dc3232; /* Красный цвет для сохраненного ключа */
+  fill: var(--sdm-red);
 }
-
-/* Размеры и выравнивание SVG */
 .sdm-redirect-type-main svg,
 .sdm-redirect-type-hidden svg {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
-
-/* Убираем фокусный контур для кнопки, если нужно */
 #sdm_copy_key_button:focus {
-    outline: none;
-    box-shadow: 0 0 0 1px #007cba, 0 0 2px 1px rgba(0, 124, 186, 0.3);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--sdm-accent), 0 0 2px 1px rgba(0,124,186,0.3);
 }

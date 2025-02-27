@@ -1,10 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
-
-// -------------------------------------------------
     // 1) Copy Encryption Key
-    // -------------------------------------------------
     var copyButton = document.getElementById('sdm_copy_key_button');
-    var keyField   = document.getElementById('sdm_encryption_key_field');
+    var keyField = document.getElementById('sdm_encryption_key_field');
 
     if (copyButton && keyField) {
         copyButton.addEventListener('click', function() {
@@ -33,7 +30,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Находим место для вставки уведомления (под заголовком страницы)
         var header = document.querySelector('.wrap h1');
         if (header) {
-            // Вставляем уведомление сразу после заголовка
             var wrap = header.closest('.wrap');
             if (wrap) {
                 wrap.insertBefore(notice, wrap.querySelector('.wrap > *:nth-child(2)') || wrap.firstChild.nextSibling);
@@ -41,7 +37,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.body.insertBefore(notice, document.body.firstChild.nextSibling);
             }
         } else {
-            // Если заголовок не найден, вставляем в начало #wpbody-content
             var noticesContainer = document.getElementById('wpbody-content') || document.body;
             noticesContainer.insertBefore(notice, noticesContainer.firstChild);
         }
@@ -59,11 +54,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 
-    // -------------------------------------------------
     // 2) Projects: Add New Project
-    // -------------------------------------------------
-    var addProjectForm   = document.getElementById('sdm-add-project-form');
-    var projectsNotice   = document.getElementById('sdm-projects-notice'); // Container for project messages
+    var addProjectForm = document.getElementById('sdm-add-project-form');
+    var projectsNotice = document.getElementById('sdm-projects-notice'); // Container for project messages
 
     if (addProjectForm && projectsNotice) {
         addProjectForm.addEventListener('submit', function(e) {
@@ -100,34 +93,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // -------------------------------------------------
     // 3) Projects: Inline Editing & Deletion
-    // -------------------------------------------------
     var projectsTable = document.getElementById('sdm-projects-table');
 
     if (projectsTable && projectsNotice) {
         projectsTable.addEventListener('click', function(e) {
             // Edit
-            if ( e.target.classList.contains('sdm-edit-project') ) {
+            if (e.target.classList.contains('sdm-edit-project')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 toggleEditRow(row, true);
             }
             // Save
-            else if ( e.target.classList.contains('sdm-save-project') ) {
+            else if (e.target.classList.contains('sdm-save-project')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 saveRow(row);
             }
             // Delete
-            else if ( e.target.classList.contains('sdm-delete-project') ) {
+            else if (e.target.classList.contains('sdm-delete-project')) {
                 e.preventDefault();
-                if ( ! confirm('Are you sure you want to delete this project?') ) {
+                if (!confirm('Are you sure you want to delete this project?')) {
                     return;
                 }
-                var row      = e.target.closest('tr');
-                var projectId= row.getAttribute('data-project-id');
-                var nonce    = row.getAttribute('data-update-nonce');
+                var row = e.target.closest('tr');
+                var projectId = row.getAttribute('data-project-id');
+                var nonce = row.getAttribute('data-update-nonce');
 
                 var formData = new FormData();
                 formData.append('action', 'sdm_delete_project');
@@ -139,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     credentials: 'same-origin',
                     body: formData
                 })
-                .then(function(response){ return response.json(); })
+                .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.success) {
                         showProjectsNotice('updated', data.data.message);
@@ -161,18 +152,18 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function toggleEditRow(row, editMode) {
         var displayElems = row.querySelectorAll('.sdm-display-value');
-        var editInputs   = row.querySelectorAll('.sdm-edit-input');
-        var editLink     = row.querySelector('.sdm-edit-project');
-        var saveLink     = row.querySelector('.sdm-save-project');
+        var editInputs = row.querySelectorAll('.sdm-edit-input');
+        var editLink = row.querySelector('.sdm-edit-project');
+        var saveLink = row.querySelector('.sdm-save-project');
 
         if (editMode) {
-            displayElems.forEach(function(el){ el.classList.add('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.remove('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.add('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.remove('sdm-hidden'); });
             editLink.classList.add('sdm-hidden');
             saveLink.classList.remove('sdm-hidden');
         } else {
-            displayElems.forEach(function(el){ el.classList.remove('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.add('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.remove('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.add('sdm-hidden'); });
             editLink.classList.remove('sdm-hidden');
             saveLink.classList.add('sdm-hidden');
         }
@@ -182,11 +173,11 @@ document.addEventListener('DOMContentLoaded', function() {
      * Save row changes (Projects)
      */
     function saveRow(row) {
-        var projectId         = row.getAttribute('data-project-id');
-        var nonce             = row.getAttribute('data-update-nonce');
-        var projectName       = row.querySelector('input[name="project_name"]').value;
-        var description       = row.querySelector('textarea[name="description"]').value;
-        var sslMode           = row.querySelector('select[name="ssl_mode"]').value;
+        var projectId = row.getAttribute('data-project-id');
+        var nonce = row.getAttribute('data-update-nonce');
+        var projectName = row.querySelector('input[name="project_name"]').value;
+        var description = row.querySelector('textarea[name="description"]').value;
+        var sslMode = row.querySelector('select[name="ssl_mode"]').value;
         var monitoringEnabled = row.querySelector('input[name="monitoring_enabled"]').checked ? '1' : '';
 
         var formData = new FormData();
@@ -203,20 +194,20 @@ document.addEventListener('DOMContentLoaded', function() {
             credentials: 'same-origin',
             body: formData
         })
-        .then(function(response){ return response.json(); })
+        .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.success) {
                 showProjectsNotice('updated', data.data.message);
 
-                var nameSpan        = row.querySelector('.column-name .sdm-display-value');
-                var descSpan        = row.querySelector('.column-description .sdm-display-value');
-                var sslSpan         = row.querySelector('.column-ssl_mode .sdm-display-value');
-                var monitoringSpan  = row.querySelector('.column-monitoring .sdm-display-value');
+                var nameSpan = row.querySelector('.column-name .sdm-display-value');
+                var descSpan = row.querySelector('.column-description .sdm-display-value');
+                var sslSpan = row.querySelector('.column-ssl_mode .sdm-display-value');
+                var monitoringSpan = row.querySelector('.column-monitoring .sdm-display-value');
 
-                if (nameSpan)        nameSpan.textContent       = projectName;
-                if (descSpan)        descSpan.textContent       = description;
-                if (sslSpan)         sslSpan.textContent        = sslMode;
-                if (monitoringSpan)  monitoringSpan.textContent = monitoringEnabled ? 'Yes' : 'No';
+                if (nameSpan) nameSpan.textContent = projectName;
+                if (descSpan) descSpan.textContent = description;
+                if (sslSpan) sslSpan.textContent = sslMode;
+                if (monitoringSpan) monitoringSpan.textContent = monitoringEnabled ? 'Yes' : 'No';
 
                 toggleEditRow(row, false);
             } else {
@@ -244,11 +235,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 
-    // -------------------------------------------------
     // 4) Accounts: Add New Account
-    // -------------------------------------------------
-    var addAccountForm  = document.getElementById('sdm-add-account-form');
-    var accountsNotice  = document.getElementById('sdm-accounts-notice'); // Container for account messages
+    var addAccountForm = document.getElementById('sdm-add-account-form');
+    var accountsNotice = document.getElementById('sdm-accounts-notice'); // Container for account messages
 
     if (addAccountForm && accountsNotice) {
         addAccountForm.addEventListener('submit', function(e) {
@@ -264,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin',
                 body: formData
             })
-            .then(function(response){ return response.json(); })
+            .then(function(response) { return response.json(); })
             .then(function(data) {
                 submitButton.disabled = false;
                 if (data.success) {
@@ -283,34 +272,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // -------------------------------------------------
     // 5) Accounts: Inline Editing & Deletion
-    // -------------------------------------------------
     var accountsTable = document.getElementById('sdm-accounts-table');
 
     if (accountsTable && accountsNotice) {
         accountsTable.addEventListener('click', function(e) {
             // Edit
-            if ( e.target.classList.contains('sdm-edit-account') ) {
+            if (e.target.classList.contains('sdm-edit-account')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 toggleEditAccountRow(row, true);
             }
             // Save
-            else if ( e.target.classList.contains('sdm-save-account') ) {
+            else if (e.target.classList.contains('sdm-save-account')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 saveAccountRow(row);
             }
             // Delete
-            else if ( e.target.classList.contains('sdm-delete-account') ) {
+            else if (e.target.classList.contains('sdm-delete-account')) {
                 e.preventDefault();
-                if ( ! confirm('Are you sure you want to delete this account?') ) {
+                if (!confirm('Are you sure you want to delete this account?')) {
                     return;
                 }
-                var row       = e.target.closest('tr');
+                var row = e.target.closest('tr');
                 var accountId = row.getAttribute('data-account-id');
-                var nonce     = row.getAttribute('data-update-nonce');
+                var nonce = row.getAttribute('data-update-nonce');
 
                 var formData = new FormData();
                 formData.append('action', 'sdm_delete_account');
@@ -322,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     credentials: 'same-origin',
                     body: formData
                 })
-                .then(function(response){ return response.json(); })
+                .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.success) {
                         showAccountsNotice('updated', data.data.message);
@@ -344,18 +331,18 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function toggleEditAccountRow(row, editMode) {
         var displayElems = row.querySelectorAll('.sdm-display-value');
-        var editInputs   = row.querySelectorAll('.sdm-edit-input');
-        var editLink     = row.querySelector('.sdm-edit-account');
-        var saveLink     = row.querySelector('.sdm-save-account');
+        var editInputs = row.querySelectorAll('.sdm-edit-input');
+        var editLink = row.querySelector('.sdm-edit-account');
+        var saveLink = row.querySelector('.sdm-save-account');
 
         if (editMode) {
-            displayElems.forEach(function(el){ el.classList.add('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.remove('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.add('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.remove('sdm-hidden'); });
             editLink.classList.add('sdm-hidden');
             saveLink.classList.remove('sdm-hidden');
         } else {
-            displayElems.forEach(function(el){ el.classList.remove('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.add('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.remove('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.add('sdm-hidden'); });
             editLink.classList.remove('sdm-hidden');
             saveLink.classList.add('sdm-hidden');
         }
@@ -365,19 +352,16 @@ document.addEventListener('DOMContentLoaded', function() {
      * Save changes for an account row
      */
     function saveAccountRow(row) {
-        var accountId       = row.getAttribute('data-account-id');
-        var nonce           = row.getAttribute('data-update-nonce');
-        var service         = row.querySelector('select[name="service"]').value;
-        var accountName     = row.querySelector('input[name="account_name"]').value;
-        var email           = row.querySelector('input[name="email"]').value;
-        var apiKey          = row.querySelector('input[name="api_key_enc"]').value;
-        var clientId        = row.querySelector('input[name="client_id_enc"]').value;
-        var clientSecret    = row.querySelector('input[name="client_secret_enc"]').value;
-        var refreshToken    = row.querySelector('input[name="refresh_token_enc"]').value;
-        var additionalData  = row.querySelector('textarea[name="additional_data_enc"]').value;
-
-        // Если нужно редактировать project_id, здесь же считываем его
-        // var projectIdInput  = row.querySelector('input[name="project_id"]');
+        var accountId = row.getAttribute('data-account-id');
+        var nonce = row.getAttribute('data-update-nonce');
+        var service = row.querySelector('select[name="service"]').value;
+        var accountName = row.querySelector('input[name="account_name"]').value;
+        var email = row.querySelector('input[name="email"]').value;
+        var apiKey = row.querySelector('input[name="api_key_enc"]').value;
+        var clientId = row.querySelector('input[name="client_id_enc"]').value;
+        var clientSecret = row.querySelector('input[name="client_secret_enc"]').value;
+        var refreshToken = row.querySelector('input[name="refresh_token_enc"]').value;
+        var additionalData = row.querySelector('textarea[name="additional_data_enc"]').value;
 
         var formData = new FormData();
         formData.append('action', 'sdm_update_account');
@@ -392,39 +376,33 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('refresh_token_enc', refreshToken);
         formData.append('additional_data_enc', additionalData);
 
-        // Если хотите редактировать project_id
-        // if (projectIdInput) {
-        //     formData.append('project_id', projectIdInput.value);
-        // }
-
         fetch(ajaxurl, {
             method: 'POST',
             credentials: 'same-origin',
             body: formData
         })
-        .then(function(response){ return response.json(); })
+        .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.success) {
                 showAccountsNotice('updated', data.data.message);
 
-                var serviceSpan     = row.querySelector('.column-service .sdm-display-value');
-                var nameSpan        = row.querySelector('.column-account-name .sdm-display-value');
-                var emailSpan       = row.querySelector('.column-email .sdm-display-value');
-                var apiKeySpan      = row.querySelector('.column-api-key .sdm-display-value');
-                var clientIdSpan    = row.querySelector('.column-client-id .sdm-display-value');
-                var clientSecretSpan= row.querySelector('.column-client-secret .sdm-display-value');
-                var refreshTokenSpan= row.querySelector('.column-refresh-token .sdm-display-value');
-                var additionalSpan  = row.querySelector('.column-additional-data .sdm-display-value');
+                var serviceSpan = row.querySelector('.column-service .sdm-display-value');
+                var nameSpan = row.querySelector('.column-account-name .sdm-display-value');
+                var emailSpan = row.querySelector('.column-email .sdm-display-value');
+                var apiKeySpan = row.querySelector('.column-api-key .sdm-display-value');
+                var clientIdSpan = row.querySelector('.column-client-id .sdm-display-value');
+                var clientSecretSpan = row.querySelector('.column-client-secret .sdm-display-value');
+                var refreshTokenSpan = row.querySelector('.column-refresh-token .sdm-display-value');
+                var additionalSpan = row.querySelector('.column-additional-data .sdm-display-value');
 
-                if (serviceSpan)     serviceSpan.textContent     = service;
-                if (nameSpan)        nameSpan.textContent        = accountName;
-                if (emailSpan)       emailSpan.textContent       = email;
-                // При успешном обновлении, если поле непустое, показываем «Encrypted»
-                if (apiKeySpan)      apiKeySpan.textContent      = apiKey ? 'Encrypted' : '';
-                if (clientIdSpan)    clientIdSpan.textContent    = clientId ? 'Encrypted' : '';
-                if (clientSecretSpan)clientSecretSpan.textContent= clientSecret ? 'Encrypted' : '';
-                if (refreshTokenSpan)refreshTokenSpan.textContent= refreshToken ? 'Encrypted' : '';
-                if (additionalSpan)  additionalSpan.textContent  = additionalData ? 'Encrypted' : '';
+                if (serviceSpan) serviceSpan.textContent = service;
+                if (nameSpan) nameSpan.textContent = accountName;
+                if (emailSpan) emailSpan.textContent = email;
+                if (apiKeySpan) apiKeySpan.textContent = apiKey ? 'Encrypted' : '';
+                if (clientIdSpan) clientIdSpan.textContent = clientId ? 'Encrypted' : '';
+                if (clientSecretSpan) clientSecretSpan.textContent = clientSecret ? 'Encrypted' : '';
+                if (refreshTokenSpan) refreshTokenSpan.textContent = refreshToken ? 'Encrypted' : '';
+                if (additionalSpan) additionalSpan.textContent = additionalData ? 'Encrypted' : '';
 
                 toggleEditAccountRow(row, false);
             } else {
@@ -452,14 +430,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 
-        // ...
     // 6) Services: Add, Edit, Delete
-    var addServiceForm    = document.getElementById('sdm-add-service-form');
-    var servicesNotice    = document.getElementById('sdm-services-notice');
-    var servicesTable     = document.getElementById('sdm-services-table');
+    var addServiceForm = document.getElementById('sdm-add-service-form');
+    var servicesNotice = document.getElementById('sdm-services-notice');
+    var servicesTable = document.getElementById('sdm-services-table');
 
     // Add service
-    if ( addServiceForm && servicesNotice ) {
+    if (addServiceForm && servicesNotice) {
         addServiceForm.addEventListener('submit', function(e) {
             e.preventDefault();
             var formData = new FormData(addServiceForm);
@@ -473,8 +450,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin',
                 body: formData
             })
-            .then(function(res){ return res.json(); })
-            .then(function(data){
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
                 submitButton.disabled = false;
                 if (data.success) {
                     showServicesNotice('updated', 'Service added (ID: ' + data.data.service_id + ')');
@@ -484,7 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     showServicesNotice('error', data.data);
                 }
             })
-            .catch(function(error){
+            .catch(function(error) {
                 console.error(error);
                 showServicesNotice('error', 'Request failed.');
                 submitButton.disabled = false;
@@ -493,29 +470,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Inline edit & delete
-    if ( servicesTable && servicesNotice ) {
+    if (servicesTable && servicesNotice) {
         servicesTable.addEventListener('click', function(e) {
             // Edit
-            if ( e.target.classList.contains('sdm-edit-service') ) {
+            if (e.target.classList.contains('sdm-edit-service')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 toggleEditServiceRow(row, true);
             }
             // Save
-            else if ( e.target.classList.contains('sdm-save-service') ) {
+            else if (e.target.classList.contains('sdm-save-service')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 saveServiceRow(row);
             }
             // Delete
-            else if ( e.target.classList.contains('sdm-delete-service') ) {
+            else if (e.target.classList.contains('sdm-delete-service')) {
                 e.preventDefault();
-                if ( ! confirm('Are you sure?') ) {
+                if (!confirm('Are you sure?')) {
                     return;
                 }
-                var row        = e.target.closest('tr');
-                var serviceId  = row.getAttribute('data-service-id');
-                var nonce      = row.getAttribute('data-update-nonce');
+                var row = e.target.closest('tr');
+                var serviceId = row.getAttribute('data-service-id');
+                var nonce = row.getAttribute('data-update-nonce');
 
                 var formData = new FormData();
                 formData.append('action', 'sdm_delete_service');
@@ -527,8 +504,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     credentials: 'same-origin',
                     body: formData
                 })
-                .then(function(res){ return res.json(); })
-                .then(function(data){
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
                     if (data.success) {
                         showServicesNotice('updated', data.data.message);
                         row.parentNode.removeChild(row);
@@ -536,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         showServicesNotice('error', data.data);
                     }
                 })
-                .catch(function(error){
+                .catch(function(error) {
                     console.error(error);
                     showServicesNotice('error', 'Request failed.');
                 });
@@ -546,18 +523,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function toggleEditServiceRow(row, editMode) {
         var displayElems = row.querySelectorAll('.sdm-display-value');
-        var editInputs   = row.querySelectorAll('.sdm-edit-input');
-        var editLink     = row.querySelector('.sdm-edit-service');
-        var saveLink     = row.querySelector('.sdm-save-service');
+        var editInputs = row.querySelectorAll('.sdm-edit-input');
+        var editLink = row.querySelector('.sdm-edit-service');
+        var saveLink = row.querySelector('.sdm-save-service');
 
         if (editMode) {
-            displayElems.forEach(function(el){ el.classList.add('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.remove('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.add('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.remove('sdm-hidden'); });
             editLink.classList.add('sdm-hidden');
             saveLink.classList.remove('sdm-hidden');
         } else {
-            displayElems.forEach(function(el){ el.classList.remove('sdm-hidden'); });
-            editInputs.forEach(function(el){ el.classList.add('sdm-hidden'); });
+            displayElems.forEach(function(el) { el.classList.remove('sdm-hidden'); });
+            editInputs.forEach(function(el) { el.classList.add('sdm-hidden'); });
             editLink.classList.remove('sdm-hidden');
             saveLink.classList.add('sdm-hidden');
         }
@@ -565,14 +542,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function saveServiceRow(row) {
         var serviceId = row.getAttribute('data-service-id');
-        var nonce     = row.getAttribute('data-update-nonce');
+        var nonce = row.getAttribute('data-update-nonce');
 
-        var serviceNameInput      = row.querySelector('input[name="service_name"]');
-        var authMethodInput       = row.querySelector('input[name="auth_method"]');
+        var serviceNameInput = row.querySelector('input[name="service_name"]');
+        var authMethodInput = row.querySelector('input[name="auth_method"]');
         var additionalParamsInput = row.querySelector('textarea[name="additional_params"]');
 
-        var serviceName      = serviceNameInput.value;
-        var authMethod       = authMethodInput.value;
+        var serviceName = serviceNameInput.value;
+        var authMethod = authMethodInput.value;
         var additionalParams = additionalParamsInput.value;
 
         var formData = new FormData();
@@ -588,8 +565,8 @@ document.addEventListener('DOMContentLoaded', function() {
             credentials: 'same-origin',
             body: formData
         })
-        .then(function(res){ return res.json(); })
-        .then(function(data){
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             if (data.success) {
                 showServicesNotice('updated', data.data.message);
 
@@ -603,7 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showServicesNotice('error', data.data);
             }
         })
-        .catch(function(error){
+        .catch(function(error) {
             console.error(error);
             showServicesNotice('error', 'Request failed.');
         });
@@ -613,12 +590,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!servicesNotice) return;
         var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
         servicesNotice.innerHTML = '<div class="notice ' + cssClass + ' is-dismissible"><p>' + message + '</p></div>';
-        setTimeout(function(){
+        setTimeout(function() {
             if (servicesNotice.firstChild) {
                 servicesNotice.removeChild(servicesNotice.firstChild);
             }
         }, 5000);
     }
-
-
 });
