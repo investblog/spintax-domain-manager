@@ -14,21 +14,21 @@
  * Domain Path:       /languages
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
 
 // Define plugin constants
-define( 'SDM_VERSION', '1.0.0' );
-define( 'SDM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'SDM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'SDM_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+define('SDM_VERSION', '1.0.0');
+define('SDM_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('SDM_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('SDM_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
 // Load translation files
 function sdm_load_textdomain() {
-    load_plugin_textdomain( 'spintax-domain-manager', false, dirname( SDM_PLUGIN_BASENAME ) . '/languages' );
+    load_plugin_textdomain('spintax-domain-manager', false, dirname(SDM_PLUGIN_BASENAME) . '/languages');
 }
-add_action( 'plugins_loaded', 'sdm_load_textdomain' );
+add_action('plugins_loaded', 'sdm_load_textdomain');
 
 // Include core files
 require_once SDM_PLUGIN_DIR . 'includes/database.php';
@@ -48,19 +48,19 @@ require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-xmlstock-api.php';
 
 // Optionally include GraphQL support if needed
-if ( file_exists( SDM_PLUGIN_DIR . 'includes/graphql-support.php' ) ) {
+if (file_exists(SDM_PLUGIN_DIR . 'includes/graphql-support.php')) {
     require_once SDM_PLUGIN_DIR . 'includes/graphql-support.php';
 }
 
 // Load admin interface (admin menu and pages)
-if ( is_admin() ) {
+if (is_admin()) {
     require_once SDM_PLUGIN_DIR . 'admin/admin-menu.php';
 }
 
 // Register activation, deactivation and uninstall hooks
-register_activation_hook( __FILE__, 'sdm_activate' );
-register_deactivation_hook( __FILE__, 'sdm_deactivate' );
-register_uninstall_hook( __FILE__, 'sdm_uninstall' );
+register_activation_hook(__FILE__, 'sdm_activate');
+register_deactivation_hook(__FILE__, 'sdm_deactivate');
+register_uninstall_hook(__FILE__, 'sdm_uninstall');
 
 /**
  * Plugin activation callback.
@@ -92,8 +92,8 @@ function sdm_uninstall() {
 
 // We define one "action" and one "field" name for the main nonce.
 // If you prefer separate nonces for each action, you can define multiple pairs.
-define( 'SDM_NONCE_ACTION', 'sdm_main_nonce_action' );
-define( 'SDM_NONCE_FIELD',  'sdm_main_nonce_field' );
+define('SDM_NONCE_ACTION', 'sdm_main_nonce_action');
+define('SDM_NONCE_FIELD', 'sdm_main_nonce_field');
 
 /**
  * Create a main nonce for forms.
@@ -101,7 +101,7 @@ define( 'SDM_NONCE_FIELD',  'sdm_main_nonce_field' );
  * @return string The nonce string.
  */
 function sdm_create_main_nonce() {
-    return wp_create_nonce( SDM_NONCE_ACTION );
+    return wp_create_nonce(SDM_NONCE_ACTION);
 }
 
 /**
@@ -109,7 +109,7 @@ function sdm_create_main_nonce() {
  * Usage: sdm_nonce_field();
  */
 function sdm_nonce_field() {
-    echo '<input type="hidden" name="' . esc_attr( SDM_NONCE_FIELD ) . '" value="' . esc_attr( sdm_create_main_nonce() ) . '" />';
+    echo '<input type="hidden" name="' . esc_attr(SDM_NONCE_FIELD) . '" value="' . esc_attr(sdm_create_main_nonce()) . '" />';
 }
 
 /**
@@ -117,23 +117,44 @@ function sdm_nonce_field() {
  * If verification fails, it will exit with a 403 error.
  */
 function sdm_check_main_nonce() {
-    check_ajax_referer( SDM_NONCE_ACTION, SDM_NONCE_FIELD );
+    check_ajax_referer(SDM_NONCE_ACTION, SDM_NONCE_FIELD);
 }
 
 /**
  * Enqueue admin assets including Flag Icons for language flags.
  */
 function sdm_enqueue_admin_assets() {
-    wp_enqueue_style( 'wp-admin' );
+    wp_enqueue_style('wp-admin');
 
-    wp_enqueue_script( 'sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array('jquery'), SDM_VERSION, true );
-    wp_enqueue_script( 'sdm-domains-js', SDM_PLUGIN_URL . 'admin/js/domains.js', array('jquery'), SDM_VERSION, true );
-    wp_enqueue_script( 'sdm-sites-js', SDM_PLUGIN_URL . 'admin/js/sites.js', array('jquery'), SDM_VERSION, true );
+    // Подключаем общий админский JS
+    wp_enqueue_script('sdm-admin-js', SDM_PLUGIN_URL . 'admin/js/admin.js', array('jquery'), SDM_VERSION, true);
 
     $screen = get_current_screen();
 
+    // Подключаем domains.js только на странице доменов
+    if ($screen && $screen->id === 'spintax-manager_page_sdm-domains') {
+        wp_enqueue_script(
+            'sdm-domains-js',
+            SDM_PLUGIN_URL . 'admin/js/domains.js',
+            array('jquery'),
+            SDM_VERSION,
+            true
+        );
+    }
+
+    // Подключаем sites.js только на странице сайтов
+    if ($screen && $screen->id === 'spintax-manager_page_sdm-sites') {
+        wp_enqueue_script(
+            'sdm-sites-js',
+            SDM_PLUGIN_URL . 'admin/js/sites.js',
+            array('jquery'),
+            SDM_VERSION,
+            true
+        );
+    }
+
     // Подключаем redirects.js и локализацию только на странице редиректов
-    if ( $screen && $screen->id === 'spintax-manager_page_sdm-redirects' ) {
+    if ($screen && $screen->id === 'spintax-manager_page_sdm-redirects') {
         wp_enqueue_script(
             'sdm-redirects-js',
             SDM_PLUGIN_URL . 'admin/js/redirects.js',
@@ -141,17 +162,17 @@ function sdm_enqueue_admin_assets() {
             SDM_VERSION,
             true
         );
-        wp_localize_script( 'sdm-redirects-js', 'SDM_Data', array(
+        wp_localize_script('sdm-redirects-js', 'SDM_Data', array(
             'pluginUrl' => SDM_PLUGIN_URL,
         ));
     }
 
     // Подключаем Select2 на страницах доменов, редиректов и сайтов
-    if ( $screen && in_array( $screen->id, array(
+    if ($screen && in_array($screen->id, array(
         'spintax-manager_page_sdm-domains',
         'spintax-manager_page_sdm-redirects',
-        'spintax-manager_page_sdm-sites' // Добавлена страница сайтов
-    ), true ) ) {
+        'spintax-manager_page_sdm-sites'
+    ), true)) {
         wp_enqueue_style(
             'select2-css',
             'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css',
@@ -182,4 +203,4 @@ function sdm_enqueue_admin_assets() {
         '6.6.6'
     );
 }
-add_action( 'admin_enqueue_scripts', 'sdm_enqueue_admin_assets' );
+add_action('admin_enqueue_scripts', 'sdm_enqueue_admin_assets');

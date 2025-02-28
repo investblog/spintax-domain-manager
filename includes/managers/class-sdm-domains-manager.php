@@ -463,70 +463,36 @@ function sdm_ajax_unassign_domain() {
 add_action( 'wp_ajax_sdm_unassign_domain', 'sdm_ajax_unassign_domain' );
 
 /**
- * AJAX Handler: Fetch Domains List with Sorting and Search
+ * AJAX Handler: Fetch Domains List with Sorting and Search.
  */
 function sdm_ajax_fetch_domains_list() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
     }
     sdm_check_main_nonce();
-        
-    $main_nonce = isset($_POST['sdm_main_nonce_field']) ? sanitize_text_field($_POST['sdm_main_nonce_field']) : '';
-
-
     $project_id = isset($_POST['project_id']) ? absint($_POST['project_id']) : 0;
-    if ($project_id <= 0) {
-        wp_send_json_error('Invalid project ID.');
-    }
-    $sort_column = isset( $_POST['sort_column'] ) ? sanitize_text_field( $_POST['sort_column'] ) : 'created_at';
-    $sort_direction = isset( $_POST['sort_direction'] ) ? ( $_POST['sort_direction'] === 'desc' ? 'DESC' : 'ASC' ) : 'DESC';
-    $search_term = isset( $_POST['search_term'] ) ? sanitize_text_field( $_POST['search_term'] ) : '';
+    $sort_column = isset($_POST['sort_column']) ? sanitize_text_field($_POST['sort_column']) : 'created_at';
+    $sort_direction = isset($_POST['sort_direction']) ? sanitize_text_field($_POST['sort_direction']) : 'desc';
+    $search_term = isset($_POST['search_term']) ? sanitize_text_field($_POST['search_term']) : '';
+    $is_blocked_sort = isset($_POST['is_blocked_sort']) && $_POST['is_blocked_sort'] === '1';
 
-    if ( $project_id <= 0 ) {
-        wp_send_json_error( __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+    if ($project_id <= 0) {
+        wp_send_json_error(__('Invalid project ID.', 'spintax-domain-manager'));
     }
 
     global $wpdb;
     $prefix = $wpdb->prefix;
+    ob_start();
 
-    // Build the SQL query with sorting and search
-    $sql = $wpdb->prepare(
-        "SELECT d.*, s.site_name, s.main_domain
-         FROM {$prefix}sdm_domains d
-         LEFT JOIN {$prefix}sdm_sites s ON d.site_id = s.id
-         WHERE d.project_id = %d",
-        $project_id
-    );
-
-    if ( ! empty( $search_term ) ) {
-        $sql .= " AND LOWER(d.domain) LIKE %s";
-        $search_term = '%' . $wpdb->esc_like( strtolower( $search_term ) ) . '%';
-        $params = array( $project_id, $search_term );
-    } else {
-        $params = array( $project_id );
+    // Build WHERE clause for search
+    $where = "WHERE d.project_id = %d";
+    $params = [$project_id];
+    if (!empty($search_term)) {
+        $where .= " AND d.domain LIKE %s";
+        $params[] = '%' . $search_term . '%';
     }
 
-    // Map column names for sorting
-    $column_mapping = array(
-        'domain' => 'd.domain',
-        'site_name' => 's.site_name',
-        'abuse_status' => 'd.abuse_status',
-        'blocked' => '(d.is_blocked_provider OR d.is_blocked_government)',
-        'status' => 'd.status',
-        'last_checked' => 'd.last_checked',
-        'created_at' => 'd.created_at'
-    );
-
-    if ( isset( $column_mapping[$sort_column] ) ) {
-        $sql .= " ORDER BY " . $column_mapping[$sort_column] . " " . $sort_direction;
-    } else {
-        $sql .= " ORDER BY d.created_at DESC"; // Default sorting
-    }
-
-    $domains = $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
-
-    // Build HTML for table rows
-    $html = '';
+    // Get main domains for the project
     $main_domains = $wpdb->get_col(
         $wpdb->prepare(
             "SELECT main_domain FROM {$prefix}sdm_sites WHERE project_id = %d",
@@ -534,62 +500,132 @@ function sdm_ajax_fetch_domains_list() {
         )
     );
 
-    if ( ! empty( $domains ) ) {
-        foreach ( $domains as $domain ) {
-            $is_active = ( $domain->status === 'active' );
-            $is_blocked = ( $domain->is_blocked_provider || $domain->is_blocked_government );
-            $is_assigned = ! empty( $domain->site_id );
-            $is_main_domain = in_array( $domain->domain, $main_domains );
-
-            $html .= '<tr id="domain-row-' . esc_attr( $domain->id ) . '" 
-                        data-domain-id="' . esc_attr( $domain->id ) . '" 
-                        data-update-nonce="' . esc_attr( $main_nonce ) . '" 
-                        data-site-id="' . esc_attr( $domain->site_id ) . '" 
-                        data-domain="' . esc_attr( $domain->domain ) . '" 
-                        data-site-name="' . esc_attr( $domain->site_name ?: '' ) . '" 
-                        data-abuse-status="' . esc_attr( $domain->abuse_status ) . '" 
-                        data-blocked="' . esc_attr( $is_blocked ? 'Yes' : 'No' ) . '" 
-                        data-status="' . esc_attr( $domain->status ) . '" 
-                        data-last-checked="' . esc_attr( $domain->last_checked ) . '" 
-                        data-created-at="' . esc_attr( $domain->created_at ) . '">';
-
-            $html .= '<td>' . esc_html( $domain->domain ) . '</td>';
-            $html .= '<td>';
-            if ( $is_assigned ) {
-                $html .= '<a href="?page=sdm-sites&project_id=' . esc_attr( $project_id ) . '&site_id=' . esc_attr( $domain->site_id ) . '" class="sdm-site-link">' . esc_html( $domain->site_name ) . '</a>';
-                if ( $is_main_domain ) {
-                    $html .= '<span class="sdm-main-domain-note">(Main)</span>';
-                }
-            } else {
-                $html .= '(Unassigned)';
-            }
-            $html .= '</td>';
-            $html .= '<td>' . esc_html( $domain->abuse_status ) . '</td>';
-            $html .= '<td>' . ( $is_blocked ? 'Yes' : 'No' ) . '</td>';
-            $html .= '<td>' . esc_html( $domain->status ) . '</td>';
-            $html .= '<td>' . esc_html( $domain->last_checked ) . '</td>';
-            $html .= '<td>' . esc_html( $domain->created_at ) . '</td>';
-            $html .= '<td>';
-
-            if ( $is_active ) {
-                if ( $is_assigned && ! $is_main_domain ) {
-                    $html .= '<input type="checkbox" class="sdm-domain-checkbox" value="' . esc_attr( $domain->id ) . '">';
-                    $html .= '<a href="#" class="sdm-action-button sdm-unassign" style="background-color: #f7b500; color: #fff; margin-left: 5px;">Unassign</a>';
-                } elseif ( $is_assigned && $is_main_domain ) {
-                    $html .= '<span class="sdm-assigned-note">Assigned (Main)</span>';
-                } else {
-                    $html .= '<input type="checkbox" class="sdm-domain-checkbox" value="' . esc_attr( $domain->id ) . '">';
-                }
-            } else {
-                $html .= '<a href="#" class="sdm-action-button sdm-delete-domain sdm-delete">Delete</a>';
-            }
-            $html .= '</td>';
-            $html .= '</tr>';
-        }
+    // Fetch domains with sorting
+    $order_by = "ORDER BY ";
+    if ($is_blocked_sort && $sort_column === 'blocked') {
+        // Преобразуем "Yes"/"No" в числовые значения для сортировки (Yes -> 1, No -> 0)
+        $order_by .= "CASE WHEN (d.is_blocked_provider OR d.is_blocked_government) THEN 1 ELSE 0 END " . esc_sql($sort_direction);
     } else {
-        $html .= '<tr id="no-domains"><td colspan="8">' . esc_html__( 'No domains found for this project.', 'spintax-domain-manager' ) . '</td></tr>';
+        $order_by .= esc_sql($sort_column) . " " . esc_sql($sort_direction);
     }
+    $domains = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT d.*, s.site_name, s.main_domain
+             FROM {$prefix}sdm_domains d
+             LEFT JOIN {$prefix}sdm_sites s ON d.site_id = s.id
+             $where
+             $order_by",
+            ...$params
+        )
+    );
 
-    wp_send_json_success( array( 'html' => $html ) );
+    ?>
+    <table class="wp-list-table widefat fixed striped sdm-table" id="sdm-domains-table">
+        <thead>
+            <tr>
+                <th class="sdm-sortable" data-column="domain"><?php esc_html_e('Domain', 'spintax-domain-manager'); ?></th>
+                <th class="sdm-sortable" data-column="site_name"><?php esc_html_e('Site', 'spintax-domain-manager'); ?></th>
+                <th class="sdm-sortable" data-column="abuse_status"><?php esc_html_e('Abuse Status', 'spintax-domain-manager'); ?></th>
+                <th class="sdm-sortable" data-column="blocked"><?php esc_html_e('Blocked', 'spintax-domain-manager'); ?></th>
+                <th class="sdm-sortable" data-column="status"><?php esc_html_e('Status', 'spintax-domain-manager'); ?></th>
+                <th class="sdm-sortable" data-column="last_checked"><?php esc_html_e('Last Checked', 'spintax-domain-manager'); ?></th>
+                <th class="sdm-sortable" data-column="created_at"><?php esc_html_e('Created At', 'spintax-domain-manager'); ?></th>
+                <th><?php esc_html_e('Actions', 'spintax-domain-manager'); ?>
+                    <input type="checkbox" id="sdm-select-all-domains" style="margin-left: 5px; vertical-align: middle;">
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (!empty($domains)) : ?>
+                <?php foreach ($domains as $domain) :
+                    $is_active = ($domain->status === 'active');
+                    $is_blocked = ($domain->is_blocked_provider || $domain->is_blocked_government);
+                    $is_assigned = !empty($domain->site_id);
+                    $is_main_domain = in_array($domain->domain, $main_domains);
+                    ?>
+                    <tr id="domain-row-<?php echo esc_attr($domain->id); ?>"
+                        data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                        data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
+                        data-site-id="<?php echo esc_attr($domain->site_id); ?>"
+                        data-domain="<?php echo esc_attr($domain->domain); ?>"
+                        data-site-name="<?php echo esc_attr($domain->site_name ?: ''); ?>"
+                        data-abuse-status="<?php echo esc_attr($domain->abuse_status); ?>"
+                        data-blocked="<?php echo esc_attr($is_blocked ? 'Yes' : 'No'); ?>"
+                        data-status="<?php echo esc_attr($domain->status); ?>"
+                        data-last-checked="<?php echo esc_attr($domain->last_checked); ?>"
+                        data-created-at="<?php echo esc_attr($domain->created_at); ?>">
+                        <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
+                            <?php echo esc_html($domain->domain); ?>
+                        </td>
+                        <td>
+                            <?php if ($is_assigned) : ?>
+                                <a href="?page=sdm-sites&project_id=<?php echo esc_attr($project_id); ?>"
+                                   class="sdm-site-link">
+                                    <?php echo esc_html($domain->site_name); ?>
+                                </a>
+                                <?php if ($is_main_domain) : ?>
+                                    <span class="sdm-main-domain-icon" style="display: inline-flex; align-items: center; margin-left: 5px;">
+                                        <?php
+                                        $domain_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/domain.svg');
+                                        if ($domain_svg) {
+                                            echo wp_kses($domain_svg, array('svg' => array('width' => true, 'height' => true, 'viewBox' => true), 'path' => array('d' => true, 'fill' => true)));
+                                        } else {
+                                            echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/domain.svg') . '" alt="' . esc_attr__('Main Domain', 'spintax-domain-manager') . '" width="16" height="16" />';
+                                        }
+                                        ?>
+                                    </span>
+                                <?php endif; ?>
+                            <?php else : ?>
+                                (Unassigned)
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo esc_html($domain->abuse_status); ?></td>
+                        <td><?php echo $is_blocked ? esc_html__('Yes', 'spintax-domain-manager') : esc_html__('No', 'spintax-domain-manager'); ?></td>
+                        <td><?php echo esc_html($domain->status); ?></td>
+                        <td><?php echo esc_html($domain->last_checked); ?></td>
+                        <td><?php echo esc_html($domain->created_at); ?></td>
+                        <td>
+                            <?php if ($is_active) : ?>
+                                <?php if ($is_assigned && !$is_main_domain) : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
+                                    <button type="button" class="sdm-action-button sdm-unassign sdm-mini-icon" data-domain-id="<?php echo esc_attr($domain->id); ?>" title="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>">
+                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>" />
+                                    </button>
+                                <?php elseif ($is_assigned && $is_main_domain) : ?>
+                                    <!-- No checkbox or actions for main domains -->
+                                <?php else : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
+                                <?php endif; ?>
+                            <?php else : ?>
+                                <button type="button" class="sdm-action-button sdm-delete-domain sdm-delete sdm-mini-icon" data-domain-id="<?php echo esc_attr($domain->id); ?>" title="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>">
+                                    <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>" />
+                                </button>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php else : ?>
+                <tr id="no-domains">
+                    <td colspan="8"><?php esc_html_e('No domains found for this project.', 'spintax-domain-manager'); ?></td>
+                </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <!-- Mass Actions Panel -->
+    <div class="sdm-mass-actions" style="margin: 20px 0;">
+        <select id="sdm-mass-action-select" class="sdm-select">
+            <option value="">Select Mass Action</option>
+            <option value="sync_ns">Sync NS-Servers</option>
+            <option value="assign_site">Assign to Site</option>
+            <option value="sync_status">Sync Statuses</option>
+            <option value="mass_add">Add Domains</option>
+        </select>
+        <button id="sdm-mass-action-apply" class="button button-primary sdm-action-button">Apply</button>
+    </div>
+    <?php
+
+    $html = ob_get_clean();
+    wp_send_json_success(['html' => $html]);
 }
-add_action( 'wp_ajax_sdm_fetch_domains_list', 'sdm_ajax_fetch_domains_list' );
+add_action('wp_ajax_sdm_fetch_domains_list', 'sdm_ajax_fetch_domains_list');
