@@ -519,6 +519,9 @@ function sdm_ajax_fetch_domains_list() {
         )
     );
 
+    // Отладка: выведем количество найденных доменов
+    echo '<!-- Debug: Found ' . count($domains) . ' domains -->';
+
     ?>
     <table class="wp-list-table widefat fixed striped sdm-table" id="sdm-domains-table">
         <thead>

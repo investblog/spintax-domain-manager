@@ -38,14 +38,19 @@ document.addEventListener('DOMContentLoaded', function() {
             credentials: 'same-origin',
             body: formData
         })
-        .then(function(response) { return response.json(); })
+        .then(function(response) {
+            console.log('Response:', response);
+            return response.json();
+        })
         .then(function(data) {
+            console.log('Data:', data); // Отладка
             if (data.success) {
                 container.innerHTML = data.data.html;
                 initializeDynamicListeners();
                 initializeSorting();
             } else {
                 showDomainsNotice('error', data.data);
+                container.innerHTML = '<p class="error">' + data.data + '</p>';
             }
         })
         .catch(function(error) {
@@ -538,32 +543,5 @@ document.addEventListener('DOMContentLoaded', function() {
                 noticeContainer.innerHTML = '';
             });
         }
-    }
-
-    function initializeSorting() {
-        var sortableHeaders = document.querySelectorAll('.sdm-sortable');
-        sortableHeaders.forEach(function(header) {
-            header.addEventListener('click', function(e) {
-                e.preventDefault();
-                let columnName = this.dataset.column;
-                let direction = sortDirection[columnName] === 'asc' ? 'desc' : 'asc';
-
-                sortableHeaders.forEach(function(col) {
-                    if (col !== this) {
-                        col.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
-                        sortDirection[col.dataset.column] = 'asc';
-                    }
-                }.bind(this));
-
-                this.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
-                this.classList.add('sdm-sorted-' + direction);
-                sortDirection[columnName] = direction;
-
-                if (currentProjectId > 0) {
-                    fetchDomains(currentProjectId, columnName, direction);
-                }
-                lastSortedColumn = columnName;
-            });
-        });
     }
 });
