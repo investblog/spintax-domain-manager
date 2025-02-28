@@ -340,8 +340,35 @@
   opacity: 0.8;
 }
 
+tr[data-site-id="0"] {
+    background-color: #f9f9f9;
+    color: #666;
+}
+tr[data-site-id="0"]:hover {
+    background-color: #f0f0f0;
+}
+
+tr[data-site-id="0"] .sdm-target-domain {
+    color: #999;
+}
+.sdm-main-domain-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+.sdm-main-domain-icon svg,
+.sdm-main-domain-icon img {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
 /*--------------------------------------------------------------
-8. MODALS (если используются)
+8. MODALS
 --------------------------------------------------------------*/
 .sdm-modal {
   position: fixed;

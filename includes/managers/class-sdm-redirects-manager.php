@@ -1012,7 +1012,7 @@ function sdm_ajax_update_redirect_type() {
         wp_send_json_error(__('Redirect not found.', 'spintax-domain-manager'));
     }
 
-    // Получаем site_id и main_domain из sdm_sites через sdm_domains
+    // Get site_id and main_domain from sdm_sites via sdm_domains
     $site = $wpdb->get_row(
         $wpdb->prepare(
             "SELECT s.main_domain 
@@ -1061,20 +1061,21 @@ add_action('wp_ajax_sdm_update_redirect_type', 'sdm_ajax_update_redirect_type');
  * AJAX Handler: Fetch Redirects List with Sorting.
  */
 function sdm_ajax_fetch_redirects_list() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
     }
     sdm_check_main_nonce();
     $project_id = isset($_POST['project_id']) ? absint($_POST['project_id']) : 0;
     $sort_column = isset($_POST['sort_column']) ? sanitize_text_field($_POST['sort_column']) : '';
     $sort_direction = isset($_POST['sort_direction']) ? sanitize_text_field($_POST['sort_direction']) : '';
-    if ( $project_id <= 0 ) {
-        wp_send_json_error( __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+    if ($project_id <= 0) {
+        wp_send_json_error(__('Invalid project ID.', 'spintax-domain-manager'));
     }
     global $wpdb;
     $prefix = $wpdb->prefix;
     ob_start();
-    // Get sites for the project.
+
+    // Get sites for the project
     $sites = $wpdb->get_results(
         $wpdb->prepare(
             "SELECT s.id, s.site_name, s.language, s.svg_icon, s.main_domain
@@ -1084,20 +1085,34 @@ function sdm_ajax_fetch_redirects_list() {
             $project_id
         )
     );
-    if ( ! empty($sites) ) :
-        foreach ( $sites as $site ) : ?>
+
+    // Get all domains for the project, including unattached domains (site_id IS NULL)
+    $order_by = '';
+    if (!empty($sort_column) && !empty($sort_direction)) {
+        $valid_columns = array('domain', 'redirect_status');
+        if (in_array($sort_column, $valid_columns)) {
+            if ($sort_column === 'redirect_status') {
+                $order_by = "ORDER BY COALESCE(r.redirect_type, 'no_redirect') " . ($sort_direction === 'desc' ? 'DESC' : 'ASC');
+            } else {
+                $order_by = "ORDER BY d.{$sort_column} " . ($sort_direction === 'desc' ? 'DESC' : 'ASC');
+            }
+        }
+    }
+
+    if (!empty($sites)) :
+        foreach ($sites as $site) : ?>
             <h3>
-                <?php if ( ! empty($site->svg_icon) ) : ?>
+                <?php if (!empty($site->svg_icon)) : ?>
                     <span class="sdm-site-icon" style="vertical-align: middle; margin-right: 5px;">
-                        <?php echo wp_kses( $site->svg_icon, array( 'svg' => array( 'class' => true, 'width' => true, 'height' => true ), 'path' => array( 'd' => true ) ) ); ?>
+                        <?php echo wp_kses($site->svg_icon, array('svg' => array('class' => true, 'width' => true, 'height' => true), 'path' => array('d' => true))); ?>
                     </span>
                 <?php else : ?>
-                    <span class="fi fi-<?php echo esc_attr( sdm_normalize_language_code( $site->language ?: 'en' ) ); ?>" style="vertical-align: middle; margin-left: 5px;"></span>
+                    <span class="fi fi-<?php echo esc_attr(sdm_normalize_language_code($site->language ?: 'en')); ?>" style="vertical-align: middle; margin-left: 5px;"></span>
                 <?php endif; ?>
-                <?php echo esc_html( $site->site_name ); ?>
+                <?php echo esc_html($site->site_name); ?>
             </h3>
             <p>
-                <?php echo esc_html__('Main Domain:', 'spintax-domain-manager') . ' ' . esc_html( $site->main_domain ); ?>
+                <?php echo esc_html__('Main Domain:', 'spintax-domain-manager') . ' ' . esc_html($site->main_domain); ?>
             </p>
             <table class="wp-list-table widefat fixed striped sdm-table">
                 <thead>
@@ -1112,17 +1127,6 @@ function sdm_ajax_fetch_redirects_list() {
                 </thead>
                 <tbody>
                     <?php
-                    $order_by = '';
-                    if ( ! empty($sort_column) && ! empty($sort_direction) ) {
-                        $valid_columns = array('domain', 'redirect_status');
-                        if ( in_array( $sort_column, $valid_columns ) ) {
-                            if ( $sort_column === 'redirect_status' ) {
-                                $order_by = "ORDER BY COALESCE(r.redirect_type, 'no_redirect') " . ( $sort_direction === 'desc' ? 'DESC' : 'ASC' );
-                            } else {
-                                $order_by = "ORDER BY d.{$sort_column} " . ( $sort_direction === 'desc' ? 'DESC' : 'ASC' );
-                            }
-                        }
-                    }
                     $domains = $wpdb->get_results(
                         $wpdb->prepare(
                             "SELECT d.*, 
@@ -1141,28 +1145,28 @@ function sdm_ajax_fetch_redirects_list() {
                             $site->id
                         )
                     );
-                    if ( ! empty($domains) ) :
-                        foreach ( $domains as $domain ) :
-                            $is_blocked = ( $domain->is_blocked_provider || $domain->is_blocked_government );
+                    if (!empty($domains)) :
+                        foreach ($domains as $domain) :
+                            $is_blocked = ($domain->is_blocked_provider || $domain->is_blocked_government);
                             $redirect = (object) array(
-                                'id'                    => $domain->redirect_id,
-                                'domain_id'             => $domain->id,
-                                'source_url'            => $domain->source_url,
-                                'target_url'            => $domain->target_url,
-                                'type'                  => $domain->type,
-                                'redirect_type'         => $domain->redirect_type,
+                                'id' => $domain->redirect_id,
+                                'domain_id' => $domain->id,
+                                'source_url' => $domain->source_url,
+                                'target_url' => $domain->target_url,
+                                'type' => $domain->type,
+                                'redirect_type' => $domain->redirect_type,
                                 'preserve_query_string' => $domain->preserve_query_string,
-                                'user_agent'            => $domain->user_agent,
-                                'created_at'            => $domain->redirect_created_at,
+                                'user_agent' => $domain->user_agent,
+                                'created_at' => $domain->redirect_created_at,
                             );
-                            $redirect_type  = $redirect->id ? $redirect->redirect_type : '';
-                            $is_main_domain = ( $domain->domain === $site->main_domain );
-                            $has_redirect_arrow = ( $redirect->id && ! $is_main_domain ) ? 'sdm-has-arrow' : '';
+                            $redirect_type = $redirect->id ? $redirect->redirect_type : '';
+                            $is_main_domain = ($domain->domain === $site->main_domain);
+                            $has_redirect_arrow = ($redirect->id && !$is_main_domain) ? 'sdm-has-arrow' : '';
                             ?>
                             <tr id="redirect-row-<?php echo esc_attr($domain->id); ?>"
                                 data-domain-id="<?php echo esc_attr($domain->id); ?>"
-                                data-update-nonce="<?php echo esc_attr( sdm_create_main_nonce() ); ?>"
-                                data-redirect-type="<?php echo esc_attr( $redirect_type ?: 'none' ); ?>"
+                                data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
+                                data-redirect-type="<?php echo esc_attr($redirect_type ?: 'none'); ?>"
                                 data-domain="<?php echo esc_attr($domain->domain); ?>"
                                 data-site-id="<?php echo esc_attr($site->id); ?>"
                                 data-source-url="<?php echo esc_attr($redirect->source_url ?: ''); ?>"
@@ -1206,7 +1210,7 @@ function sdm_ajax_fetch_redirects_list() {
                                     </div>
                                 </td>
                                 <td>
-                                    <?php if ( ! $is_main_domain ) : ?>
+                                    <?php if (!$is_main_domain) : ?>
                                         <input type="checkbox" class="sdm-redirect-checkbox" value="<?php echo esc_attr($domain->id); ?>" data-site-id="<?php echo esc_attr($site->id); ?>">
                                         <?php if ($redirect->id) : ?>
                                             <button type="button" class="sdm-action-button sdm-delete sdm-mini-icon" data-redirect-id="<?php echo esc_attr($redirect->id); ?>" title="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>">
@@ -1218,7 +1222,16 @@ function sdm_ajax_fetch_redirects_list() {
                                             </button>
                                         <?php endif; ?>
                                     <?php else : ?>
-                                        <?php esc_html_e('Main Domain (no redirect)', 'spintax-domain-manager'); ?>
+                                        <span class="sdm-main-domain-icon" style="display: inline-flex; align-items: center;">
+                                            <?php
+                                            $domain_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/domain.svg');
+                                            if ($domain_svg) {
+                                                echo wp_kses($domain_svg, array('svg' => array('width' => true, 'height' => true, 'viewBox' => true), 'path' => array('d' => true, 'fill' => true)));
+                                            } else {
+                                                echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/domain.svg') . '" alt="' . esc_attr__('Main Domain', 'spintax-domain-manager') . '" width="16" height="16" />';
+                                            }
+                                            ?>
+                                        </span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -1231,24 +1244,129 @@ function sdm_ajax_fetch_redirects_list() {
                 </tbody>
             </table>
             <div class="sdm-mass-actions" style="margin: 20px 0;">
-            <select class="sdm-mass-action-select-site" data-site-id="<?php echo esc_attr($site->id); ?>">
-                <option value=""><?php esc_html_e('Select Mass Action', 'spintax-domain-manager'); ?></option>
-                <option value="create_default"><?php esc_html_e('Create Default Redirects', 'spintax-domain-manager'); ?></option>
-                <option value="mass_delete"><?php esc_html_e('Delete Selected', 'spintax-domain-manager'); ?></option>
-                <option value="sync_cloudflare"><?php esc_html_e('Sync with CloudFlare', 'spintax-domain-manager'); ?></option>
-            </select>
+                <select class="sdm-mass-action-select-site" data-site-id="<?php echo esc_attr($site->id); ?>">
+                    <option value=""><?php esc_html_e('Select Mass Action', 'spintax-domain-manager'); ?></option>
+                    <option value="create_default"><?php esc_html_e('Create Default Redirects', 'spintax-domain-manager'); ?></option>
+                    <option value="mass_delete"><?php esc_html_e('Delete Selected', 'spintax-domain-manager'); ?></option>
+                    <option value="sync_cloudflare"><?php esc_html_e('Sync with CloudFlare', 'spintax-domain-manager'); ?></option>
+                </select>
                 <button class="button button-primary sdm-mass-action-apply-site" data-site-id="<?php echo esc_attr($site->id); ?>">
                     <?php esc_html_e('Apply', 'spintax-domain-manager'); ?>
                 </button>
             </div>
         <?php endforeach;
+
+        // Add a section for domains not linked to sites
+        $unattached_domains = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT d.*, 
+                        r.id AS redirect_id, 
+                        r.source_url, 
+                        r.target_url, 
+                        r.type, 
+                        r.redirect_type, 
+                        r.preserve_query_string, 
+                        r.user_agent, 
+                        r.created_at AS redirect_created_at
+                 FROM {$prefix}sdm_domains d
+                 LEFT JOIN {$prefix}sdm_redirects r ON d.id = r.domain_id
+                 WHERE d.project_id = %d AND d.site_id IS NULL $order_by",
+                $project_id
+            )
+        );
+        if (!empty($unattached_domains)) : ?>
+            <h3 style="color: #999; margin-top: 30px;"><?php esc_html_e('Unattached Domains', 'spintax-domain-manager'); ?></h3>
+            <p style="color: #999; margin-bottom: 15px;"><?php esc_html_e('Domains not assigned to any site.', 'spintax-domain-manager'); ?></p>
+            <table class="wp-list-table widefat fixed striped sdm-table">
+                <thead>
+                    <tr>
+                        <th class="sdm-sortable" data-column="domain"><?php esc_html_e('Domain', 'spintax-domain-manager'); ?></th>
+                        <th><?php esc_html_e('Redirect Type', 'spintax-domain-manager'); ?></th>
+                        <th><?php esc_html_e('Actions', 'spintax-domain-manager'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($unattached_domains as $domain) :
+                        $is_blocked = ($domain->is_blocked_provider || $domain->is_blocked_government);
+                        $redirect = (object) array(
+                            'id' => $domain->redirect_id,
+                            'domain_id' => $domain->id,
+                            'source_url' => $domain->source_url,
+                            'target_url' => $domain->target_url,
+                            'type' => $domain->type,
+                            'redirect_type' => $domain->redirect_type,
+                            'preserve_query_string' => $domain->preserve_query_string,
+                            'user_agent' => $domain->user_agent,
+                            'created_at' => $domain->redirect_created_at,
+                        );
+                        $redirect_type = $redirect->id ? $redirect->redirect_type : '';
+                        ?>
+                        <tr id="redirect-row-<?php echo esc_attr($domain->id); ?>"
+                            data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                            data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
+                            data-redirect-type="<?php echo esc_attr($redirect_type ?: 'none'); ?>"
+                            data-domain="<?php echo esc_attr($domain->domain); ?>"
+                            data-site-id="0"
+                            data-source-url="<?php echo esc_attr($redirect->source_url ?: ''); ?>"
+                            data-target-url="<?php echo esc_attr($redirect->target_url ?: ''); ?>"
+                            data-type="<?php echo esc_attr($redirect->type ?: ''); ?>"
+                            data-created-at="<?php echo esc_attr($redirect->created_at ?: ''); ?>"
+                            style="background-color: #f9f9f9; color: #666;">
+                            <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>"
+                                data-redirect-type="<?php echo esc_attr($redirect_type ?: 'none'); ?>">
+                                <?php echo esc_html($domain->domain); ?>
+                            </td>
+                            <td class="sdm-redirect-type-cell" data-redirect-id="<?php echo esc_attr($redirect->id); ?>" data-current-type="<?php echo esc_attr($redirect_type ?: 'main'); ?>">
+                                <?php if ($redirect->id) : ?>
+                                    <?php
+                                        $svg_markup = sdm_get_inline_redirect_svg($redirect_type ?: 'main');
+                                    ?>
+                                    <?php if (!empty($svg_markup)) : ?>
+                                        <span class="sdm-redirect-type-display sdm-redirect-type-<?php echo esc_attr($redirect_type ?: 'main'); ?>">
+                                            <?php echo $svg_markup; ?>
+                                        </span>
+                                        <?php if (!empty($redirect->target_url)) : ?>
+                                            <span class="sdm-target-domain" style="margin-left: 6px; color: #999;">
+                                                <?php echo esc_html($redirect->target_url); ?> <em>(unattached domain, redirect may be invalid)</em>
+                                            </span>
+                                        <?php endif; ?>
+                                    <?php else : ?>
+                                        <em style="color:#999;"><?php esc_html_e('Unknown icon', 'spintax-domain-manager'); ?></em>
+                                    <?php endif; ?>
+                                <?php else : ?>
+                                    <em style="color:#999;"><?php esc_html_e('No redirect', 'spintax-domain-manager'); ?></em>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <select class="sdm-attach-domain-to-site" data-domain-id="<?php echo esc_attr($domain->id); ?>">
+                                    <option value="0"><?php esc_html_e('Attach to Site', 'spintax-domain-manager'); ?></option>
+                                    <?php
+                                    $sites = $wpdb->get_results(
+                                        $wpdb->prepare(
+                                            "SELECT id, site_name FROM {$prefix}sdm_sites WHERE project_id = %d",
+                                            $project_id
+                                        )
+                                    );
+                                    foreach ($sites as $site) : ?>
+                                        <option value="<?php echo esc_attr($site->id); ?>">
+                                            <?php echo esc_html($site->site_name); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif;
     else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e('No sites found for this project.', 'spintax-domain-manager'); ?></p>
     <?php endif;
+
     $html = ob_get_clean();
-    wp_send_json_success( array( 'html' => $html ) );
+    wp_send_json_success(array('html' => $html));
 }
-add_action( 'wp_ajax_sdm_fetch_redirects_list', 'sdm_ajax_fetch_redirects_list' );
+add_action('wp_ajax_sdm_fetch_redirects_list', 'sdm_ajax_fetch_redirects_list');
 
 /**
  * Returns inline SVG markup for the given redirect type.
@@ -1296,4 +1414,54 @@ function sdm_ajax_mass_sync_redirects_to_cloudflare() {
     wp_send_json_success(['message' => $result]);
 }
 add_action('wp_ajax_sdm_mass_sync_redirects_to_cloudflare', 'sdm_ajax_mass_sync_redirects_to_cloudflare');
+
+/**
+ * AJAX Handler: Attach a domain to a site.
+ */
+function sdm_ajax_attach_domain_to_site() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $domain_id = isset($_POST['domain_id']) ? absint($_POST['domain_id']) : 0;
+    $site_id = isset($_POST['site_id']) ? absint($_POST['site_id']) : 0;
+
+    if ($domain_id <= 0 || $site_id <= 0) {
+        wp_send_json_error(__('Invalid domain or site ID.', 'spintax-domain-manager'));
+    }
+
+    global $wpdb;
+    $domain_project_id = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT project_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+            $domain_id
+        )
+    );
+    $site_project_id = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT project_id FROM {$wpdb->prefix}sdm_sites WHERE id = %d",
+            $site_id
+        )
+    );
+
+    if ($domain_project_id != $site_project_id) {
+        wp_send_json_error(__('Domain and site must belong to the same project.', 'spintax-domain-manager'));
+    }
+
+    $updated = $wpdb->update(
+        $wpdb->prefix . 'sdm_domains',
+        ['site_id' => $site_id],
+        ['id' => $domain_id],
+        ['%d'],
+        ['%d']
+    );
+
+    if ($updated === false) {
+        wp_send_json_error(__('Failed to attach domain to site.', 'spintax-domain-manager'));
+    }
+
+    wp_send_json_success(['message' => __('Domain attached to site successfully.', 'spintax-domain-manager')]);
+}
+add_action('wp_ajax_sdm_attach_domain_to_site', 'sdm_ajax_attach_domain_to_site');
 ?>

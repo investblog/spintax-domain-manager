@@ -360,6 +360,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
         });
+        // Handler for binding a domain to a site
+        var attachDomainSelects = document.querySelectorAll('.sdm-attach-domain-to-site');
+        attachDomainSelects.forEach(function(select) {
+            select.addEventListener('change', function(e) {
+                e.preventDefault();
+                var domainId = this.getAttribute('data-domain-id');
+                var siteId = this.value;
+                if (siteId === '0') return; // Ничего не делаем, если выбрано "Attach to Site"
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_attach_domain_to_site');
+                formData.append('domain_id', domainId);
+                formData.append('site_id', siteId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showRedirectsNotice('updated', data.data.message);
+                        fetchRedirects(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
+                    } else {
+                        showRedirectsNotice('error', data.data);
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error attaching domain to site:', error);
+                    showRedirectsNotice('error', 'Ajax request failed.');
+                });
+            });
+        });
     }
 
     function initializeSorting() {

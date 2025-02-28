@@ -79,7 +79,7 @@ $main_nonce = sdm_create_main_nonce();
     <!-- Container for AJAX-loaded content -->
     <div id="sdm-redirects-container">
         <?php if ($current_project_id > 0) : ?>
-            <!-- Таблица инициализируется через JS (fetchRedirects), см. ниже -->
+            <!-- Таблица инициализируется через JS (fetchRedirects) -->
         <?php endif; ?>
     </div>
 </div>
