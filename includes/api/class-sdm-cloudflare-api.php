@@ -441,28 +441,50 @@ class SDM_Cloudflare_API {
      * @param int $service_id  ID сервиса CloudFlare (например, 1).
      * @return array|WP_Error
      */
-    public static function get_project_cf_credentials( $project_id, $service_id = 1 ) {
+    public static function get_project_cf_credentials($project_id, $service_id = 1) {
         global $wpdb;
-        $account = $wpdb->get_row( $wpdb->prepare("
+        $account = $wpdb->get_row($wpdb->prepare("
             SELECT * 
             FROM {$wpdb->prefix}sdm_accounts
             WHERE project_id = %d
               AND service_id = %d
             LIMIT 1
-        ", $project_id, $service_id ) );
-        if ( ! $account ) {
-            return new WP_Error( 'no_cf_account', "No CloudFlare account found for project #{$project_id}." );
+        ", $project_id, $service_id));
+        if (!$account) {
+            return new WP_Error('no_cf_account', "No CloudFlare account found for project #{$project_id}.");
         }
-        if ( empty( $account->email ) || empty( $account->api_key_enc ) ) {
-            return new WP_Error( 'invalid_cf_account', 'CloudFlare account missing email or api_key_enc.' );
+
+        $credentials = array();
+        if (!empty($account->additional_data_enc)) {
+            // Попробуем получить данные из additional_data_enc
+            $additional_data = json_decode(sdm_decrypt($account->additional_data_enc), true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($additional_data)) {
+                if ($service_id === 1) { // CloudFlare (API Key)
+                    $credentials['email'] = isset($additional_data['email']) ? $additional_data['email'] : '';
+                    $credentials['api_key'] = isset($additional_data['api_key']) ? $additional_data['api_key'] : '';
+                } else { // CloudFlare (OAuth) — пока не поддерживаем, но добавим для будущего
+                    $credentials['email'] = isset($additional_data['email']) ? $additional_data['email'] : '';
+                    $credentials['client_id'] = isset($additional_data['client_id']) ? $additional_data['client_id'] : '';
+                    $credentials['client_secret'] = isset($additional_data['client_secret']) ? $additional_data['client_secret'] : '';
+                    $credentials['refresh_token'] = isset($additional_data['refresh_token']) ? $additional_data['refresh_token'] : '';
+                }
+            }
         }
-        $decrypted_key = sdm_decrypt( $account->api_key_enc );
-        if ( ! $decrypted_key ) {
-            return new WP_Error( 'decrypt_error', 'Failed to decrypt CloudFlare API key.' );
+
+        // Если данные в additional_data_enc отсутствуют или неполные, используем старые поля
+        if (empty($credentials['email']) || empty($credentials['api_key']) && $service_id === 1) {
+            if (empty($account->email) || empty($account->api_key_enc)) {
+                return new WP_Error('invalid_cf_account', 'CloudFlare account missing email or api_key_enc.');
+            }
+            $credentials['email'] = $account->email;
+            $credentials['api_key'] = sdm_decrypt($account->api_key_enc);
         }
-        return array(
-            'email'   => $account->email,
-            'api_key' => $decrypted_key,
-        );
+
+        if (empty($credentials['email']) || empty($credentials['api_key']) && $service_id === 1) {
+            return new WP_Error('invalid_cf_account', 'Incomplete CloudFlare credentials.');
+        }
+
+        return $credentials;
     }
+
 }

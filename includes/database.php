@@ -1,7 +1,7 @@
 <?php
 /* File: includes/database.php */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
@@ -38,7 +38,6 @@ function sdm_create_tables() {
         PRIMARY KEY  (id),
         KEY project_id (project_id)
     ) $charset_collate;";
-
 
     // 3) Domains table: domains attached to a project and optionally a site.
     $domains_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_domains (
@@ -106,14 +105,112 @@ function sdm_create_tables() {
         FOREIGN KEY (domain_id) REFERENCES {$wpdb->prefix}sdm_domains(id) ON DELETE CASCADE
     ) $charset_collate;";
 
-
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-    dbDelta( $projects_sql );
-    dbDelta( $sites_sql );
-    dbDelta( $domains_sql );
-    dbDelta( $service_types_sql );
-    dbDelta( $accounts_sql );
-    dbDelta( $redirects_sql );
+    dbDelta($projects_sql);
+    dbDelta($sites_sql);
+    dbDelta($domains_sql);
+    dbDelta($service_types_sql);
+    dbDelta($accounts_sql);
+    dbDelta($redirects_sql);
+
+    // Добавляем начальные записи в sdm_service_types, если они ещё не существуют
+    $service_types_inserts = array(
+        $wpdb->prepare(
+            "INSERT INTO {$wpdb->prefix}sdm_service_types (id, service_name, auth_method, additional_params, created_at, updated_at) 
+            VALUES
+                (1, %s, %s, %s, NOW(), NOW()),
+                (2, %s, %s, %s, NOW(), NOW()),
+                (3, %s, %s, %s, NOW(), NOW()),
+                (4, %s, %s, %s, NOW(), NOW()),
+                (5, %s, %s, %s, NOW(), NOW()),
+                (6, %s, %s, %s, NOW(), NOW()),
+                (7, %s, %s, %s, NOW(), NOW()),
+                (8, %s, %s, %s, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE 
+                service_name = VALUES(service_name), 
+                auth_method = VALUES(auth_method), 
+                additional_params = VALUES(additional_params), 
+                updated_at = NOW()",
+            'CloudFlare (API Key)', 'Global API Key', json_encode(array(
+                "required_fields" => array("email", "api_key"),
+                "optional_fields" => array()
+            )),
+            'CloudFlare (OAuth)', 'OAuth (Client ID, Client Secret, Refresh Token)', json_encode(array(
+                "required_fields" => array("email", "client_id", "client_secret", "refresh_token"),
+                "optional_fields" => array("api_key")
+            )),
+            'HostTracker', 'Username/Password', json_encode(array(
+                "required_fields" => array("login", "password"),
+                "optional_fields" => array("api_key"),
+                "task_type_options" => array("RusRegBL", "bl:ru"),
+                "default_task_type" => "bl:ru"
+            )),
+            'NameCheap', 'Username & API', json_encode(array(
+                "required_fields" => array("username", "api_key"),
+                "optional_fields" => array("sandbox_mode")
+            )),
+            'NameSilo', 'Username & API', json_encode(array(
+                "required_fields" => array("username", "api_key"),
+                "optional_fields" => array("test_mode")
+            )),
+            'Yandex', 'User ID & Webmaster API Token', json_encode(array(
+                "required_fields" => array("user_id", "webmaster_api_token"),
+                "optional_fields" => array("oauth_token")
+            )),
+            'Google', 'API Key, Client ID, Client Secret, Refresh Token', json_encode(array(
+                "required_fields" => array("api_key", "client_id", "client_secret", "refresh_token"),
+                "optional_fields" => array("project_id")
+            )),
+            'XMLStock', 'User ID & API Key', json_encode(array(
+                "required_fields" => array("user_id", "api_key"),
+                "optional_fields" => array("endpoint")
+            ))
+        )
+    );
+
+    // Выполняем вставку только если записи не существуют
+    foreach ($service_types_inserts as $insert) {
+        $wpdb->query($insert);
+    }
+
+    // Установить автоинкремент на 9, если записи успешно добавлены
+    $wpdb->query("ALTER TABLE {$wpdb->prefix}sdm_service_types AUTO_INCREMENT = 9");
+
+    // Миграция старых аккаунтов CloudFlare
+    $cloudflare_accounts = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}sdm_accounts WHERE service_id IN (1, 2)");
+    if (!empty($cloudflare_accounts)) {
+        foreach ($cloudflare_accounts as $account) {
+            $data = array();
+            $is_api_key_account = !empty($account->api_key_enc) && empty($account->client_id_enc) && empty($account->client_secret_enc) && empty($account->refresh_token_enc);
+            $is_oauth_account = !empty($account->client_id_enc) && !empty($account->client_secret_enc) && !empty($account->refresh_token_enc);
+
+            if ($is_api_key_account) {
+                $data['email'] = $account->email;
+                $data['api_key'] = sdm_decrypt($account->api_key_enc); // Используем функцию вместо класса
+                $new_service_id = 1; // "CloudFlare (API Key)"
+            } elseif ($is_oauth_account) {
+                $data['email'] = $account->email;
+                $data['client_id'] = sdm_decrypt($account->client_id_enc);
+                $data['client_secret'] = sdm_decrypt($account->client_secret_enc);
+                $data['refresh_token'] = sdm_decrypt($account->refresh_token_enc);
+                $new_service_id = 2; // "CloudFlare (OAuth)"
+            }
+
+            if (!empty($data)) {
+                $encrypted_data = sdm_encrypt(json_encode($data)); // Используем функцию вместо класса
+                $wpdb->update(
+                    "{$wpdb->prefix}sdm_accounts",
+                    array(
+                        'additional_data_enc' => $encrypted_data,
+                        'service_id' => $new_service_id // Обновляем service_id, если изменилось
+                    ),
+                    array('id' => $account->id),
+                    array('%s'),
+                    array('%d')
+                );
+            }
+        }
+    }
 }
 
 function sdm_remove_tables() {

@@ -31,11 +31,13 @@ class SDM_Domains_Manager {
         }
 
         // 1) Получаем ID сервиса CloudFlare из таблицы sdm_service_types
-        $cf_service_id = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM {$wpdb->prefix}sdm_service_types WHERE service_name = %s",
-            'cloudflare'
-        ) );
-        if ( empty( $cf_service_id ) ) {
+        $cf_service_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}sdm_service_types 
+             WHERE service_name IN (%s, %s) 
+             LIMIT 1",
+            'CloudFlare (API Key)', 'CloudFlare (OAuth)'
+        ));
+                if ( empty( $cf_service_id ) ) {
             return array(
                 'error' => __( 'Cloudflare service is not configured.', 'spintax-domain-manager' )
             );
