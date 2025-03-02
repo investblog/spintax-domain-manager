@@ -9,7 +9,12 @@ document.addEventListener('DOMContentLoaded', function() {
         notice.className = 'notice notice-' + (type === 'error' ? 'error' : 'updated') + ' is-dismissible';
         notice.innerHTML = '<p>' + message + '</p><button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button>';
         var noticeContainer = document.getElementById('sdm-accounts-notice');
-        noticeContainer.insertBefore(notice, noticeContainer.firstChild);
+        
+        // Удаляем все существующие уведомления перед добавлением нового
+        while (noticeContainer.firstChild) {
+            noticeContainer.removeChild(noticeContainer.firstChild);
+        }
+        noticeContainer.appendChild(notice);
 
         notice.querySelector('.notice-dismiss').addEventListener('click', function() {
             notice.remove();
@@ -21,24 +26,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Динамическая генерация полей с отладкой и обработкой дополнительных полей
-    function generateDynamicFields(service) {
-        var option = document.getElementById('service').querySelector(`option[value="${service}"]`);
-        var paramsStr = option.dataset.params;
-        var debugInfo = option.dataset.debug; // Для отладки
-        console.log('Service:', service, 'Params String:', paramsStr, 'Debug:', debugInfo);
+    function generateDynamicFields(service, accountData = {}) {
+        var option = document.querySelector(`option[value="${service}"]`, document.getElementById('edit-service')) || document.querySelector(`#service option[value="${service}"]`);
+        var paramsStr = option ? option.dataset.params : '';
+        var debugInfo = option ? option.dataset.debug : ''; // Для отладки
+        console.log('Service:', service, 'Params String:', paramsStr, 'Debug:', debugInfo, 'Account Data:', accountData);
 
-        var dynamicFields = document.getElementById('dynamic-fields');
-        if (!dynamicFields) {
-            console.error('Dynamic fields container not found');
-            showNotice('error', 'Error loading form fields.');
-            return;
-        }
+        var dynamicFields = document.createElement('div');
+        dynamicFields.id = 'edit-account-fields';
         dynamicFields.innerHTML = '';
 
         if (!paramsStr) {
             console.warn('No params found for service:', service);
             showNotice('warning', 'No configuration available for this service. Please contact support.');
-            return;
+            return dynamicFields;
         }
 
         try {
@@ -50,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 dynamicFields.innerHTML += `
                     <div class="sdm-form-field">
                         <label for="${field}">${field.replace('_', ' ').toUpperCase()}</label>
-                        <input type="text" name="${field}" id="${field}" class="sdm-input sdm-required-field" required>
+                        <input type="text" name="${field}" id="${field}" class="sdm-input sdm-required-field" value="${accountData[field] || ''}" required>
                     </div>`;
             });
 
@@ -59,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 dynamicFields.innerHTML += `
                     <div class="sdm-form-field">
                         <label for="${field}">${field.replace('_', ' ').toUpperCase()} (optional)</label>
-                        <input type="text" name="${field}" id="${field}" class="sdm-input">
+                        <input type="text" name="${field}" id="${field}" class="sdm-input" value="${accountData[field] || ''}">
                     </div>`;
             });
 
@@ -69,34 +70,43 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="sdm-form-field">
                         <label for="task_type">Task Type (optional)</label>
                         <select name="task_type" id="task_type" class="sdm-input">
-                            ${params.task_type_options.map(option => `<option value="${option}" ${option === (params.default_task_type || '') ? 'selected' : ''}>${option}</option>`).join('')}
+                            ${params.task_type_options.map(option => `<option value="${option}" ${option === (accountData['task_type'] || params.default_task_type || '') ? 'selected' : ''}>${option}</option>`).join('')}
                         </select>
                     </div>`;
             }
 
+            return dynamicFields;
         } catch (error) {
             console.error('Error parsing params:', error, paramsStr);
             showNotice('error', 'Invalid service configuration. Please contact support.');
+            return dynamicFields;
         }
     }
 
-    // Инициализация полей при загрузке страницы
+    // Инициализация полей при загрузке страницы для формы добавления
     var serviceSelect = document.getElementById('service');
     if (serviceSelect) {
         var initialService = serviceSelect.value;
-        generateDynamicFields(initialService); // Вызываем функцию для отображения полей по умолчанию
+        var formContainer = document.getElementById('dynamic-fields');
+        if (formContainer) {
+            formContainer.appendChild(generateDynamicFields(initialService));
+        }
         serviceSelect.addEventListener('change', function() {
-            generateDynamicFields(this.value);
+            var formContainer = document.getElementById('dynamic-fields');
+            if (formContainer) {
+                formContainer.innerHTML = '';
+                formContainer.appendChild(generateDynamicFields(this.value));
+            }
         });
     }
 
-    // Добавление нового аккаунта
+    // Добавление нового аккаунта (оставляем без изменений)
     document.getElementById('sdm-add-account-form').addEventListener('submit', function(e) {
         e.preventDefault();
         var formData = new FormData(this);
         formData.append('action', 'sdm_create_sdm_account');
 
-        // Собираем данные из динамических полей, включая select для task_type
+        // Собираем данные из динамических полей
         document.querySelectorAll('#dynamic-fields input, #dynamic-fields select').forEach(input => {
             formData.append(input.name, input.value);
         });
@@ -161,19 +171,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Inline-редактирование
+    // Удаление аккаунта
     var accountsTable = document.getElementById('sdm-accounts-table');
     if (accountsTable) {
         accountsTable.addEventListener('click', function(e) {
-            if (e.target.classList.contains('sdm-edit-account')) {
-                e.preventDefault();
-                var row = e.target.closest('tr');
-                toggleEditAccountRow(row, true);
-            } else if (e.target.classList.contains('sdm-save-account')) {
-                e.preventDefault();
-                var row = e.target.closest('tr');
-                saveAccountRow(row);
-            } else if (e.target.classList.contains('sdm-delete-account')) {
+            if (e.target.classList.contains('sdm-delete-account')) {
                 e.preventDefault();
                 if (!confirm('Are you sure you want to delete this account?')) return;
                 var row = e.target.closest('tr');
@@ -203,117 +205,151 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Error:', error);
                     showNotice('error', 'Ajax request failed.');
                 });
+            } else if (e.target.classList.contains('sdm-edit-account')) {
+                e.preventDefault();
+                var row = e.target.closest('tr');
+                var accountId = row.getAttribute('data-account-id');
+                var nonce = row.getAttribute('data-update-nonce');
+                var service = row.getAttribute('data-service');
+
+                // Открываем модальное окно или форму редактирования
+                openEditForm(accountId, nonce, service, row);
             }
         });
     }
 
-    function toggleEditAccountRow(row, editMode) {
-        var displayElems = row.querySelectorAll('.sdm-display-value');
-        var editInputs = row.querySelectorAll('.sdm-edit-input');
-        var editLink = row.querySelector('.sdm-edit-account');
-        var saveLink = row.querySelector('.sdm-save-account');
-
-        if (editMode) {
-            // Загрузить дополнительные поля через AJAX
-            var service = row.dataset.service;
-            fetch(ajax_url, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: new FormData([['action', 'sdm_get_service_params'], ['service', service], ['sdm_main_nonce_field', nonce]])
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    var params = data.data.params;
-                    var dynamicFields = row.querySelector('.dynamic-fields') || row.insertAdjacentHTML('beforeend', '<div class="dynamic-fields"></div>');
-                    dynamicFields.innerHTML = '';
-                    params.required_fields.forEach(field => {
-                        dynamicFields.innerHTML += `
-                            <div class="sdm-form-field">
-                                <label>${field}</label>
-                                <input class="sdm-edit-input sdm-hidden sdm-input sdm-required-field" type="text" name="${field}" value="${row.dataset[field] || ''}" required>
-                            </div>`;
-                    });
-                    params.optional_fields.forEach(field => {
-                        dynamicFields.innerHTML += `
-                            <div class="sdm-form-field">
-                                <label>${field} (optional)</label>
-                                <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="${field}" value="${row.dataset[field] || ''}">
-                            </div>`;
-                    });
-
-                    // Обработка task_type_options для HostTracker (если есть)
-                    if (params.task_type_options && service === 'HostTracker') {
-                        dynamicFields.innerHTML += `
-                            <div class="sdm-form-field">
-                                <label for="task_type">Task Type (optional)</label>
-                                <select class="sdm-edit-input sdm-hidden sdm-input" name="task_type" id="task_type">
-                                    ${params.task_type_options.map(option => `<option value="${option}" ${option === (params.default_task_type || '') ? 'selected' : ''}>${option}</option>`).join('')}
-                                </select>
-                            </div>`;
-                    }
-                    displayElems.forEach(el => el.classList.add('sdm-hidden'));
-                    editInputs.forEach(el => el.classList.remove('sdm-hidden'));
-                    editLink.classList.add('sdm-hidden');
-                    saveLink.classList.remove('sdm-hidden');
-                } else {
-                    showNotice('error', data.data);
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching service params:', error);
-                showNotice('error', 'Failed to load account fields.');
-            });
-        } else {
-            displayElems.forEach(el => el.classList.remove('sdm-hidden'));
-            editInputs.forEach(el => el.classList.add('sdm-hidden'));
-            editLink.classList.remove('sdm-hidden');
-            saveLink.classList.add('sdm-hidden');
+    function openEditForm(accountId, nonce, service, row) {
+        var modal = document.getElementById('sdm-edit-modal');
+        if (!modal) {
+            console.error('Modal #sdm-edit-modal not found in DOM');
+            showNotice('error', 'Modal window initialization failed. Please refresh the page.');
+            return;
         }
-    }
 
-    function saveAccountRow(row) {
-        var accountId = row.getAttribute('data-account-id');
-        var nonce = row.getAttribute('data-update-nonce');
         var formData = new FormData();
-        formData.append('action', 'sdm_update_sdm_account');
+        formData.append('action', 'sdm_get_account_details');
         formData.append('sdm_main_nonce_field', nonce);
         formData.append('account_id', accountId);
 
-        // Собираем данные из всех видимых input'ов и select'ов, включая динамические поля
-        row.querySelectorAll('.sdm-edit-input:not(.sdm-hidden)').forEach(input => {
-            formData.append(input.name, input.value);
-        });
+        console.log('Fetching account details for ID:', accountId, 'Nonce:', nonce, 'Service:', service, 'Modal found:', !!modal, 'Initial style:', modal.style.display, 'Initial classes:', modal.className, 'Computed style:', window.getComputedStyle(modal).display);
 
         fetch(ajax_url, {
             method: 'POST',
             credentials: 'same-origin',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status, 'OK:', response.ok);
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                showNotice('updated', data.data.message);
-                // Обновляем отображаемые значения
-                var displayElems = row.querySelectorAll('.sdm-display-value');
-                displayElems.forEach(el => {
-                    var name = el.className.match(/column-(\w+)/)[1];
-                    el.textContent = formData.get(name) || '';
+                var accountData = data.data.account;
+                console.log('Account data received:', accountData);
+
+                // Обновляем поля формы данными аккаунта
+                var projectIdHidden = modal.querySelector('#edit-project_id_hidden');
+                var accountIdHidden = modal.querySelector('#edit-account_id_hidden');
+                var accountNameInput = modal.querySelector('#edit-account_name');
+                var serviceSelect = modal.querySelector('#edit-service'); // Уберем этот селект позже
+                var emailInput = modal.querySelector('#edit-email');
+                var dynamicFields = modal.querySelector('#edit-account-fields');
+
+                if (projectIdHidden) projectIdHidden.value = accountData.project_id;
+                if (accountIdHidden) accountIdHidden.value = accountId;
+                if (accountNameInput) accountNameInput.value = accountData.account_name || ''; // Оставляем пустым, если нет имени
+                if (serviceSelect) serviceSelect.value = service; // Сохраняем значение, но уберем селект из формы
+                if (emailInput) emailInput.value = accountData.email || '';
+                if (dynamicFields) {
+                    dynamicFields.innerHTML = '';
+                    dynamicFields.appendChild(generateDynamicFields(service, accountData));
+                }
+
+                // Убеждаемся, что модальное окно отображается, даже если есть inline style или .sdm-hidden
+                if (modal.classList.contains('sdm-hidden') || modal.style.display === 'none' || window.getComputedStyle(modal).display === 'none') {
+                    modal.classList.remove('sdm-hidden'); // Удаляем класс .sdm-hidden
+                    modal.style.display = 'block'; // Устанавливаем display: block, чтобы переопределить inline style
+                    console.log('Forced modal display to block, className:', modal.className, 'Style:', modal.style.display, 'Computed style:', window.getComputedStyle(modal).display);
+                }
+
+                console.log('Modal shown, className:', modal.className, 'Inline style:', modal.style.display, 'Computed style:', window.getComputedStyle(modal).display, 'Modal element:', modal);
+
+                // Обработка закрытия модального окна
+                modal.querySelectorAll('.sdm-modal-close').forEach(closeBtn => {
+                    closeBtn.addEventListener('click', function() {
+                        modal.classList.add('sdm-hidden'); // Скрываем через .sdm-hidden
+                        modal.style.display = ''; // Сбрасываем inline display, полагаясь на .sdm-hidden
+                        console.log('Modal hidden, className:', modal.className, 'Style:', modal.style.display, 'Computed style:', window.getComputedStyle(modal).display);
+                        setTimeout(() => {
+                            // Не удаляем модальное окно, чтобы оно оставалось в DOM для повторного использования
+                        }, 300);
+                    });
                 });
-                toggleEditAccountRow(row, false);
+
+                // Сохранение изменений (обновляем для отправки всех данных, включая пустые, как в форме добавления)
+                var editForm = document.getElementById('sdm-edit-account-form');
+                if (editForm) {
+                    editForm.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        var formData = new FormData(this);
+                        formData.append('action', 'sdm_update_sdm_account');
+
+                        // Собираем данные из всех полей формы, включая динамические и пустые, как в форме добавления
+                        document.querySelectorAll('#edit-account-fields input, #edit-account-fields select').forEach(input => {
+                            formData.append(input.name, input.value || ''); // Отправляем пустые значения как пустые строки
+                        });
+
+                        // Добавляем фиксированные поля
+                        formData.append('project_id', projectIdHidden.value);
+                        formData.append('account_id', accountIdHidden.value);
+                        formData.append('account_name', accountNameInput.value);
+                        formData.append('service', service); // Фиксируем сервис, вместо использования селекта
+
+                        console.log('Form data submitted:', Object.fromEntries(formData.entries()));
+
+                        fetch(ajax_url, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showNotice('updated', data.data.message);
+                                modal.classList.add('sdm-hidden');
+                                modal.style.display = ''; // Сбрасываем inline display
+                                setTimeout(() => {
+                                    // Не удаляем модальное окно, чтобы оно оставалось в DOM
+                                }, 300);
+                                fetchAccounts(); // Вызываем один раз для обновления таблицы
+                            } else {
+                                showNotice('error', data.data);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotice('error', 'Ajax request failed.');
+                        });
+                    });
+                } else {
+                    console.error('Edit form not found in modal');
+                }
             } else {
                 showNotice('error', data.data);
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            showNotice('error', 'Ajax request failed.');
+            console.error('Error fetching account details:', error);
+            showNotice('error', 'Failed to load account details.');
         });
     }
 
-    // Функция загрузки аккаунтов
+    // Функция загрузки аккаунтов (исправляем бесконечный цикл)
     function fetchAccounts() {
-        var formData = new FormData();
+        var formData = new FormData(); // Создаём пустой FormData
         formData.append('action', 'sdm_fetch_accounts');
         formData.append('sdm_main_nonce_field', nonce);
 
@@ -326,21 +362,20 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 var table = document.getElementById('sdm-accounts-table').querySelector('tbody');
-                table.innerHTML = '';
+                table.innerHTML = ''; // Очищаем таблицу перед обновлением
                 data.data.accounts.forEach(account => {
                     table.innerHTML += `
                         <tr id="account-row-${account.id}" data-account-id="${account.id}" data-update-nonce="${nonce}" data-service="${account.service}">
                             <td class="column-project-id">${account.project_id}</td>
                             <td class="column-project-name">${account.project_name || '(No project)'}</td>
-                            <td class="column-service"><span class="sdm-display-value">${account.service}</span><select class="sdm-edit-input sdm-hidden sdm-select" name="service">${servicesOptions}</select></td>
-                            <td class="column-account-name"><span class="sdm-display-value">${account.account_name || ''}</span><input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="account_name" value="${account.account_name || ''}"></td>
-                            <td class="column-email"><span class="sdm-display-value">${account.email || ''}</span><input class="sdm-edit-input sdm-hidden sdm-input" type="email" name="email" value="${account.email || ''}"></td>
+                            <td class="column-service"><span class="sdm-display-value">${account.service}</span></td>
+                            <td class="column-account-name"><span class="sdm-display-value">${account.account_name || ''}</span></td>
+                            <td class="column-email"><span class="sdm-display-value">${account.email || ''}</span></td>
                             <td class="column-last-tested">${account.last_tested_at || 'Not tested'}</td>
                             <td class="column-status">${account.last_test_result || 'N/A'}</td>
                             <td class="column-created">${account.created_at}</td>
                             <td class="column-actions">
-                                <a href="#" class="sdm-action-button sdm-edit sdm-edit-account">Edit</a>
-                                <a href="#" class="sdm-action-button sdm-save sdm-save-account sdm-hidden">Save</a> |
+                                <a href="#" class="sdm-action-button sdm-edit sdm-edit-account">Edit</a> |
                                 <a href="#" class="sdm-action-button sdm-delete sdm-delete-account">Delete</a>
                                 <a href="#" class="sdm-action-button sdm-test sdm-test-account" data-account-id="${account.id}">Test</a>
                             </td>

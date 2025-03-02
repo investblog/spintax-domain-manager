@@ -78,12 +78,28 @@
 3. COMMON FORM STYLING
 --------------------------------------------------------------*/
 .sdm-form {
-  max-width: 600px;
-  margin: 20px 0;
-  background: var(--sdm-bg-light);
-  padding: 15px;
-  border: 1px solid var(--sdm-border);
-  border-radius: var(--sdm-border-radius);
+    max-width: 600px;
+    margin: 20px 0;
+    background: var(--sdm-bg-light);
+    padding: 15px;
+    border: 1px solid var(--sdm-border);
+    border-radius: var(--sdm-border-radius);
+}
+.sdm-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.sdm-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sdm-label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--sdm-dark-gray);
 }
 .sdm-form .sdm-form-table {
   width: 100%;
@@ -121,14 +137,25 @@
 }
 .sdm-select,
 .sdm-input {
-  padding: 6px 8px;
-  font-size: 14px;
-  border: 1px solid var(--sdm-gray);
-  border-radius: var(--sdm-border-radius);
-  background-color: var(--sdm-bg-light);
-  max-width: 300px;
+    width: 300px;
+    padding: 8px;
+    border: 1px solid var(--sdm-gray); /* Используем переменную для серой границы */
+    border-radius: var(--sdm-border-radius);
+    background-color: var(--sdm-bg-light);
+    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 1.4;
+}
+.sdm-required-field {
+    border: 2px solid var(--sdm-yellow); /* Оранжевый бордюр для обязательных полей */
+}
+.submit {
+    margin-top: 20px;
 }
 
+.sdm-action-button {
+    margin-right: 10px;
+}
 /*--------------------------------------------------------------
 4. WP-LIKE NOTICES
 --------------------------------------------------------------*/
@@ -371,52 +398,67 @@ tr[data-site-id="0"] .sdm-target-domain {
 8. MODALS
 --------------------------------------------------------------*/
 .sdm-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 10000;
-  display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000; /* Увеличиваем z-index для надёжности */
+    display: none; /* По умолчанию скрыто, но .sdm-hidden переопределяет это */
 }
+
 .sdm-modal-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5); /* Затемнение фона */
 }
+
 .sdm-modal-content {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--sdm-bg-light);
-  padding: 20px;
-  border-radius: 6px;
-  max-width: 500px;
-  width: 90%;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--sdm-bg-light);
+    padding: 20px;
+    border-radius: var(--sdm-border-radius);
+    max-width: 600px; /* Используем максимум 600px для согласованности с формой */
+    width: 90%;
+    box-shadow: 0 4px 6px var(--sdm-shadow-medium); /* Используем переменную тени */
+    border: 1px solid var(--sdm-border); /* Используем переменную границы */
 }
+
 .sdm-modal-close {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  font-size: 20px;
-  cursor: pointer;
-  color: #666;
-  transition: color 0.2s ease;
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--sdm-gray); /* Используем переменную серого цвета */
+    transition: color 0.2s ease;
 }
+
 .sdm-modal-close:hover {
-  color: var(--sdm-red);
+    color: var(--sdm-red); /* Используем переменную красного цвета */
 }
+
 .sdm-modal-actions {
-  text-align: right;
+    text-align: right;
 }
+
 .sdm-modal-actions .sdm-action-button {
-  margin-left: 10px;
+    margin-left: 10px;
 }
+
+/* Стиль для текста редактирования */
+.sdm-edit-note {
+    color: var(--sdm-dark-gray);
+    font-style: italic;
+    margin-bottom: 15px;
+}
+
 
 /*--------------------------------------------------------------
 9. SITE ICONS (e.g. flags or custom SVG)
@@ -490,49 +532,4 @@ tr[data-redirect-type="hidden"] {
 }
 .sdm-textarea {
   width: 100%;
-}
-.sdm-required-field {
-    border: 2px solid var(--sdm-yellow, #f7b500);
-}
-
-.sdm-form {
-    max-width: 600px;
-    margin: 20px 0;
-}
-
-.sdm-form-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.sdm-form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.sdm-label {
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.sdm-input, .sdm-select {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
-.sdm-required-field {
-    border: 2px solid var(--sdm-yellow, #f7b500);
-}
-
-.submit {
-    margin-top: 20px;
-}
-
-.sdm-action-button {
-    margin-right: 10px;
 }

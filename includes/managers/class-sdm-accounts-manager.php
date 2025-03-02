@@ -129,16 +129,16 @@ class SDM_Accounts_Manager {
             return new WP_Error('invalid_id', __('Invalid account ID.', 'spintax-domain-manager'));
         }
 
-        // Get old record to preserve old encrypted fields if user leaves them empty
+        // Получаем старую запись, чтобы сохранить существующие данные
         $old_record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $account_id));
         if (!$old_record) {
             return new WP_Error('not_found', __('Account not found.', 'spintax-domain-manager'));
         }
 
-        // Convert service_name to service_id
+        // Получаем сервис по имени
         $service_name = sanitize_text_field($data['service'] ?? '');
-        $service_manager = new SDM_Service_Types_Manager(); // Создаём экземпляр класса
-        $service = $service_manager->get_service_by_name($service_name); // Вызываем метод через экземпляр
+        $service_manager = new SDM_Service_Types_Manager();
+        $service = $service_manager->get_service_by_name($service_name);
         if (!$service) {
             return new WP_Error('service_not_found', __('Service not found.', 'spintax-domain-manager'));
         }
@@ -147,7 +147,7 @@ class SDM_Accounts_Manager {
         $required_fields = $params['required_fields'] ?? array();
         $optional_fields = $params['optional_fields'] ?? array();
 
-        // Валидация полей
+        // Валидация обязательных полей
         foreach ($required_fields as $field) {
             if (empty($data[$field])) {
                 return new WP_Error('missing_required_field', sprintf(__('Required field "%s" is missing.', 'spintax-domain-manager'), $field));
@@ -156,54 +156,64 @@ class SDM_Accounts_Manager {
 
         $account_data = array(
             'service_id' => $service->id,
-            'account_name' => sanitize_text_field($data['account_name'] ?? ''),
-            'email' => sanitize_email($data['email'] ?? ''),
+            'account_name' => sanitize_text_field($data['account_name'] ?? $old_record->account_name), // Сохраняем старое значение, если новое пустое
+            'email' => sanitize_email($data['email'] ?? $old_record->email), // Сохраняем старое значение email, если новое пустое
         );
 
-        $site_id = isset($data['site_id']) && !empty($data['site_id']) ? absint($data['site_id']) : null; // Устанавливаем NULL, если site_id не указано или пустое
+        $site_id = isset($data['site_id']) && !empty($data['site_id']) ? absint($data['site_id']) : null;
         if ($site_id !== null) {
             $account_data['site_id'] = $site_id;
         }
 
-        // Собираем чувствительные данные для шифрования
+        // Декодируем существующие чувствительные данные для сравнения
+        $old_sensitive_data = array();
+        if (!empty($old_record->additional_data_enc)) {
+            $decrypted_old = sdm_decrypt($old_record->additional_data_enc);
+            if ($decrypted_old !== false) {
+                $old_sensitive_data = json_decode($decrypted_old, true) ?: array();
+            }
+        }
+
+        // Собираем новые чувствительные данные, сохраняя старые, если новые пустые
         $sensitive_data = array();
         foreach (array_merge($required_fields, $optional_fields) as $field) {
-            if (isset($data[$field])) {
-                $sensitive_data[$field] = sanitize_text_field($data[$field]);
+            if (isset($data[$field]) && !empty($data[$field])) {
+                $sensitive_data[$field] = sanitize_text_field($data[$field]); // Сохраняем только непустые новые значения
+            } elseif (isset($old_sensitive_data[$field])) {
+                $sensitive_data[$field] = $old_sensitive_data[$field]; // Сохраняем старое значение, если новое пустое
             }
         }
 
         if (!empty($sensitive_data)) {
-            $encrypted_data = sdm_encrypt(json_encode($sensitive_data)); // Используем функцию вместо класса
+            $encrypted_data = sdm_encrypt(json_encode($sensitive_data));
             $account_data['additional_data_enc'] = $encrypted_data;
+        } elseif (!empty($old_record->additional_data_enc)) {
+            // Если новых чувствительных данных нет, сохраняем старые зашифрованные данные
+            $account_data['additional_data_enc'] = $old_record->additional_data_enc;
         }
 
         // Обработка старых полей для совместимости с CloudFlare
         if ($service_name === 'CloudFlare (API Key)' || $service_name === 'CloudFlare (OAuth)') {
-            if (isset($sensitive_data['email'])) {
-                $account_data['email'] = $sensitive_data['email'];
+            $account_data['email'] = $account_data['email'] ?? $old_record->email; // Убедились, что email сохранён
+            if (isset($sensitive_data['api_key']) && !empty($sensitive_data['api_key'])) {
+                $account_data['api_key_enc'] = sdm_encrypt($sensitive_data['api_key']);
             } else {
-                $account_data['email'] = $old_record->email;
+                $account_data['api_key_enc'] = $old_record->api_key_enc; // Сохраняем старый API-ключ, если новый пустой
             }
-            if (isset($sensitive_data['api_key'])) {
-                $account_data['api_key_enc'] = sdm_encrypt($sensitive_data['api_key']); // Используем функцию вместо класса
+            if (isset($sensitive_data['client_id']) && !empty($sensitive_data['client_id'])) {
+                $account_data['client_id_enc'] = sdm_encrypt($sensitive_data['client_id']);
             } else {
-                $account_data['api_key_enc'] = $old_record->api_key_enc;
+                $account_data['client_id_enc'] = $old_record->client_id_enc; // Сохраняем старый client_id, если новый пустой
             }
-            if (isset($sensitive_data['client_id'])) {
-                $account_data['client_id_enc'] = sdm_encrypt($sensitive_data['client_id']); // Используем функцию вместо класса
+            if (isset($sensitive_data['client_secret']) && !empty($sensitive_data['client_secret'])) {
+                $account_data['client_secret_enc'] = sdm_encrypt($sensitive_data['client_secret']);
             } else {
-                $account_data['client_id_enc'] = $old_record->client_id_enc;
+                $account_data['client_secret_enc'] = $old_record->client_secret_enc; // Сохраняем старый client_secret, если новый пустой
             }
-            if (isset($sensitive_data['client_secret'])) {
-                $account_data['client_secret_enc'] = sdm_encrypt($sensitive_data['client_secret']); // Используем функцию вместо класса
+            if (isset($sensitive_data['refresh_token']) && !empty($sensitive_data['refresh_token'])) {
+                $account_data['refresh_token_enc'] = sdm_encrypt($sensitive_data['refresh_token']);
             } else {
-                $account_data['client_secret_enc'] = $old_record->client_secret_enc;
-            }
-            if (isset($sensitive_data['refresh_token'])) {
-                $account_data['refresh_token_enc'] = sdm_encrypt($sensitive_data['refresh_token']); // Используем функцию вместо класса
-            } else {
-                $account_data['refresh_token_enc'] = $old_record->refresh_token_enc;
+                $account_data['refresh_token_enc'] = $old_record->refresh_token_enc; // Сохраняем старый refresh_token, если новый пустой
             }
         }
 
@@ -211,7 +221,7 @@ class SDM_Accounts_Manager {
             $table,
             $account_data,
             array('id' => $account_id),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s'),
+            array('%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s'),
             array('%d')
         );
 
@@ -262,9 +272,9 @@ class SDM_Accounts_Manager {
     }
 
     /**
-     * Helper: Get account by ID.
+     * Helper: Get account by ID (public for AJAX access).
      */
-    private function get_account_by_id($account_id) {
+    public function get_account_by_id($account_id) { // Изменили с private на public
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_accounts WHERE id = %d", $account_id));
     }
@@ -434,3 +444,60 @@ function sdm_ajax_get_service_params() {
     wp_send_json_success(array('params' => json_decode($service->additional_params, true)));
 }
 add_action('wp_ajax_sdm_get_service_params', 'sdm_ajax_get_service_params');
+
+function sdm_ajax_get_account_details() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+        return;
+    }
+    sdm_check_main_nonce();
+
+    $account_id = absint($_POST['account_id'] ?? 0);
+    error_log('Fetching account details for ID: ' . $account_id); // Отладка
+
+    $manager = new SDM_Accounts_Manager();
+    $account = $manager->get_account_by_id($account_id); // Теперь метод public
+
+    if (!$account) {
+        error_log('Account not found for ID: ' . $account_id);
+        wp_send_json_error(__('Account not found.', 'spintax-domain-manager'));
+        return;
+    }
+
+    // Декодируем зашифрованные данные, если есть, с отладкой
+    $sensitive_data = array();
+    if (!empty($account->additional_data_enc)) {
+        $decrypted = sdm_decrypt($account->additional_data_enc);
+        error_log('Decrypted data: ' . ($decrypted !== false ? $decrypted : 'Decryption failed')); // Отладка
+        if ($decrypted !== false) {
+            $sensitive_data = json_decode($decrypted, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                error_log('JSON decode error: ' . json_last_error_msg());
+                $sensitive_data = array(); // Устанавливаем пустой массив в случае ошибки
+            }
+        }
+    }
+
+    $service_manager = new SDM_Service_Types_Manager();
+    $service = $service_manager->get_service_by_id($account->service_id);
+    if (!$service) {
+        error_log('Service not found for service_id: ' . $account->service_id);
+        wp_send_json_error(__('Service not found.', 'spintax-domain-manager'));
+        return;
+    }
+
+    $account_data = array(
+        'id' => $account->id,
+        'project_id' => $account->project_id,
+        'service' => $service->service_name,
+        'account_name' => $account->account_name,
+        'email' => $account->email,
+    );
+
+    // Добавляем чувствительные данные из additional_data_enc
+    $account_data = array_merge($account_data, $sensitive_data);
+
+    error_log('Account data sent: ' . print_r($account_data, true)); // Отладка
+    wp_send_json_success(array('account' => $account_data));
+}
+add_action('wp_ajax_sdm_get_account_details', 'sdm_ajax_get_account_details');

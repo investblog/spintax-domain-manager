@@ -100,34 +100,42 @@ $main_nonce = sdm_create_main_nonce();
     </div>
 
     <!-- Modal for Assigning Domains to Site -->
-    <div id="sdm-assign-to-site-modal" class="sdm-modal" style="display:none;">
-        <div class="sdm-modal-overlay"></div>
+    <div id="sdm-edit-modal" class="sdm-modal sdm-hidden" data-debug="Modal for editing accounts">
         <div class="sdm-modal-content">
-            <span id="sdm-close-assign-modal" class="sdm-modal-close">×</span>
-            <h2 id="sdm-modal-action-title"><?php esc_html_e('Assign Domains to Site', 'spintax-domain-manager'); ?></h2>
-            <p id="sdm-modal-instruction"><?php esc_html_e('Select a site to assign the domains:', 'spintax-domain-manager'); ?></p>
-            <ul id="sdm-selected-domains-list" class="sdm-selected-domains"></ul>
-            <select id="sdm-assign-site-select" name="site_id" class="sdm-select" required>
-                <option value=""><?php esc_html_e('Select a site', 'spintax-domain-manager'); ?></option>
-                <?php
-                $sites = $wpdb->get_results(
-                    $wpdb->prepare(
-                        "SELECT id, site_name FROM {$prefix}sdm_sites WHERE project_id = %d ORDER BY site_name ASC",
-                        $current_project_id
-                    )
-                );
-                if (!empty($sites)) : ?>
-                    <?php foreach ($sites as $site) : ?>
-                        <option value="<?php echo esc_attr($site->id); ?>">
-                            <?php echo esc_html($site->site_name); ?>
-                        </option>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </select>
-            <div class="sdm-modal-actions" style="margin-top: 20px;">
-                <button id="sdm-assign-confirm" class="button button-primary sdm-action-button"><?php esc_html_e('Assign', 'spintax-domain-manager'); ?></button>
-                <button id="sdm-assign-cancel" class="button sdm-action-button"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
-            </div>
+            <span class="sdm-modal-close">×</span>
+            <h2>Edit Account</h2>
+            <p class="sdm-edit-note">This form is for editing an existing account. Required fields are marked with a yellow border.</p>
+            <form id="sdm-edit-account-form" class="sdm-form">
+                <?php sdm_nonce_field(); ?>
+                <div class="sdm-form-fields">
+                    <div class="sdm-form-field">
+                        <label for="edit-project_id">Project</label>
+                        <input type="text" name="project_id" id="edit-project_id" class="sdm-input" readonly>
+                    </div>
+                    <div class="sdm-form-field">
+                        <label for="edit-service">Service</label>
+                        <select name="service" id="edit-service" class="sdm-select" data-nonce="<?php echo esc_attr($main_nonce); ?>">
+                            <?php foreach ($services as $srv) : ?>
+                                <option value="<?php echo esc_attr($srv->service_name); ?>" data-params="<?php echo htmlspecialchars(json_encode(json_decode($srv->additional_params, true), JSON_UNESCAPED_SLASHES)); ?>" data-debug="<?php echo esc_attr($srv->additional_params); ?>">
+                                    <?php echo esc_html(ucfirst($srv->service_name)); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div id="edit-account-fields"></div>
+                    <div class="sdm-form-field">
+                        <label for="edit-account_name">Account Name (optional)</label>
+                        <input type="text" name="account_name" id="edit-account_name" class="sdm-input">
+                    </div>
+                    <div class="sdm-form-field">
+                        <label for="edit-email">Email (optional)</label>
+                        <input type="email" name="email" id="edit-email" class="sdm-input">
+                    </div>
+                </div>
+                <p class="submit">
+                    <button type="submit" class="button button-primary sdm-action-button">Save Changes</button>
+                    <button type="button" class="button sdm-action-button sdm-modal-close">Cancel</button>
+                </p>
+            </form>
         </div>
     </div>
-</div>

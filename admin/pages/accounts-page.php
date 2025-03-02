@@ -1,7 +1,7 @@
 <?php
 /**
  * File: admin/pages/accounts-page.php
- * Description: Displays the Accounts interface with a list of accounts, inline editing, Ajax deletion, and a form to add new accounts.
+ * Description: Displays the Accounts interface with a list of accounts, form-based editing, Ajax deletion, and a form to add new accounts.
  */
 
 if (!defined('ABSPATH')) {
@@ -62,30 +62,21 @@ $main_nonce = sdm_create_main_nonce();
                                 : esc_html__('(No project)', 'spintax-domain-manager'); ?>
                         </td>
 
-                        <!-- Service (editable) -->
+                        <!-- Service (read-only) -->
                         <td class="column-service">
                             <span class="sdm-display-value">
                                 <?php echo esc_html($account->service); ?>
                             </span>
-                            <select class="sdm-edit-input sdm-hidden sdm-select" name="service" data-nonce="<?php echo esc_attr($main_nonce); ?>">
-                                <?php foreach ($services as $srv) : ?>
-                                    <option value="<?php echo esc_attr($srv->service_name); ?>" <?php selected($account->service, $srv->service_name); ?>>
-                                        <?php echo esc_html(ucfirst($srv->service_name)); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
                         </td>
 
-                        <!-- Account Name -->
+                        <!-- Account Name (read-only) -->
                         <td class="column-account-name">
                             <span class="sdm-display-value"><?php echo esc_html($account->account_name); ?></span>
-                            <input class="sdm-edit-input sdm-hidden sdm-input" type="text" name="account_name" value="<?php echo esc_attr($account->account_name); ?>">
                         </td>
 
-                        <!-- Email -->
+                        <!-- Email (read-only) -->
                         <td class="column-email">
                             <span class="sdm-display-value"><?php echo esc_html($account->email); ?></span>
-                            <input class="sdm-edit-input sdm-hidden sdm-input" type="email" name="email" value="<?php echo esc_attr($account->email); ?>">
                         </td>
 
                         <!-- Last Tested -->
@@ -101,18 +92,9 @@ $main_nonce = sdm_create_main_nonce();
                         <td class="column-created"><?php echo esc_html($account->created_at); ?></td>
 
                         <td class="column-actions">
-                            <a href="#" class="sdm-action-button sdm-edit sdm-edit-account">
-                                <?php esc_html_e('Edit', 'spintax-domain-manager'); ?>
-                            </a>
-                            <a href="#" class="sdm-action-button sdm-save sdm-save-account sdm-hidden">
-                                <?php esc_html_e('Save', 'spintax-domain-manager'); ?>
-                            </a> |
-                            <a href="#" class="sdm-action-button sdm-delete sdm-delete-account">
-                                <?php esc_html_e('Delete', 'spintax-domain-manager'); ?>
-                            </a>
-                            <a href="#" class="sdm-action-button sdm-test sdm-test-account" data-account-id="<?php echo esc_attr($account->id); ?>">
-                                <?php esc_html_e('Test', 'spintax-domain-manager'); ?>
-                            </a>
+                            <a href="#" class="sdm-action-button sdm-edit sdm-edit-account">Edit</a> |
+                            <a href="#" class="sdm-action-button sdm-delete sdm-delete-account">Delete</a>
+                            <a href="#" class="sdm-action-button sdm-test sdm-test-account" data-account-id="<?php echo esc_attr($account->id); ?>">Test</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -172,17 +154,39 @@ $main_nonce = sdm_create_main_nonce();
             </p>
         </form>
     <?php endif; ?>
-</div>
 
-<!-- Hidden template for dynamic fields -->
-<script type="text/html" id="sdm-dynamic-field-template">
-    <div class="sdm-form-field">
-        <label for="{{field}}">{{label}}</label>
-        <input type="text" name="{{field}}" id="{{field}}" class="sdm-input {{isRequired ? 'sdm-required-field' : ''}}" {{isRequired ? 'required' : ''}}>
+    <!-- Модальное окно для редактирования (скрыто по умолчанию) -->
+    <div id="sdm-edit-modal" class="sdm-modal sdm-hidden" data-debug="Modal for editing accounts">
+        <div class="sdm-modal-content">
+            <span class="sdm-modal-close">×</span>
+            <h2>Edit Account</h2>
+            <p class="sdm-edit-note">This form is for editing an existing account. Required fields are marked with a yellow border.</p>
+            <form id="sdm-edit-account-form" class="sdm-form">
+                <?php sdm_nonce_field(); ?>
+                <div class="sdm-form-fields">
+                    <!-- Скрытые поля для project_id и account_id -->
+                    <input type="hidden" name="project_id" id="edit-project_id_hidden" value="">
+                    <input type="hidden" name="account_id" id="edit-account_id_hidden" value="">
+
+                    <div class="sdm-form-field">
+                        <label for="edit-account_name">Account Name</label>
+                        <input type="text" name="account_name" id="edit-account_name" class="sdm-input" value="" placeholder="Enter account name">
+                    </div>
+
+                    <div class="sdm-form-field">
+                        <label for="edit-service_display">Service</label>
+                        <input type="text" name="service_display" id="edit-service_display" class="sdm-input" readonly>
+                    </div>
+                    <div id="edit-account-fields"></div>
+                    <div class="sdm-form-field">
+                        <label for="edit-email">Email (optional)</label>
+                        <input type="email" name="email" id="edit-email" class="sdm-input">
+                    </div>
+                </div>
+                <p class="submit">
+                    <button type="submit" class="button button-primary sdm-action-button">Save Changes</button>
+                    <button type="button" class="button sdm-action-button sdm-modal-close">Cancel</button>
+                </p>
+            </form>
+        </div>
     </div>
-</script>
-
-<?php
-// Удаляем дублирующую локализацию, так как она теперь в sdm_enqueue_admin_assets
-// Без изменений в остальной части HTML и CSS
-?>
