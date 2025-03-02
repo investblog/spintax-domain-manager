@@ -491,3 +491,48 @@ tr[data-redirect-type="hidden"] {
 .sdm-textarea {
   width: 100%;
 }
+.sdm-required-field {
+    border: 2px solid var(--sdm-yellow, #f7b500);
+}
+
+.sdm-form {
+    max-width: 600px;
+    margin: 20px 0;
+}
+
+.sdm-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.sdm-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sdm-label {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.sdm-input, .sdm-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.sdm-required-field {
+    border: 2px solid var(--sdm-yellow, #f7b500);
+}
+
+.submit {
+    margin-top: 20px;
+}
+
+.sdm-action-button {
+    margin-right: 10px;
+}

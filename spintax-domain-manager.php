@@ -167,6 +167,21 @@ function sdm_enqueue_admin_assets() {
         ));
     }
 
+    // Подключаем accounts.js и локализацию только на странице акаунтов
+    if ($screen && $screen->id === 'spintax-manager_page_sdm-accounts') {
+        wp_enqueue_script('sdm-accounts-js', SDM_PLUGIN_URL . 'admin/js/accounts.js', array('jquery'), SDM_VERSION, true);
+        $service_manager = new SDM_Service_Types_Manager();
+        $services = $service_manager->get_all_services();
+        $services_options = implode('', array_map(function($srv) {
+            return '<option value="' . esc_attr($srv->service_name) . '">' . esc_html(ucfirst($srv->service_name)) . '</option>';
+        }, $services));
+        wp_localize_script('sdm-accounts-js', 'SDM_Accounts_Data', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => sdm_create_main_nonce(),
+            'servicesOptions' => $services_options
+        ));
+    }
+
     // Подключаем Select2 на страницах доменов, редиректов и сайтов
     if ($screen && in_array($screen->id, array(
         'spintax-manager_page_sdm-domains',

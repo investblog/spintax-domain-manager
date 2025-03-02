@@ -134,47 +134,71 @@ function sdm_create_tables() {
             'CloudFlare (API Key)', 'Global API Key', json_encode(array(
                 "required_fields" => array("email", "api_key"),
                 "optional_fields" => array()
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'CloudFlare (OAuth)', 'OAuth (Client ID, Client Secret, Refresh Token)', json_encode(array(
                 "required_fields" => array("email", "client_id", "client_secret", "refresh_token"),
                 "optional_fields" => array("api_key")
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'HostTracker', 'Username/Password', json_encode(array(
                 "required_fields" => array("login", "password"),
                 "optional_fields" => array("api_key"),
                 "task_type_options" => array("RusRegBL", "bl:ru"),
                 "default_task_type" => "bl:ru"
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'NameCheap', 'Username & API', json_encode(array(
                 "required_fields" => array("username", "api_key"),
                 "optional_fields" => array("sandbox_mode")
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'NameSilo', 'Username & API', json_encode(array(
                 "required_fields" => array("username", "api_key"),
                 "optional_fields" => array("test_mode")
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'Yandex', 'User ID & Webmaster API Token', json_encode(array(
                 "required_fields" => array("user_id", "webmaster_api_token"),
                 "optional_fields" => array("oauth_token")
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'Google', 'API Key, Client ID, Client Secret, Refresh Token', json_encode(array(
                 "required_fields" => array("api_key", "client_id", "client_secret", "refresh_token"),
                 "optional_fields" => array("project_id")
-            )),
+            ), JSON_UNESCAPED_SLASHES),
             'XMLStock', 'User ID & API Key', json_encode(array(
                 "required_fields" => array("user_id", "api_key"),
                 "optional_fields" => array("endpoint")
-            ))
+            ), JSON_UNESCAPED_SLASHES)
         )
     );
 
     // Выполняем вставку только если записи не существуют
     foreach ($service_types_inserts as $insert) {
-        $wpdb->query($insert);
+        $result = $wpdb->query($insert);
+        if ($result === false) {
+            error_log('Error inserting service types: ' . $wpdb->last_error);
+        }
     }
 
     // Установить автоинкремент на 9, если записи успешно добавлены
-    $wpdb->query("ALTER TABLE {$wpdb->prefix}sdm_service_types AUTO_INCREMENT = 9");
+    $count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}sdm_service_types");
+    if ($count === 8) { // Убедимся, что все 8 записей добавлены
+        $wpdb->query("ALTER TABLE {$wpdb->prefix}sdm_service_types AUTO_INCREMENT = 9");
+    }
+
+    // Проверка и коррекция JSON в additional_params после вставки
+    $services = $wpdb->get_results("SELECT id, additional_params FROM {$wpdb->prefix}sdm_service_types");
+    foreach ($services as $service) {
+        $params = json_decode($service->additional_params, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log('Invalid JSON in additional_params for service ID ' . $service->id . ': ' . $service->additional_params);
+            $corrected_params = str_replace('\"', '"', $service->additional_params); // Убираем лишнее экранирование
+            $corrected_params = json_encode(json_decode($corrected_params, true), JSON_UNESCAPED_SLASHES);
+            $wpdb->update(
+                $wpdb->prefix . 'sdm_service_types',
+                array('additional_params' => $corrected_params),
+                array('id' => $service->id),
+                array('%s'),
+                array('%d')
+            );
+        }
+    }
 
     // Миграция старых аккаунтов CloudFlare
     $cloudflare_accounts = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}sdm_accounts WHERE service_id IN (1, 2)");
@@ -205,7 +229,7 @@ function sdm_create_tables() {
                         'service_id' => $new_service_id // Обновляем service_id, если изменилось
                     ),
                     array('id' => $account->id),
-                    array('%s'),
+                    array('%s', '%d'),
                     array('%d')
                 );
             }
