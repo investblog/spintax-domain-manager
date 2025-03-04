@@ -132,47 +132,66 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Тестирование подключения
-    document.querySelectorAll('.sdm-test-account').forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            var accountId = this.getAttribute('data-account-id') || '';
-            var formData = new FormData();
-            formData.append('action', 'sdm_test_sdm_account');
-            formData.append('sdm_main_nonce_field', nonce);
-            formData.append('account_id', accountId);
+    // Тестирование подключения (с делегированием событий)
+    var accountsTable = document.getElementById('sdm-accounts-table');
+    if (accountsTable) {
+        accountsTable.addEventListener('click', function(e) {
+            if (e.target.classList.contains('sdm-test-account')) {
+                e.preventDefault();
+                var button = e.target;
+                var accountId = button.getAttribute('data-account-id') || '';
+                var service = button.closest('tr').dataset.service;
+                console.log('Testing connection for account ID:', accountId, 'Service:', service);
+                var formData = new FormData();
+                formData.append('action', 'sdm_test_sdm_account');
+                formData.append('sdm_main_nonce_field', nonce);
+                formData.append('account_id', accountId);
 
-            fetch(ajax_url, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotice('updated', data.data.message);
-                    var row = document.getElementById('account-row-' + accountId);
-                    if (row) {
-                        row.querySelector('.column-last-tested').textContent = new Date().toLocaleString();
-                        row.querySelector('.column-status').textContent = 'Success';
+                fetch(ajax_url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(response => {
+                    console.log('Test connection response status:', response.status, 'OK:', response.ok);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.status);
                     }
-                } else {
-                    showNotice('error', data.data);
-                    var row = document.getElementById('account-row-' + accountId);
-                    if (row) {
-                        row.querySelector('.column-status').textContent = 'Failed: ' + data.data;
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Test connection response data:', data);
+                    if (data.success) {
+                        let message;
+                        if (service === 'HostTracker' && data.data?.token) { // Проверяем, есть ли токен в ответе
+                            message = `Token successfully obtained. Ticket: ${data.data.token}, Expiration: ${data.data.expirationTime || 'Not specified'}`;
+                        } else {
+                            message = data.data?.message || 'Connection tested successfully.';
+                        }
+                        showNotice('updated', message);
+                        var row = document.getElementById('account-row-' + accountId);
+                        if (row) {
+                            row.querySelector('.column-last-tested').textContent = new Date().toLocaleString();
+                            row.querySelector('.column-status').textContent = 'Success';
+                        }
+                    } else {
+                        let errorMessage = data.data?.message || data.message || 'An unknown error occurred.';
+                        showNotice('error', errorMessage);
+                        var row = document.getElementById('account-row-' + accountId);
+                        if (row) {
+                            row.querySelector('.column-status').textContent = 'Failed: ' . errorMessage;
+                        }
                     }
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotice('error', 'Test connection failed.');
-            });
+                })
+                .catch(error => {
+                    console.error('Error testing connection:', error);
+                    showNotice('error', 'Test connection failed.');
+                });
+            }
         });
-    });
+    }
 
     // Удаление аккаунта
-    var accountsTable = document.getElementById('sdm-accounts-table');
     if (accountsTable) {
         accountsTable.addEventListener('click', function(e) {
             if (e.target.classList.contains('sdm-delete-account')) {

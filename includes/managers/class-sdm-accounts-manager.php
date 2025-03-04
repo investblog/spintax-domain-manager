@@ -380,8 +380,9 @@ function sdm_ajax_delete_sdm_account() {
 add_action('wp_ajax_sdm_delete_sdm_account', 'sdm_ajax_delete_sdm_account');
 
 function sdm_ajax_test_sdm_account() {
+    error_log('Received test request for account_id: ' . ($_POST['account_id'] ?? 'none')); // Отладка
     if (!current_user_can('manage_options')) {
-        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+        wp_send_json_error(array('message' => __('Permission denied.', 'spintax-domain-manager')));
     }
     sdm_check_main_nonce();
 
@@ -389,77 +390,76 @@ function sdm_ajax_test_sdm_account() {
     $manager = new SDM_Accounts_Manager();
     $account = $manager->get_account_by_id($account_id);
     if (!$account) {
-        wp_send_json_error(__('Account not found.', 'spintax-domain-manager'));
+        wp_send_json_error(array('message' => __('Account not found.', 'spintax-domain-manager')));
     }
 
     $service_manager = new SDM_Service_Types_Manager();
     $service = $service_manager->get_service_by_id($account->service_id);
     if (!$service) {
-        wp_send_json_error(__('Service not found.', 'spintax-domain-manager'));
+        wp_send_json_error(array('message' => __('Service not found.', 'spintax-domain-manager')));
     }
-
-    error_log('Testing account ' . $account_id . ' for service: ' . $service->service_name); // Отладка
 
     $params = json_decode($service->additional_params, true);
     $credentials = array();
     if (!empty($account->additional_data_enc)) {
         $decrypted = sdm_decrypt($account->additional_data_enc);
-        error_log('Decrypted data for account ' . $account_id . ': ' . ($decrypted !== false ? $decrypted : 'Decryption failed')); // Отладка
         if ($decrypted !== false) {
             $sensitive_data = json_decode($decrypted, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 $credentials = $sensitive_data;
+                error_log('Decrypted credentials for account ' . $account_id . ': ' . print_r($credentials, true)); // Отладка
             } else {
-                error_log('JSON decode error for account ' . $account_id . ': ' . json_last_error_msg());
-                wp_send_json_error(__('Failed to decode account credentials.', 'spintax-domain-manager'));
+                wp_send_json_error(array('message' => __('Failed to decode account credentials.', 'spintax-domain-manager')));
                 return;
             }
         } else {
-            wp_send_json_error(__('Failed to decrypt account credentials.', 'spintax-domain-manager'));
+            wp_send_json_error(array('message' => __('Failed to decrypt account credentials.', 'spintax-domain-manager')));
             return;
         }
-    } else {
-        error_log('No additional_data_enc for account ' . $account_id);
     }
 
-    // Тестирование подключения (пример для CloudFlare)
-    if ($service->service_name === 'CloudFlare (API Key)' || $service->service_name === 'CloudFlare (OAuth)') {
-        if (empty($credentials['email']) || ($service->service_name === 'CloudFlare (API Key)' && empty($credentials['api_key']))) {
-            wp_send_json_error(__('Incomplete CloudFlare credentials.', 'spintax-domain-manager'));
+    // Тестирование подключения (пример для HostTracker)
+    if ($service->service_name === 'HostTracker') {
+        // Ожидаем поля login, password, и опционально api_key и task_type
+        if (empty($credentials['login']) || empty($credentials['password'])) {
+            wp_send_json_error(array('message' => __('Incomplete HostTracker credentials (login and password are required).', 'spintax-domain-manager')));
         }
-        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
-        $cf_api = new SDM_Cloudflare_API(array(
-            'email' => $credentials['email'],
-            'api_key' => $credentials['api_key'] ?? '',
-            'client_id' => $credentials['client_id'] ?? '',
-            'client_secret' => $credentials['client_secret'] ?? '',
-            'refresh_token' => $credentials['refresh_token'] ?? ''
-        ));
-        $result = $cf_api->test_connection();
-        if (is_wp_error($result)) {
-            wp_send_json_error($result->get_error_message());
-        }
-        $wpdb->update(
-            $wpdb->prefix . 'sdm_accounts',
-            array(
-                'last_tested_at' => current_time('mysql'),
-                'last_test_result' => 'Success'
-            ),
-            array('id' => $account_id),
-            array('%s', '%s'),
-            array('%d')
-        );
-        wp_send_json_success(array('message' => __('Connection tested successfully.', 'spintax-domain-manager')));
-    } elseif ($service->service_name === 'HostTracker') {
-        // Логика для HostTracker (получение токена и проверка задач)
+        error_log('Attempting to authenticate with HostTracker using login: ' . $credentials['login']); // Отладка
+        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-hosttracker-api.php';
         $token = SDM_HostTracker_API::get_host_tracker_token($credentials);
         if (!$token) {
-            wp_send_json_error(__('Failed to authenticate with HostTracker.', 'spintax-domain-manager'));
+            wp_send_json_error(array('message' => __('Failed to authenticate with HostTracker.', 'spintax-domain-manager')));
         }
-        $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, $credentials['task_type'] ?? 'bl:ru');
+
+        // Получаем expirationTime из ответа API (если доступно)
+        $args = array(
+            'method' => 'POST',
+            'body' => json_encode(array("login" => $credentials['login'], "password" => $credentials['password'])),
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ),
+            'timeout' => 30,
+        );
+        $response = wp_remote_post('https://api1.host-tracker.com/users/token', $args);
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body);
+        $expirationTime = $data && property_exists($data, 'expirationTime') ? $data->expirationTime : null;
+
+        // Проверка задач для указанного task_type
+        $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, $credentials['task_type'] ?? 'RusRegBL');
         if (!$tasks) {
-            wp_send_json_error(__('Failed to fetch tasks from HostTracker.', 'spintax-domain-manager'));
+            wp_send_json_error(array('message' => __('Failed to fetch tasks from HostTracker.', 'spintax-domain-manager')));
         }
+
+        // Логируем и сохраняем ключевые поля задач для мониторинга
+        foreach ($tasks as $task) {
+            error_log('HostTracker task details - ID: ' . $task['id'] . ', URL: ' . $task['url'] . ', lastState: ' . ($task['lastState'] ? 'true' : 'false') . ', lastStateChangeTime: ' . $task['lastStateChangeTime']);
+            // Здесь можно добавить запись в базу данных или мета-данные для сопоставления с доменом
+        }
+
+        // Используем global $wpdb
+        global $wpdb;
         $wpdb->update(
             $wpdb->prefix . 'sdm_accounts',
             array(
@@ -470,9 +470,13 @@ function sdm_ajax_test_sdm_account() {
             array('%s', '%s'),
             array('%d')
         );
-        wp_send_json_success(array('message' => __('Connection tested successfully.', 'spintax-domain-manager')));
+        wp_send_json_success(array('data' => array(
+            'message' => __('Connection tested successfully.', 'spintax-domain-manager'),
+            'token' => $token,
+            'expirationTime' => $expirationTime
+        )));
     } else {
-        wp_send_json_error(__('Testing not implemented for this service.', 'spintax-domain-manager'));
+        wp_send_json_error(array('message' => __('Testing not implemented for this service.', 'spintax-domain-manager')));
     }
 }
 add_action('wp_ajax_sdm_test_sdm_account', 'sdm_ajax_test_sdm_account');
