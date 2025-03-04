@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Тестирование подключения (с делегированием событий)
+// Тестирование подключения (с делегированием событий)
     var accountsTable = document.getElementById('sdm-accounts-table');
     if (accountsTable) {
         accountsTable.addEventListener('click', function(e) {
@@ -155,19 +155,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => {
                     console.log('Test connection response status:', response.status, 'OK:', response.ok);
                     if (!response.ok) {
-                        throw new Error('Network response was not ok: ' + response.status);
+                        throw new Error('Network response was not ok: ' . response.status);
                     }
                     return response.json();
                 })
                 .then(data => {
                     console.log('Test connection response data:', data);
                     if (data.success) {
-                        let message;
-                        if (service === 'HostTracker' && data.data?.token) { // Проверяем, есть ли токен в ответе
-                            message = `Token successfully obtained. Ticket: ${data.data.token}, Expiration: ${data.data.expirationTime || 'Not specified'}`;
-                        } else {
-                            message = data.data?.message || 'Connection tested successfully.';
-                        }
+                        let message = data.data.message || 'Connection tested successfully.';
                         showNotice('updated', message);
                         var row = document.getElementById('account-row-' + accountId);
                         if (row) {
@@ -190,7 +185,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
     // Удаление аккаунта
     if (accountsTable) {
         accountsTable.addEventListener('click', function(e) {

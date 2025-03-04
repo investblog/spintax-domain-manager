@@ -150,7 +150,6 @@ $main_nonce = sdm_create_main_nonce();
             </div>
             <p class="submit">
                 <button type="submit" class="button button-primary sdm-action-button">Add Account</button>
-                <button type="button" id="sdm-test-account" class="button sdm-action-button">Test Connection</button>
             </p>
         </form>
     <?php endif; ?>

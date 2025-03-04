@@ -141,9 +141,7 @@ function sdm_create_tables() {
             ), JSON_UNESCAPED_SLASHES),
             'HostTracker', 'Username/Password', json_encode(array(
                 "required_fields" => array("login", "password"),
-                "optional_fields" => array("api_key"),
-                "task_type_options" => array("RusRegBL", "bl:ru"),
-                "default_task_type" => "bl:ru"
+                "optional_fields" => array("api_key")
             ), JSON_UNESCAPED_SLASHES),
             'NameCheap', 'Username & API', json_encode(array(
                 "required_fields" => array("username", "api_key"),

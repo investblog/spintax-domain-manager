@@ -15,6 +15,10 @@ $prefix = $wpdb->prefix;
 $projects_manager = new SDM_Projects_Manager();
 $all_projects = $projects_manager->get_all_projects();
 
+// Получаем список сервисов
+$service_manager = new SDM_Service_Types_Manager();
+$services = $service_manager->get_all_services();
+
 // Текущий проект (через GET)
 $current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) : 0;
 
@@ -139,3 +143,4 @@ $main_nonce = sdm_create_main_nonce();
             </form>
         </div>
     </div>
+</div>
