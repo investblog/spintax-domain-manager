@@ -254,38 +254,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 var projectIdHidden = modal.querySelector('#edit-project_id_hidden');
                 var accountIdHidden = modal.querySelector('#edit-account_id_hidden');
                 var accountNameInput = modal.querySelector('#edit-account_name');
-                var serviceSelect = modal.querySelector('#edit-service'); // Уберем этот селект позже
+                var serviceDisplay = modal.querySelector('#edit-service_display'); // Используем read-only поле для отображения
                 var emailInput = modal.querySelector('#edit-email');
                 var dynamicFields = modal.querySelector('#edit-account-fields');
 
                 if (projectIdHidden) projectIdHidden.value = accountData.project_id;
                 if (accountIdHidden) accountIdHidden.value = accountId;
                 if (accountNameInput) accountNameInput.value = accountData.account_name || ''; // Оставляем пустым, если нет имени
-                if (serviceSelect) serviceSelect.value = service; // Сохраняем значение, но уберем селект из формы
+                if (serviceDisplay) serviceDisplay.value = service; // Отображаем сервис как read-only
                 if (emailInput) emailInput.value = accountData.email || '';
                 if (dynamicFields) {
                     dynamicFields.innerHTML = '';
                     dynamicFields.appendChild(generateDynamicFields(service, accountData));
                 }
 
-                // Убеждаемся, что модальное окно отображается, даже если есть inline style или .sdm-hidden
+                // Убеждаемся, что модальное окно отображается
                 if (modal.classList.contains('sdm-hidden') || modal.style.display === 'none' || window.getComputedStyle(modal).display === 'none') {
-                    modal.classList.remove('sdm-hidden'); // Удаляем класс .sdm-hidden
-                    modal.style.display = 'block'; // Устанавливаем display: block, чтобы переопределить inline style
+                    modal.classList.remove('sdm-hidden');
+                    modal.style.display = 'block';
                     console.log('Forced modal display to block, className:', modal.className, 'Style:', modal.style.display, 'Computed style:', window.getComputedStyle(modal).display);
                 }
-
-                console.log('Modal shown, className:', modal.className, 'Inline style:', modal.style.display, 'Computed style:', window.getComputedStyle(modal).display, 'Modal element:', modal);
 
                 // Обработка закрытия модального окна
                 modal.querySelectorAll('.sdm-modal-close').forEach(closeBtn => {
                     closeBtn.addEventListener('click', function() {
-                        modal.classList.add('sdm-hidden'); // Скрываем через .sdm-hidden
-                        modal.style.display = ''; // Сбрасываем inline display, полагаясь на .sdm-hidden
+                        modal.classList.add('sdm-hidden');
+                        modal.style.display = '';
                         console.log('Modal hidden, className:', modal.className, 'Style:', modal.style.display, 'Computed style:', window.getComputedStyle(modal).display);
-                        setTimeout(() => {
-                            // Не удаляем модальное окно, чтобы оно оставалось в DOM для повторного использования
-                        }, 300);
                     });
                 });
 
@@ -302,13 +297,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             formData.append(input.name, input.value || ''); // Отправляем пустые значения как пустые строки
                         });
 
-                        // Добавляем фиксированные поля
-                        formData.append('project_id', projectIdHidden.value);
-                        formData.append('account_id', accountIdHidden.value);
-                        formData.append('account_name', accountNameInput.value);
-                        formData.append('service', service); // Фиксируем сервис, вместо использования селекта
+                        // Добавляем фиксированные поля, включая пустые, как в форме добавления
+                        formData.append('project_id', projectIdHidden.value || '');
+                        formData.append('account_id', accountIdHidden.value || '');
+                        formData.append('account_name', accountNameInput.value || '');
+                        formData.append('email', emailInput.value || '');
+                        formData.append('service', service); // Фиксируем сервис, как в форме добавления
 
-                        console.log('Form data submitted:', Object.fromEntries(formData.entries()));
+                        console.log('Form data submitted for update:', Object.fromEntries(formData.entries()));
 
                         fetch(ajax_url, {
                             method: 'POST',
@@ -320,11 +316,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (data.success) {
                                 showNotice('updated', data.data.message);
                                 modal.classList.add('sdm-hidden');
-                                modal.style.display = ''; // Сбрасываем inline display
-                                setTimeout(() => {
-                                    // Не удаляем модальное окно, чтобы оно оставалось в DOM
-                                }, 300);
-                                fetchAccounts(); // Вызываем один раз для обновления таблицы
+                                modal.style.display = '';
+                                fetchAccounts(); // Обновляем таблицу
                             } else {
                                 showNotice('error', data.data);
                             }

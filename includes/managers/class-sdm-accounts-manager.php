@@ -54,6 +54,10 @@ class SDM_Accounts_Manager {
         }
 
         $params = json_decode($service->additional_params, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log('Invalid JSON in additional_params for service ' . $service_name . ': ' . $service->additional_params);
+            return new WP_Error('invalid_service_params', __('Invalid service configuration.', 'spintax-domain-manager'));
+        }
         $required_fields = $params['required_fields'] ?? array();
         $optional_fields = $params['optional_fields'] ?? array();
 
@@ -72,16 +76,25 @@ class SDM_Accounts_Manager {
             'email' => sanitize_email($data['email'] ?? ''),
         );
 
-        // Собираем чувствительные данные для шифрования
+        // Собираем чувствительные данные для шифрования с отладкой
         $sensitive_data = array();
         foreach (array_merge($required_fields, $optional_fields) as $field) {
             if (isset($data[$field])) {
-                $sensitive_data[$field] = sanitize_text_field($data[$field]);
+                $value = sanitize_text_field($data[$field]);
+                $sensitive_data[$field] = $value;
+                error_log('Sensitive data for ' . $field . ': ' . $value); // Отладка
             }
         }
+        error_log('Full sensitive data: ' . print_r($sensitive_data, true)); // Отладка
 
         if (!empty($sensitive_data)) {
-            $encrypted_data = sdm_encrypt(json_encode($sensitive_data)); // Используем функцию вместо класса
+            $json_sensitive = json_encode($sensitive_data);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                error_log('JSON encode error for sensitive data: ' . json_last_error_msg());
+                return new WP_Error('json_error', __('Failed to encode sensitive data.', 'spintax-domain-manager'));
+            }
+            $encrypted_data = sdm_encrypt($json_sensitive); // Используем функцию вместо класса
+            error_log('Encrypted data: ' . $encrypted_data); // Отладка
             $account_data['additional_data_enc'] = $encrypted_data;
         }
 
@@ -111,7 +124,9 @@ class SDM_Accounts_Manager {
         );
 
         if ($result === false) {
-            return new WP_Error('db_insert_error', __('Failed to create account.', 'spintax-domain-manager'));
+            $error = $wpdb->last_error;
+            error_log('Database insert error: ' . $error);
+            return new WP_Error('db_insert_error', __('Failed to create account. Database error: ' . $error, 'spintax-domain-manager'));
         }
 
         return $wpdb->insert_id;
@@ -129,8 +144,8 @@ class SDM_Accounts_Manager {
             return new WP_Error('invalid_id', __('Invalid account ID.', 'spintax-domain-manager'));
         }
 
-        // Получаем старую запись, чтобы сохранить существующие данные
-        $old_record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $account_id));
+        // Получаем старую запись, чтобы проверить её существование, но не используем для сохранения данных
+        $old_record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $account_id));
         if (!$old_record) {
             return new WP_Error('not_found', __('Account not found.', 'spintax-domain-manager'));
         }
@@ -144,93 +159,109 @@ class SDM_Accounts_Manager {
         }
 
         $params = json_decode($service->additional_params, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return new WP_Error('invalid_service_params', __('Invalid service configuration.', 'spintax-domain-manager'));
+        }
         $required_fields = $params['required_fields'] ?? array();
         $optional_fields = $params['optional_fields'] ?? array();
 
-        // Валидация обязательных полей
+        // Валидация обязательных полей (просто проверяем, что они существуют)
         foreach ($required_fields as $field) {
-            if (empty($data[$field])) {
+            if (!isset($data[$field])) {
                 return new WP_Error('missing_required_field', sprintf(__('Required field "%s" is missing.', 'spintax-domain-manager'), $field));
             }
         }
 
         $account_data = array(
             'service_id' => $service->id,
-            'account_name' => sanitize_text_field($data['account_name'] ?? $old_record->account_name), // Сохраняем старое значение, если новое пустое
-            'email' => sanitize_email($data['email'] ?? $old_record->email), // Сохраняем старое значение email, если новое пустое
+            'account_name' => sanitize_text_field($data['account_name'] ?? ''),
+            'email' => sanitize_email($data['email'] ?? ''),
         );
 
-        $site_id = isset($data['site_id']) && !empty($data['site_id']) ? absint($data['site_id']) : null;
+        $site_id = isset($data['site_id']) ? absint($data['site_id']) : null;
         if ($site_id !== null) {
             $account_data['site_id'] = $site_id;
         }
 
-        // Декодируем существующие чувствительные данные для сравнения
-        $old_sensitive_data = array();
-        if (!empty($old_record->additional_data_enc)) {
-            $decrypted_old = sdm_decrypt($old_record->additional_data_enc);
-            if ($decrypted_old !== false) {
-                $old_sensitive_data = json_decode($decrypted_old, true) ?: array();
-            }
-        }
-
-        // Собираем новые чувствительные данные, сохраняя старые, если новые пустые
+        // Собираем все чувствительные данные для шифрования, включая пустые значения
         $sensitive_data = array();
         foreach (array_merge($required_fields, $optional_fields) as $field) {
-            if (isset($data[$field]) && !empty($data[$field])) {
-                $sensitive_data[$field] = sanitize_text_field($data[$field]); // Сохраняем только непустые новые значения
-            } elseif (isset($old_sensitive_data[$field])) {
-                $sensitive_data[$field] = $old_sensitive_data[$field]; // Сохраняем старое значение, если новое пустое
+            if (isset($data[$field])) {
+                $sensitive_data[$field] = sanitize_text_field($data[$field]); // Сохраняем все значения, даже пустые
             }
         }
 
+        // Если есть чувствительные данные, шифруем их в additional_data_enc
         if (!empty($sensitive_data)) {
-            $encrypted_data = sdm_encrypt(json_encode($sensitive_data));
-            $account_data['additional_data_enc'] = $encrypted_data;
-        } elseif (!empty($old_record->additional_data_enc)) {
-            // Если новых чувствительных данных нет, сохраняем старые зашифрованные данные
-            $account_data['additional_data_enc'] = $old_record->additional_data_enc;
+            $json_sensitive = json_encode($sensitive_data);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return new WP_Error('json_error', __('Failed to encode sensitive data.', 'spintax-domain-manager'));
+            }
+            $encrypted_data = sdm_encrypt($json_sensitive); // Используем функцию вместо класса
+            $account_data['additional_data_enc'] = (string)$encrypted_data; // Явно приводим к строке
         }
 
-        // Обработка старых полей для совместимости с CloudFlare
+        // Обработка полей для совместимости с CloudFlare (сохраняем все данные, даже пустые)
         if ($service_name === 'CloudFlare (API Key)' || $service_name === 'CloudFlare (OAuth)') {
-            $account_data['email'] = $account_data['email'] ?? $old_record->email; // Убедились, что email сохранён
-            if (isset($sensitive_data['api_key']) && !empty($sensitive_data['api_key'])) {
-                $account_data['api_key_enc'] = sdm_encrypt($sensitive_data['api_key']);
-            } else {
-                $account_data['api_key_enc'] = $old_record->api_key_enc; // Сохраняем старый API-ключ, если новый пустой
+            $account_data['email'] = $account_data['email'] ?? ''; // Убедились, что email сохранён
+            if (isset($sensitive_data['api_key'])) {
+                $account_data['api_key_enc'] = sdm_encrypt($sensitive_data['api_key'] ?? '');
             }
-            if (isset($sensitive_data['client_id']) && !empty($sensitive_data['client_id'])) {
-                $account_data['client_id_enc'] = sdm_encrypt($sensitive_data['client_id']);
-            } else {
-                $account_data['client_id_enc'] = $old_record->client_id_enc; // Сохраняем старый client_id, если новый пустой
+            if (isset($sensitive_data['client_id'])) {
+                $account_data['client_id_enc'] = sdm_encrypt($sensitive_data['client_id'] ?? '');
             }
-            if (isset($sensitive_data['client_secret']) && !empty($sensitive_data['client_secret'])) {
-                $account_data['client_secret_enc'] = sdm_encrypt($sensitive_data['client_secret']);
-            } else {
-                $account_data['client_secret_enc'] = $old_record->client_secret_enc; // Сохраняем старый client_secret, если новый пустой
+            if (isset($sensitive_data['client_secret'])) {
+                $account_data['client_secret_enc'] = sdm_encrypt($sensitive_data['client_secret'] ?? '');
             }
-            if (isset($sensitive_data['refresh_token']) && !empty($sensitive_data['refresh_token'])) {
-                $account_data['refresh_token_enc'] = sdm_encrypt($sensitive_data['refresh_token']);
-            } else {
-                $account_data['refresh_token_enc'] = $old_record->refresh_token_enc; // Сохраняем старый refresh_token, если новый пустой
+            if (isset($sensitive_data['refresh_token'])) {
+                $account_data['refresh_token_enc'] = sdm_encrypt($sensitive_data['refresh_token'] ?? '');
             }
         }
 
-        $updated = $wpdb->update(
-            $table,
-            $account_data,
-            array('id' => $account_id),
-            array('%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s'),
-            array('%d')
-        );
+        // Начинаем транзакцию
+        $wpdb->query('START TRANSACTION');
 
-        if ($updated === false) {
-            return new WP_Error('db_update_error', __('Could not update account.', 'spintax-domain-manager'));
+        try {
+            // Формируем список полей и значений для обновления, исключая неиспользуемые поля
+            $update_fields = array();
+            $format = array();
+            $where_format = array('%d'); // WHERE id
+
+            foreach ($account_data as $field => $value) {
+                $update_fields[$field] = $value;
+                if ($field === 'service_id') {
+                    $format[] = '%d';
+                } elseif ($field === 'site_id') {
+                    $format[] = '%d';
+                } else {
+                    $format[] = '%s'; // Для всех строковых полей, включая NULL
+                }
+            }
+
+            // Подготавливаем и выполняем запрос с использованием $wpdb->prepare
+            $updated = $wpdb->update(
+                $table,
+                $update_fields,
+                array('id' => $account_id),
+                $format,
+                $where_format
+            );
+
+            if ($updated === false) {
+                throw new Exception('Update failed: ' . $wpdb->last_error);
+            }
+
+            // Если обновление успешно, фиксируем транзакцию
+            $wpdb->query('COMMIT');
+            return true;
+        } catch (Exception $e) {
+            // В случае ошибки откатываем транзакцию
+            $wpdb->query('ROLLBACK');
+            $error = $e->getMessage();
+            return new WP_Error('db_update_error', __('Could not update account. Database error: ' . $error, 'spintax-domain-manager'));
         }
-        return true;
     }
-
+    
     /**
      * Delete an account by ID.
      */
@@ -318,11 +349,14 @@ function sdm_ajax_update_sdm_account() {
 
     $account_id = absint($_POST['account_id'] ?? 0);
     error_log('Updating account ' . $account_id . ' with data: ' . print_r($_POST, true)); // Отладка
+
     $manager = new SDM_Accounts_Manager();
     $result = $manager->update_account($account_id, $_POST);
 
     if (is_wp_error($result)) {
-        wp_send_json_error($result->get_error_message());
+        $error_message = $result->get_error_message();
+        error_log('Update failed for account ' . $account_id . ': ' . $error_message);
+        wp_send_json_error($error_message);
     }
     wp_send_json_success(array('message' => __('Account updated successfully.', 'spintax-domain-manager')));
 }
@@ -364,13 +398,28 @@ function sdm_ajax_test_sdm_account() {
         wp_send_json_error(__('Service not found.', 'spintax-domain-manager'));
     }
 
+    error_log('Testing account ' . $account_id . ' for service: ' . $service->service_name); // Отладка
+
     $params = json_decode($service->additional_params, true);
     $credentials = array();
     if (!empty($account->additional_data_enc)) {
-        $sensitive_data = json_decode(sdm_decrypt($account->additional_data_enc), true); // Используем функцию вместо класса
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $credentials = $sensitive_data;
+        $decrypted = sdm_decrypt($account->additional_data_enc);
+        error_log('Decrypted data for account ' . $account_id . ': ' . ($decrypted !== false ? $decrypted : 'Decryption failed')); // Отладка
+        if ($decrypted !== false) {
+            $sensitive_data = json_decode($decrypted, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $credentials = $sensitive_data;
+            } else {
+                error_log('JSON decode error for account ' . $account_id . ': ' . json_last_error_msg());
+                wp_send_json_error(__('Failed to decode account credentials.', 'spintax-domain-manager'));
+                return;
+            }
+        } else {
+            wp_send_json_error(__('Failed to decrypt account credentials.', 'spintax-domain-manager'));
+            return;
         }
+    } else {
+        error_log('No additional_data_enc for account ' . $account_id);
     }
 
     // Тестирование подключения (пример для CloudFlare)
