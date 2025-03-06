@@ -21,9 +21,8 @@ function sdm_create_tables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) $charset_collate;";
 
-    // 2) Sites table: sites attached to a project.
-    // Добавлены поля: main_domain, last_domain, language.
-    $sites_sql = "CREATE TABLE {$wpdb->prefix}sdm_sites (
+    // 2) Sites table: sites attached to a project with monitoring settings.
+    $sites_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_sites (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         project_id BIGINT UNSIGNED NOT NULL,
         site_name VARCHAR(255) NOT NULL,
@@ -33,13 +32,14 @@ function sdm_create_tables() {
         main_domain VARCHAR(255) DEFAULT NULL,
         last_domain VARCHAR(255) DEFAULT NULL,
         language VARCHAR(10) DEFAULT NULL,
+        monitoring_settings JSON DEFAULT NULL COMMENT 'JSON for monitoring settings (e.g., enabled types: RusRegBL, Http)',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY  (id),
         KEY project_id (project_id)
     ) $charset_collate;";
 
-    // 3) Domains table: domains attached to a project and optionally a site.
+    // 3) Domains table: domains attached to a project and optionally a site with monitoring data.
     $domains_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_domains (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         project_id BIGINT UNSIGNED NOT NULL,
@@ -47,10 +47,11 @@ function sdm_create_tables() {
         domain VARCHAR(255) NOT NULL,
         cf_zone_id VARCHAR(50) DEFAULT NULL,
         abuse_status ENUM('clean','phishing','malware','spam','other') DEFAULT 'clean',
-        is_blocked_provider BOOLEAN NOT NULL DEFAULT FALSE,
+        is_blocked_provider BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Monitoring result: 1 for RusRegBL (blocked), 0 for Http (unavailable)',
         is_blocked_government BOOLEAN NOT NULL DEFAULT FALSE,
         status ENUM('active','expired','available') NOT NULL DEFAULT 'active',
         last_checked TIMESTAMP NULL DEFAULT NULL,
+        hosttracker_task_id VARCHAR(255) DEFAULT NULL COMMENT 'ID of the HostTracker task for monitoring',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES {$wpdb->prefix}sdm_projects(id) ON DELETE CASCADE,
@@ -176,7 +177,7 @@ function sdm_create_tables() {
 
     // Установить автоинкремент на 9, если записи успешно добавлены
     $count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}sdm_service_types");
-    if ($count === 8) { // Убедимся, что все 8 записей добавлены
+    if ($count === 8) {
         $wpdb->query("ALTER TABLE {$wpdb->prefix}sdm_service_types AUTO_INCREMENT = 9");
     }
 
@@ -186,7 +187,7 @@ function sdm_create_tables() {
         $params = json_decode($service->additional_params, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             error_log('Invalid JSON in additional_params for service ID ' . $service->id . ': ' . $service->additional_params);
-            $corrected_params = str_replace('\"', '"', $service->additional_params); // Убираем лишнее экранирование
+            $corrected_params = str_replace('\"', '"', $service->additional_params);
             $corrected_params = json_encode(json_decode($corrected_params, true), JSON_UNESCAPED_SLASHES);
             $wpdb->update(
                 $wpdb->prefix . 'sdm_service_types',
@@ -208,7 +209,7 @@ function sdm_create_tables() {
 
             if ($is_api_key_account) {
                 $data['email'] = $account->email;
-                $data['api_key'] = sdm_decrypt($account->api_key_enc); // Используем функцию вместо класса
+                $data['api_key'] = sdm_decrypt($account->api_key_enc);
                 $new_service_id = 1; // "CloudFlare (API Key)"
             } elseif ($is_oauth_account) {
                 $data['email'] = $account->email;
@@ -219,12 +220,12 @@ function sdm_create_tables() {
             }
 
             if (!empty($data)) {
-                $encrypted_data = sdm_encrypt(json_encode($data)); // Используем функцию вместо класса
+                $encrypted_data = sdm_encrypt(json_encode($data));
                 $wpdb->update(
                     "{$wpdb->prefix}sdm_accounts",
                     array(
                         'additional_data_enc' => $encrypted_data,
-                        'service_id' => $new_service_id // Обновляем service_id, если изменилось
+                        'service_id' => $new_service_id
                     ),
                     array('id' => $account->id),
                     array('%s', '%d'),
@@ -232,6 +233,20 @@ function sdm_create_tables() {
                 );
             }
         }
+    }
+
+    // Миграция и добавление новых полей в wp_sdm_domains
+    $domains_table = $wpdb->prefix . 'sdm_domains';
+    $existing_columns = $wpdb->get_col("SHOW COLUMNS FROM $domains_table");
+    if (!in_array('hosttracker_task_id', $existing_columns)) {
+        $wpdb->query("ALTER TABLE $domains_table ADD COLUMN hosttracker_task_id VARCHAR(255) DEFAULT NULL COMMENT 'ID of the HostTracker task for monitoring'");
+    }
+
+    // Миграция и добавление новых полей в wp_sdm_sites
+    $sites_table = $wpdb->prefix . 'sdm_sites';
+    $existing_columns = $wpdb->get_col("SHOW COLUMNS FROM $sites_table");
+    if (!in_array('monitoring_settings', $existing_columns)) {
+        $wpdb->query("ALTER TABLE $sites_table ADD COLUMN monitoring_settings JSON DEFAULT NULL COMMENT 'JSON for monitoring settings (e.g., enabled types: RusRegBL, Http)'");
     }
 }
 

@@ -92,7 +92,7 @@ class SDM_HostTracker_API {
         $filtered_tasks = array_filter($data, function ($task) use ($task_type) {
             if ($task_type === 'RusRegBL') {
                 return isset($task['taskType']) && $task['taskType'] === 'RusRegBL';
-            } elseif ($task_type === 'bl:ru') {
+            } elseif ($task_type === 'Http') { // Заменили bl:ru на Http
                 return isset($task['taskType']) && $task['taskType'] === 'Http' &&
                        isset($task['agentPools']) && in_array('russia', $task['agentPools']) &&
                        isset($task['keywords']) && in_array('rkn.gov.ru', $task['keywords']) && in_array('№149-ФЗ', $task['keywords']);
