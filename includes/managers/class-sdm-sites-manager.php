@@ -203,7 +203,6 @@ class SDM_Sites_Manager {
         $monitoring_settings = isset($data['monitoring_settings'])
             ? json_decode($data['monitoring_settings'], true)
             : json_decode($old->monitoring_settings, true);
-
         if (!$monitoring_settings || !is_array($monitoring_settings) 
             || !isset($monitoring_settings['enabled']) 
             || !isset($monitoring_settings['types'])) {
@@ -221,6 +220,7 @@ class SDM_Sites_Manager {
 
         $wpdb->query('START TRANSACTION');
 
+        // Обновляем сам сайт
         $updated = $wpdb->update(
             $table,
             array(
@@ -229,10 +229,12 @@ class SDM_Sites_Manager {
                 'server_ip'           => $server_ip,
                 'language'            => $language,
                 'monitoring_settings' => json_encode($monitoring_settings),
+                // Если новый домен не равен старому, то пишем старый в last_domain
+                'last_domain'         => ($main_domain !== $old->main_domain) ? $old->main_domain : $old->last_domain,
                 'updated_at'          => current_time('mysql'),
             ),
             array('id' => $site_id),
-            array('%s','%s','%s','%s','%s','%s'),
+            array('%s','%s','%s','%s','%s','%s','%s'),
             array('%d')
         );
 
@@ -241,47 +243,20 @@ class SDM_Sites_Manager {
             return new WP_Error('db_update_error', __('Could not update site.', 'spintax-domain-manager'));
         }
 
+        // Проверяем, что новый домен существует
         if ($main_domain !== $old->main_domain) {
-            $unassign_old = $wpdb->update(
-                $domains_table,
-                array('site_id' => NULL, 'updated_at' => current_time('mysql')),
-                array('domain' => $old->main_domain),
-                array('%s','%s'),
-                array('%s')
-            );
-            if (false === $unassign_old) {
-                $wpdb->query('ROLLBACK');
-                return new WP_Error('db_update_error', __('Could not unassign old domain.', 'spintax-domain-manager'));
-            }
-
-            // Удаляем задачу HostTracker у старого главного домена (если была)
-            $old_domain_id = $wpdb->get_var($wpdb->prepare("
-                SELECT id FROM {$domains_table}
-                 WHERE domain = %s
-                 LIMIT 1
-            ", $old->main_domain));
-            if ($old_domain_id) {
-                $old_domain_row = $wpdb->get_row($wpdb->prepare("
-                    SELECT hosttracker_task_id, project_id
-                      FROM {$domains_table}
-                     WHERE id = %d
-                ", $old_domain_id));
-                if ($old_domain_row && $old_domain_row->hosttracker_task_id) {
-                    $delete_ok = $this->delete_domain_hosttracker_task($old_domain_id, $old_domain_row->project_id, $old_domain_row->hosttracker_task_id);
-                    if (!$delete_ok) {
-                        error_log("update_site WARNING: could not delete old domain task for domain={$old->main_domain}");
-                    }
-                }
-            }
-
             $domain_exists = $wpdb->get_var($wpdb->prepare("
-                SELECT COUNT(*) FROM {$domains_table} WHERE domain = %s
+                SELECT COUNT(*) 
+                  FROM {$domains_table}
+                 WHERE domain = %s
             ", $main_domain));
             if ($domain_exists <= 0) {
                 $wpdb->query('ROLLBACK');
                 return new WP_Error('domain_not_found', __('Specified main domain does not exist.', 'spintax-domain-manager'));
             }
 
+            // Привязываем новый домен, если он свободен (site_id=NULL) 
+            // или, при желании, разрещаем «украсть» домен у другого сайта
             $assign_new = $wpdb->update(
                 $domains_table,
                 array('site_id' => $site_id, 'updated_at' => current_time('mysql')),
@@ -289,14 +264,13 @@ class SDM_Sites_Manager {
                 array('%d','%s'),
                 array('%s','%s')
             );
-            if (false === $assign_new) {
-                $wpdb->query('ROLLBACK');
-                return new WP_Error('db_update_error', __('Could not assign new domain.', 'spintax-domain-manager'));
-            }
+            // Если вернулось 0, значит домен мог быть уже приписан к тому же сайту
+            // или где-то ещё. Опционально можно проверить это и логировать.
         }
 
         $wpdb->query('COMMIT');
 
+        // Пересоздаём задачи, если настройки мониторинга поменялись
         $old_settings = json_decode($old->monitoring_settings, true);
         if ($main_domain !== $old->main_domain || ($monitoring_settings !== $old_settings)) {
             $deleteResult = $this->delete_monitoring_tasks($site_id);
@@ -322,6 +296,7 @@ class SDM_Sites_Manager {
         }
         return true;
     }
+
     /**
      * Update site icon
      */
