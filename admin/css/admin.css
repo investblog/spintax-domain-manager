@@ -153,9 +153,6 @@
     margin-top: 20px;
 }
 
-.sdm-action-button {
-    margin-right: 10px;
-}
 /*--------------------------------------------------------------
 4. WP-LIKE NOTICES
 --------------------------------------------------------------*/
@@ -200,10 +197,12 @@
   transition: opacity 0.2s ease, background-color 0.2s ease;
   cursor: pointer;
   border: none;
-  color: var(--sdm-bg-light);
+  background-color: var(--sdm-bg-light);
+  color: var(--sdm-accent);
 }
 .sdm-action-button:hover {
   opacity: 0.9;
+  color: var(--sdm-red);
 }
 .sdm-edit {
   background-color: var(--sdm-accent);
