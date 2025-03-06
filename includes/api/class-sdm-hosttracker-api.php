@@ -243,4 +243,168 @@ class SDM_HostTracker_API {
 
         return array_values($filtered_tasks);
     }
+
+    public static function sync_rusregbl_for_domain($domain_id) {
+        global $wpdb;
+
+        $dom_table  = $wpdb->prefix . 'sdm_domains';
+        $site_table = $wpdb->prefix . 'sdm_sites';
+
+        // Получаем запись о домене
+        $dom_row = $wpdb->get_row($wpdb->prepare("
+            SELECT * 
+              FROM $dom_table
+             WHERE id = %d
+        ", $domain_id));
+
+        if (!$dom_row) {
+            return; // Нет такого домена
+        }
+
+        // 1) Если домен отвязан, но имеет hosttracker_task_id — удаляем задачу
+        if (empty($dom_row->site_id) && !empty($dom_row->hosttracker_task_id)) {
+            // Получаем токен/логин-пароль по проекту:
+            // (предполагаем, что project_id есть в таблице sdm_domains)
+            $token = SDM_HostTracker_API::get_token_for_project($dom_row->project_id);
+            if ($token) {
+                $ok = SDM_HostTracker_API::delete_host_tracker_task($token, $dom_row->hosttracker_task_id, 'RusRegBL');
+                if ($ok) {
+                    $wpdb->update(
+                        $dom_table,
+                        array(
+                            'hosttracker_task_id' => null,
+                            'updated_at'          => current_time('mysql')
+                        ),
+                        array('id' => $domain_id),
+                        array('%s','%s'),
+                        array('%d')
+                    );
+                } else {
+                    error_log("sync_rusregbl_for_domain: failed to delete task {$dom_row->hosttracker_task_id} for domain ID=$domain_id");
+                }
+            } else {
+                error_log("sync_rusregbl_for_domain: no token for project_id={$dom_row->project_id}");
+            }
+            return;
+        }
+
+        // 2) Если домен привязан к сайту (site_id != NULL)
+        if (!empty($dom_row->site_id)) {
+            $site = $wpdb->get_row($wpdb->prepare("
+                SELECT project_id, monitoring_settings
+                  FROM $site_table
+                 WHERE id = %d
+            ", $dom_row->site_id));
+
+            if (!$site) {
+                return; // Странная ситуация, но сайта нет
+            }
+
+            // Смотрим, включён ли RusRegBL в настройках
+            $settings = json_decode($site->monitoring_settings, true);
+            $rusregbl_enabled = (
+                !empty($settings['enabled']) &&
+                !empty($settings['types']['RusRegBL'])
+            );
+
+            // 2a) Включён, но нет task_id → создаём
+            if ($rusregbl_enabled && empty($dom_row->hosttracker_task_id)) {
+                $token = SDM_HostTracker_API::get_token_for_project($site->project_id);
+                if ($token) {
+                    $task_id = SDM_HostTracker_API::create_host_tracker_task($token, $dom_row->domain, 'RusRegBL');
+                    if (!is_wp_error($task_id)) {
+                        $wpdb->update(
+                            $dom_table,
+                            array('hosttracker_task_id' => $task_id, 'updated_at' => current_time('mysql')),
+                            array('id' => $domain_id),
+                            array('%s','%s'),
+                            array('%d')
+                        );
+                    } else {
+                        error_log("sync_rusregbl_for_domain: create task error for domain {$dom_row->domain}: " . $task_id->get_error_message());
+                    }
+                } else {
+                    error_log("sync_rusregbl_for_domain: no token for project_id={$site->project_id}");
+                }
+            }
+            // 2b) Выключен, но task_id есть → удаляем
+            elseif (!$rusregbl_enabled && !empty($dom_row->hosttracker_task_id)) {
+                $token = SDM_HostTracker_API::get_token_for_project($site->project_id);
+                if ($token) {
+                    $ok = SDM_HostTracker_API::delete_host_tracker_task($token, $dom_row->hosttracker_task_id, 'RusRegBL');
+                    if ($ok) {
+                        $wpdb->update(
+                            $dom_table,
+                            array('hosttracker_task_id' => null, 'updated_at' => current_time('mysql')),
+                            array('id' => $domain_id),
+                            array('%s','%s'),
+                            array('%d')
+                        );
+                    } else {
+                        error_log("sync_rusregbl_for_domain: failed to delete task {$dom_row->hosttracker_task_id} for domain={$dom_row->domain}");
+                    }
+                } else {
+                    error_log("sync_rusregbl_for_domain: no token for project_id={$site->project_id}");
+                }
+            }
+            // Иначе — ничего не делаем (либо уже есть задача, либо она не нужна)
+        }
+    }
+
+
+    public static function delete_host_tracker_task_by_project($project_id, $task_id, $task_type = 'RusRegBL')
+    {
+        // 1) Получаем токен для HostTracker, используя уже существующий метод get_token_for_project(...)
+        $token = self::get_token_for_project($project_id);
+        if (!$token) {
+            error_log("delete_host_tracker_task_by_project: no token for project_id=$project_id");
+            return false;
+        }
+
+        // 2) Вызываем старый метод delete_host_tracker_task, в котором идёт запрос DELETE /tasks?ids=...
+        $ok = self::delete_host_tracker_task($token, $task_id, $task_type);
+        if (!$ok) {
+            error_log("delete_host_tracker_task_by_project: failed to delete $task_type task_id=$task_id for project_id=$project_id");
+        }
+        return $ok;
+    }
+
+    public static function get_token_for_project($project_id)
+    {
+        global $wpdb;
+
+        // 1) Ищем service_id HostTracker в sdm_service_types
+        $service_row = $wpdb->get_row("SELECT id FROM {$wpdb->prefix}sdm_service_types WHERE service_name='HostTracker' LIMIT 1");
+        if (!$service_row) {
+            error_log("get_token_for_project: HostTracker service not found");
+            return false;
+        }
+
+        // 2) Ищем аккаунт HostTracker в sdm_accounts
+        $account_enc = $wpdb->get_row($wpdb->prepare("
+            SELECT additional_data_enc 
+              FROM {$wpdb->prefix}sdm_accounts
+             WHERE project_id = %d
+               AND service_id  = %d
+             LIMIT 1
+        ", $project_id, $service_row->id));
+
+        if (!$account_enc) {
+            error_log("get_token_for_project: no HostTracker account for project_id=$project_id");
+            return false;
+        }
+
+        // 3) Расшифровываем JSON c логином/паролем
+        $decrypted = sdm_decrypt($account_enc->additional_data_enc);
+        $credentials = json_decode($decrypted, true);
+        if (empty($credentials['login']) || empty($credentials['password'])) {
+            error_log("get_token_for_project: invalid login/password in account for project_id=$project_id");
+            return false;
+        }
+
+        // 4) Получаем токен
+        return self::get_host_tracker_token($credentials);
+    }
+
+
 }

@@ -10,6 +10,26 @@ if (!defined('ABSPATH')) {
 
 class SDM_Sites_Manager {
 
+        private function delete_domain_hosttracker_task($domain_id, $project_id, $task_id) {
+        global $wpdb;
+
+        // Вызываем метод из SDM_HostTracker_API
+        $deleted = SDM_HostTracker_API::delete_host_tracker_task_by_project($project_id, $task_id, 'RusRegBL');
+        if ($deleted) {
+            // Если успешно удалили → обнуляем hosttracker_task_id
+            $wpdb->update(
+                "{$wpdb->prefix}sdm_domains",
+                array('hosttracker_task_id' => null, 'updated_at' => current_time('mysql')),
+                array('id' => $domain_id),
+                array('%s','%s'),
+                array('%d')
+            );
+            return true;
+        }
+        return false;
+    }
+
+
     /**
      * Получение аккаунта по проекту и сервису.
      *
@@ -163,13 +183,11 @@ class SDM_Sites_Manager {
             return new WP_Error('invalid_site_id', __('Invalid site ID.', 'spintax-domain-manager'));
         }
 
-        // Находим текущую запись сайта
         $old = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $site_id));
         if (!$old) {
             return new WP_Error('not_found', __('Site not found.', 'spintax-domain-manager'));
         }
 
-        // Собираем данные с формы
         $site_name   = isset($data['site_name']) ? sanitize_text_field($data['site_name']) : $old->site_name;
         $main_domain = isset($data['main_domain']) ? sanitize_text_field($data['main_domain']) : $old->main_domain;
         $server_ip   = isset($data['server_ip']) ? sanitize_text_field($data['server_ip']) : $old->server_ip;
@@ -182,36 +200,27 @@ class SDM_Sites_Manager {
             return new WP_Error('invalid_language', __('Language is required.', 'spintax-domain-manager'));
         }
 
-        // Парсим новые настройки мониторинга
-        // (с клиента они приходят JSON-строкой, например {"enabled":true,"types":{"RusRegBL":true,"Http":false}})
         $monitoring_settings = isset($data['monitoring_settings'])
             ? json_decode($data['monitoring_settings'], true)
             : json_decode($old->monitoring_settings, true);
 
-        // Если нет корректной структуры, подставляем «дефолт».
-        if (!$monitoring_settings || !is_array($monitoring_settings) || !isset($monitoring_settings['enabled']) || !isset($monitoring_settings['types'])) {
+        if (!$monitoring_settings || !is_array($monitoring_settings) 
+            || !isset($monitoring_settings['enabled']) 
+            || !isset($monitoring_settings['types'])) {
             $monitoring_settings = array(
                 'enabled' => true,
                 'types'   => array('RusRegBL' => true, 'Http' => false),
                 'regions' => array('Russia')
             );
         } else {
-            // Следим, чтобы поля RusRegBL / Http точно были
             $monitoring_settings['types'] = array_merge(
                 array('RusRegBL' => false, 'Http' => false),
                 $monitoring_settings['types']
             );
         }
 
-        // ----
-        // 1) Обновляем сайт и домен в БД без транзакции (или с минимальной)
-        //    Если хотим защищаться от частичной несогласованности, можно делать SHORT-транзакцию
-        //    только вокруг обновления site и домена, но без учёта tasks. 
-        // ----
+        $wpdb->query('START TRANSACTION');
 
-        $wpdb->query('START TRANSACTION'); // Можно оставить мини-транзакцию для надёжности, но без отката при ошибках HostTracker
-
-        // Пытаемся обновить сам сайт
         $updated = $wpdb->update(
             $table,
             array(
@@ -223,7 +232,7 @@ class SDM_Sites_Manager {
                 'updated_at'          => current_time('mysql'),
             ),
             array('id' => $site_id),
-            array('%s', '%s', '%s', '%s', '%s', '%s'),
+            array('%s','%s','%s','%s','%s','%s'),
             array('%d')
         );
 
@@ -232,39 +241,53 @@ class SDM_Sites_Manager {
             return new WP_Error('db_update_error', __('Could not update site.', 'spintax-domain-manager'));
         }
 
-        // Если менялся домен - переприсваиваем его
         if ($main_domain !== $old->main_domain) {
-            // Старый домен делаем site_id = NULL
             $unassign_old = $wpdb->update(
                 $domains_table,
                 array('site_id' => NULL, 'updated_at' => current_time('mysql')),
                 array('domain' => $old->main_domain),
-                array('%s', '%s'),
+                array('%s','%s'),
                 array('%s')
             );
             if (false === $unassign_old) {
-                // Если тут неудача - тоже откатываем, т.к. это основной функционал
                 $wpdb->query('ROLLBACK');
                 return new WP_Error('db_update_error', __('Could not unassign old domain.', 'spintax-domain-manager'));
             }
 
-            // Проверяем, что новый домен есть в таблице
-            $domain_exists = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$domains_table} WHERE domain = %s",
-                $main_domain
-            ));
+            // Удаляем задачу HostTracker у старого главного домена (если была)
+            $old_domain_id = $wpdb->get_var($wpdb->prepare("
+                SELECT id FROM {$domains_table}
+                 WHERE domain = %s
+                 LIMIT 1
+            ", $old->main_domain));
+            if ($old_domain_id) {
+                $old_domain_row = $wpdb->get_row($wpdb->prepare("
+                    SELECT hosttracker_task_id, project_id
+                      FROM {$domains_table}
+                     WHERE id = %d
+                ", $old_domain_id));
+                if ($old_domain_row && $old_domain_row->hosttracker_task_id) {
+                    $delete_ok = $this->delete_domain_hosttracker_task($old_domain_id, $old_domain_row->project_id, $old_domain_row->hosttracker_task_id);
+                    if (!$delete_ok) {
+                        error_log("update_site WARNING: could not delete old domain task for domain={$old->main_domain}");
+                    }
+                }
+            }
+
+            $domain_exists = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(*) FROM {$domains_table} WHERE domain = %s
+            ", $main_domain));
             if ($domain_exists <= 0) {
                 $wpdb->query('ROLLBACK');
                 return new WP_Error('domain_not_found', __('Specified main domain does not exist.', 'spintax-domain-manager'));
             }
 
-            // Присваиваем site_id новому домену (только если он не присвоен кому-то ещё)
             $assign_new = $wpdb->update(
                 $domains_table,
                 array('site_id' => $site_id, 'updated_at' => current_time('mysql')),
                 array('domain' => $main_domain, 'site_id' => NULL),
-                array('%d', '%s'),
-                array('%s', '%s')
+                array('%d','%s'),
+                array('%s','%s')
             );
             if (false === $assign_new) {
                 $wpdb->query('ROLLBACK');
@@ -272,63 +295,33 @@ class SDM_Sites_Manager {
             }
         }
 
-        // В этом месте мы точно хотим зафиксировать изменения по сайту/домену
-        // независимо от HostTracker. То есть если всё ОК — делаем COMMIT.
         $wpdb->query('COMMIT');
 
-        // ----
-        // 2) Создание/удаление задач мониторинга (HostTracker) — 
-        //    Если упадёт, НЕ откатываем, а только логируем.
-        // ----
-
-        // Смотрим, изменился ли массив monitoring_settings (по сравнению со старым) —
-        // если да, удаляем и пересоздаём задачи.
         $old_settings = json_decode($old->monitoring_settings, true);
-
-        // Для отладки выведем, что именно мы хотели сохранить
-        error_log('update_site: $old_settings = ' . print_r($old_settings, true));
-        error_log('update_site: $new_settings = ' . print_r($monitoring_settings, true));
-
-        // Удаляем задачи, если настройки сменились (типы мониторинга, включён/выключен и т.п.)
-        // В старом коде: $this->delete_monitoring_tasks($site_id);
-        // Но если оно упадёт — просто log, без rollback.
-
         if ($main_domain !== $old->main_domain || ($monitoring_settings !== $old_settings)) {
-            // Пытаемся удалить все старые задачи
             $deleteResult = $this->delete_monitoring_tasks($site_id);
-
             if (is_wp_error($deleteResult)) {
-                // Логируем вместо rollback
                 error_log('update_site WARNING: could not delete old monitoring tasks. ' . $deleteResult->get_error_message());
             }
-
-            // Создаём заново, если включен monitoring_settings['enabled']
             if (!empty($monitoring_settings['enabled'])) {
                 foreach ($monitoring_settings['types'] as $type => $enabled) {
                     if ($enabled) {
                         $creationResult = $this->create_monitoring_task($site_id, $main_domain, $type);
-
-                        // Если ошибка, просто логируем, не откатываем
                         if (is_wp_error($creationResult)) {
-                            error_log(
-                                sprintf(
-                                    'update_site WARNING: cannot create %s task for site_id=%d domain=%s. Error: %s',
-                                    $type,
-                                    $site_id,
-                                    $main_domain,
-                                    $creationResult->get_error_message()
-                                )
-                            );
+                            error_log(sprintf(
+                                'update_site WARNING: cannot create %s task for site_id=%d domain=%s. Error: %s',
+                                $type,
+                                $site_id,
+                                $main_domain,
+                                $creationResult->get_error_message()
+                            ));
                         }
                     }
                 }
             }
         }
-
-        // Возвращаем успех, даже если с HostTracker были ошибки
         return true;
     }
-
     /**
      * Update site icon
      */
