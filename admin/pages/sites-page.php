@@ -145,14 +145,15 @@ $main_nonce = sdm_create_main_nonce();
                             <span class="sdm-display-value">
                                 <?php echo $rusregbl_enabled ? 'RusRegBL ' : ''; ?>
                                 <?php echo $http_enabled ? 'Http ' : ''; ?>
-                                <?php echo !$rusregbl_enabled && !$http_enabled ? 'None' : ''; ?>
+                                <?php echo (!$rusregbl_enabled && !$http_enabled) ? 'None' : ''; ?>
                             </span>
                             <div class="sdm-edit-input sdm-hidden">
-                                <label><input type="checkbox" name="monitoring[RusRegBL]" <?php checked($rusregbl_enabled); ?>> RusRegBL</label><br>
-                                <label><input type="checkbox" name="monitoring[Http]" <?php checked($http_enabled); ?>> Http</label>
+                                <label><input type="checkbox" name="monitoring[types][RusRegBL]" <?php checked($rusregbl_enabled); ?>> RusRegBL</label><br>
+                                <label><input type="checkbox" name="monitoring[types][Http]" <?php checked($http_enabled); ?>> Http</label>
                                 <input type="hidden" name="monitoring[enabled]" value="1">
                             </div>
                         </td>
+
                         <td><?php echo esc_html($site->created_at); ?></td>
                         <td><?php echo esc_html($site->updated_at); ?></td>
                         <td class="column-actions">

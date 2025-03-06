@@ -155,7 +155,7 @@ class SDM_Sites_Manager {
      */
     public function update_site($site_id, $data) {
         global $wpdb;
-        $table = $wpdb->prefix . 'sdm_sites';
+        $table         = $wpdb->prefix . 'sdm_sites';
         $domains_table = $wpdb->prefix . 'sdm_domains';
 
         $site_id = absint($site_id);
@@ -163,15 +163,17 @@ class SDM_Sites_Manager {
             return new WP_Error('invalid_site_id', __('Invalid site ID.', 'spintax-domain-manager'));
         }
 
+        // Находим текущую запись сайта
         $old = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $site_id));
         if (!$old) {
             return new WP_Error('not_found', __('Site not found.', 'spintax-domain-manager'));
         }
 
-        $site_name = isset($data['site_name']) ? sanitize_text_field($data['site_name']) : $old->site_name;
+        // Собираем данные с формы
+        $site_name   = isset($data['site_name']) ? sanitize_text_field($data['site_name']) : $old->site_name;
         $main_domain = isset($data['main_domain']) ? sanitize_text_field($data['main_domain']) : $old->main_domain;
-        $server_ip = isset($data['server_ip']) ? sanitize_text_field($data['server_ip']) : $old->server_ip;
-        $language = isset($data['language']) ? sanitize_text_field($data['language']) : $old->language;
+        $server_ip   = isset($data['server_ip']) ? sanitize_text_field($data['server_ip']) : $old->server_ip;
+        $language    = isset($data['language']) ? sanitize_text_field($data['language']) : $old->language;
 
         if (empty($main_domain)) {
             return new WP_Error('invalid_main_domain', __('Main domain is required.', 'spintax-domain-manager'));
@@ -180,110 +182,153 @@ class SDM_Sites_Manager {
             return new WP_Error('invalid_language', __('Language is required.', 'spintax-domain-manager'));
         }
 
-        $monitoring_settings = isset($data['monitoring_settings']) ? json_decode($data['monitoring_settings'], true) : json_decode($old->monitoring_settings, true);
+        // Парсим новые настройки мониторинга
+        // (с клиента они приходят JSON-строкой, например {"enabled":true,"types":{"RusRegBL":true,"Http":false}})
+        $monitoring_settings = isset($data['monitoring_settings'])
+            ? json_decode($data['monitoring_settings'], true)
+            : json_decode($old->monitoring_settings, true);
+
+        // Если нет корректной структуры, подставляем «дефолт».
         if (!$monitoring_settings || !is_array($monitoring_settings) || !isset($monitoring_settings['enabled']) || !isset($monitoring_settings['types'])) {
             $monitoring_settings = array(
                 'enabled' => true,
-                'types' => array('RusRegBL' => true, 'Http' => false),
+                'types'   => array('RusRegBL' => true, 'Http' => false),
                 'regions' => array('Russia')
             );
         } else {
+            // Следим, чтобы поля RusRegBL / Http точно были
             $monitoring_settings['types'] = array_merge(
                 array('RusRegBL' => false, 'Http' => false),
                 $monitoring_settings['types']
             );
         }
 
-        $wpdb->query('START TRANSACTION');
+        // ----
+        // 1) Обновляем сайт и домен в БД без транзакции (или с минимальной)
+        //    Если хотим защищаться от частичной несогласованности, можно делать SHORT-транзакцию
+        //    только вокруг обновления site и домена, но без учёта tasks. 
+        // ----
 
-        try {
-            $updated = $wpdb->update(
-                $table,
-                array(
-                    'site_name' => $site_name,
-                    'main_domain' => $main_domain,
-                    'server_ip' => $server_ip,
-                    'language' => $language,
-                    'monitoring_settings' => json_encode($monitoring_settings),
-                    'updated_at' => current_time('mysql'),
-                ),
-                array('id' => $site_id),
-                array('%s', '%s', '%s', '%s', '%s', '%s'),
-                array('%d')
-            );
+        $wpdb->query('START TRANSACTION'); // Можно оставить мини-транзакцию для надёжности, но без отката при ошибках HostTracker
 
-            if (false === $updated) {
-                throw new WP_Error('db_update_error', __('Could not update site.', 'spintax-domain-manager'));
-            }
+        // Пытаемся обновить сам сайт
+        $updated = $wpdb->update(
+            $table,
+            array(
+                'site_name'           => $site_name,
+                'main_domain'         => $main_domain,
+                'server_ip'           => $server_ip,
+                'language'            => $language,
+                'monitoring_settings' => json_encode($monitoring_settings),
+                'updated_at'          => current_time('mysql'),
+            ),
+            array('id' => $site_id),
+            array('%s', '%s', '%s', '%s', '%s', '%s'),
+            array('%d')
+        );
 
-            if ($main_domain !== $old->main_domain) {
-                $domain_exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$domains_table} WHERE domain = %s",
-                    $main_domain
-                ));
-
-                if ($domain_exists <= 0) {
-                    throw new WP_Error('domain_not_found', __('Specified main domain does not exist.', 'spintax-domain-manager'));
-                }
-
-                $unassign_old = $wpdb->update(
-                    $domains_table,
-                    array('site_id' => NULL, 'updated_at' => current_time('mysql')),
-                    array('domain' => $old->main_domain),
-                    array('%s', '%s'),
-                    array('%s')
-                );
-
-                if (false === $unassign_old) {
-                    throw new WP_Error('db_update_error', __('Could not unassign old domain.', 'spintax-domain-manager'));
-                }
-
-                $assign_new = $wpdb->update(
-                    $domains_table,
-                    array('site_id' => $site_id, 'updated_at' => current_time('mysql')),
-                    array('domain' => $main_domain, 'site_id' => NULL),
-                    array('%d', '%s'),
-                    array('%s')
-                );
-
-                if (false === $assign_new) {
-                    throw new WP_Error('db_update_error', __('Could not assign new domain.', 'spintax-domain-manager'));
-                }
-
-                $this->delete_monitoring_tasks($site_id);
-                if ($monitoring_settings['enabled']) {
-                    foreach ($monitoring_settings['types'] as $type => $enabled) {
-                        if ($enabled) {
-                            $this->create_monitoring_task($site_id, $main_domain, $type);
-                        }
-                    }
-                }
-            } else {
-                $old_settings = json_decode($old->monitoring_settings, true);
-                if ($monitoring_settings !== $old_settings) {
-                    $this->delete_monitoring_tasks($site_id);
-                    if ($monitoring_settings['enabled']) {
-                        foreach ($monitoring_settings['types'] as $type => $enabled) {
-                            if ($enabled) {
-                                $this->create_monitoring_task($site_id, $main_domain, $type);
-                            }
-                        }
-                    }
-                }
-            }
-
-            $wpdb->query('COMMIT');
-            return true;
-        } catch (WP_Error $e) {
+        if (false === $updated) {
             $wpdb->query('ROLLBACK');
-            error_log('update_site WP_Error: ' . $e->get_error_message());
-            return $e;
-        } catch (Exception $e) {
-            $wpdb->query('ROLLBACK');
-            error_log('update_site Exception: ' . $e->getMessage());
-            return new WP_Error('exception_error', __('An unexpected error occurred: ' . $e->getMessage(), 'spintax-domain-manager'));
+            return new WP_Error('db_update_error', __('Could not update site.', 'spintax-domain-manager'));
         }
+
+        // Если менялся домен - переприсваиваем его
+        if ($main_domain !== $old->main_domain) {
+            // Старый домен делаем site_id = NULL
+            $unassign_old = $wpdb->update(
+                $domains_table,
+                array('site_id' => NULL, 'updated_at' => current_time('mysql')),
+                array('domain' => $old->main_domain),
+                array('%s', '%s'),
+                array('%s')
+            );
+            if (false === $unassign_old) {
+                // Если тут неудача - тоже откатываем, т.к. это основной функционал
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('db_update_error', __('Could not unassign old domain.', 'spintax-domain-manager'));
+            }
+
+            // Проверяем, что новый домен есть в таблице
+            $domain_exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$domains_table} WHERE domain = %s",
+                $main_domain
+            ));
+            if ($domain_exists <= 0) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('domain_not_found', __('Specified main domain does not exist.', 'spintax-domain-manager'));
+            }
+
+            // Присваиваем site_id новому домену (только если он не присвоен кому-то ещё)
+            $assign_new = $wpdb->update(
+                $domains_table,
+                array('site_id' => $site_id, 'updated_at' => current_time('mysql')),
+                array('domain' => $main_domain, 'site_id' => NULL),
+                array('%d', '%s'),
+                array('%s', '%s')
+            );
+            if (false === $assign_new) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('db_update_error', __('Could not assign new domain.', 'spintax-domain-manager'));
+            }
+        }
+
+        // В этом месте мы точно хотим зафиксировать изменения по сайту/домену
+        // независимо от HostTracker. То есть если всё ОК — делаем COMMIT.
+        $wpdb->query('COMMIT');
+
+        // ----
+        // 2) Создание/удаление задач мониторинга (HostTracker) — 
+        //    Если упадёт, НЕ откатываем, а только логируем.
+        // ----
+
+        // Смотрим, изменился ли массив monitoring_settings (по сравнению со старым) —
+        // если да, удаляем и пересоздаём задачи.
+        $old_settings = json_decode($old->monitoring_settings, true);
+
+        // Для отладки выведем, что именно мы хотели сохранить
+        error_log('update_site: $old_settings = ' . print_r($old_settings, true));
+        error_log('update_site: $new_settings = ' . print_r($monitoring_settings, true));
+
+        // Удаляем задачи, если настройки сменились (типы мониторинга, включён/выключен и т.п.)
+        // В старом коде: $this->delete_monitoring_tasks($site_id);
+        // Но если оно упадёт — просто log, без rollback.
+
+        if ($main_domain !== $old->main_domain || ($monitoring_settings !== $old_settings)) {
+            // Пытаемся удалить все старые задачи
+            $deleteResult = $this->delete_monitoring_tasks($site_id);
+
+            if (is_wp_error($deleteResult)) {
+                // Логируем вместо rollback
+                error_log('update_site WARNING: could not delete old monitoring tasks. ' . $deleteResult->get_error_message());
+            }
+
+            // Создаём заново, если включен monitoring_settings['enabled']
+            if (!empty($monitoring_settings['enabled'])) {
+                foreach ($monitoring_settings['types'] as $type => $enabled) {
+                    if ($enabled) {
+                        $creationResult = $this->create_monitoring_task($site_id, $main_domain, $type);
+
+                        // Если ошибка, просто логируем, не откатываем
+                        if (is_wp_error($creationResult)) {
+                            error_log(
+                                sprintf(
+                                    'update_site WARNING: cannot create %s task for site_id=%d domain=%s. Error: %s',
+                                    $type,
+                                    $site_id,
+                                    $main_domain,
+                                    $creationResult->get_error_message()
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Возвращаем успех, даже если с HostTracker были ошибки
+        return true;
     }
+
     /**
      * Update site icon
      */
