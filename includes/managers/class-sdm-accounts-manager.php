@@ -8,9 +8,35 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-service-types-manager.php'; // Убедимся, что класс подключён
-
 class SDM_Accounts_Manager {
+
+    public function get_account_by_project_and_service($project_id, $service_name) {
+            global $wpdb;
+
+            $service = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}sdm_service_types WHERE service_name = %s LIMIT 1",
+                $service_name
+            ));
+
+            if (!$service) {
+                error_log('SDM_Accounts_Manager: Service not found: ' . $service_name);
+                return false;
+            }
+
+            $account = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}sdm_accounts 
+                 WHERE project_id = %d AND service_id = %d LIMIT 1",
+                $project_id,
+                $service->id
+            ));
+
+            if (!$account) {
+                error_log('SDM_Accounts_Manager: Account not found for project_id=' . $project_id . ', service=' . $service_name);
+            }
+
+            return $account;
+        }
+        
     /**
      * Retrieve all accounts from the database, 
      * including project_name and service_name via LEFT JOIN.

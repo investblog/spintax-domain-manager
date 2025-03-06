@@ -1,26 +1,23 @@
 document.addEventListener('DOMContentLoaded', function() {
-
     // Get the global nonce from the hidden field
     var mainNonceField = document.getElementById('sdm-main-nonce');
     var mainNonce = mainNonceField ? mainNonceField.value : '';
+    console.log('Main nonce:', mainNonce);
 
     // Get current project ID from the selector to check if a project is selected
     var projectSelector = document.getElementById('sdm-project-selector');
     var currentProjectId = projectSelector ? parseInt(projectSelector.value) : 0;
 
-    // ----------------------------
-    // 1. Handle "Add New Site" Form Submission via AJAX with domain assignment
-    // ----------------------------
+    // Handle "Add New Site" Form Submission via AJAX with domain assignment
     var addSiteForm = document.getElementById('sdm-add-site-form');
     if (addSiteForm) {
         addSiteForm.addEventListener('submit', function(e) {
             e.preventDefault();
             var formData = new FormData(addSiteForm);
             var mainDomain = formData.get('main_domain');
-            var language = formData.get('language').trim(); // Get language value
+            var language = formData.get('language').trim();
             var submitButton = addSiteForm.querySelector('button[type="submit"]');
 
-            // Validate main_domain and language before submission
             if (!mainDomain) {
                 showSitesNotice('error', 'Main Domain is required.');
                 return;
@@ -30,7 +27,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Show spinner while validating
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.innerHTML += '<span class="spinner is-active" style="float:none;margin:0 5px;"></span>';
@@ -54,11 +50,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 if (data.success) {
-                    // Domain is valid, proceed with form submission
                     formData.append('action', 'sdm_add_site');
                     formData.append('sdm_main_nonce_field', mainNonce);
 
-                    // Show spinner during save
                     if (submitButton) {
                         submitButton.disabled = true;
                         submitButton.innerHTML += '<span class="spinner is-active" style="float:none;margin:0 5px;"></span>';
@@ -105,31 +99,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ----------------------------
     // Inline Editing for Sites
-    // ----------------------------
     var sitesTable = document.getElementById('sdm-sites-table');
     if (sitesTable) {
         sitesTable.addEventListener('click', function(e) {
-            // Handle click on "Edit" button
             if (e.target.classList.contains('sdm-edit-site')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 toggleEditRow(row, true);
-                initializeMainDomainSelect(row); // Initialize Select2 for main_domain
-            }
-            // Handle click on "Save" button
-            else if (e.target.classList.contains('sdm-save-site')) {
+                initializeMainDomainSelect(row);
+            } else if (e.target.classList.contains('sdm-save-site')) {
                 e.preventDefault();
                 var row = e.target.closest('tr');
                 saveRow(row);
-            }
-            // Handle click on site icon
-            else if (e.target.closest('.sdm-site-icon')) {
+            } else if (e.target.closest('.sdm-site-icon')) {
                 e.preventDefault();
                 var iconSpan = e.target.closest('.sdm-site-icon');
                 var siteId = iconSpan.getAttribute('data-site-id');
-                if (currentProjectId > 0) { // Check if project is selected
+                if (currentProjectId > 0) {
                     openIconModal(siteId);
                 }
             }
@@ -138,22 +125,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function toggleEditRow(row, editMode) {
         var displayElems = row.querySelectorAll('.sdm-display-value');
-        var editInputs   = row.querySelectorAll('.sdm-edit-input');
-        var editLink     = row.querySelector('.sdm-edit-site');
-        var saveLink     = row.querySelector('.sdm-save-site');
+        var editInputs = row.querySelectorAll('.sdm-edit-input');
+        var editLink = row.querySelector('.sdm-edit-site');
+        var saveLink = row.querySelector('.sdm-save-site');
 
         if (editMode) {
             displayElems.forEach(function(el) { el.classList.add('sdm-hidden'); });
             editInputs.forEach(function(el) { el.classList.remove('sdm-hidden'); });
             editLink.classList.add('sdm-hidden');
             saveLink.classList.remove('sdm-hidden');
+            initializeMainDomainSelect(row);
         } else {
             displayElems.forEach(function(el) { el.classList.remove('sdm-hidden'); });
             editInputs.forEach(function(el) { el.classList.add('sdm-hidden'); });
             editLink.classList.remove('sdm-hidden');
             saveLink.classList.add('sdm-hidden');
 
-            // Destroy Select2 instance to avoid artifacts and ensure proper cleanup
             var mainDomainSelect = row.querySelector('select[name="main_domain"]');
             if (mainDomainSelect && window.jQuery) {
                 jQuery(mainDomainSelect).select2('destroy').removeClass('select2-hidden-accessible select2-initialized');
@@ -161,71 +148,75 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function saveRow(row) {
-        var siteId = row.getAttribute('data-site-id');
-        var nonce  = row.getAttribute('data-update-nonce');
-
-        // Read the new values from input fields
-        var siteNameInput   = row.querySelector('input[name="site_name"]');
-        var mainDomainSelect = row.querySelector('select[name="main_domain"]');
-        var serverIpInput   = row.querySelector('input[name="server_ip"]');
-        var languageInput   = row.querySelector('input[name="language"]');
-        var siteName   = siteNameInput ? siteNameInput.value : '';
-        var mainDomain = mainDomainSelect ? mainDomainSelect.value : '';
-        var serverIp   = serverIpInput ? serverIpInput.value.trim() : '';
-        var language   = languageInput ? languageInput.value.trim() : '';
-        var saveLink = row.querySelector('.sdm-save-site');
-
-        // Get the current main_domain from the display value
-        var currentMainDomainSpan = row.querySelector('.column-main-domain .sdm-display-value');
-        var currentMainDomain = currentMainDomainSpan ? currentMainDomainSpan.textContent.trim() : '';
-
-        // Validate main_domain only if it has changed
-        if (mainDomain) {
-            if (mainDomain !== currentMainDomain) {
-                // Show spinner while validating
-                saveLink.innerHTML = '<span class="spinner is-active" style="float:none;margin:0;"></span>';
-
-                var validateFormData = new FormData();
-                validateFormData.append('action', 'sdm_validate_domain');
-                validateFormData.append('domain', mainDomain);
-                validateFormData.append('site_id', siteId); // Add site_id to validation
-                validateFormData.append('sdm_main_nonce_field', nonce);
-
-                fetch(ajaxurl, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    body: validateFormData
-                })
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    // Restore "Save" text after validation
-                    saveLink.innerHTML = 'Save';
-
-                    if (!data.success) {
-                        showSitesNotice('error', data.data);
-                        return;
-                    }
-
-                    // Proceed with saving if domain is valid
-                    saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, saveLink);
-                })
-                .catch(function(error) {
-                    console.error('Domain validation error:', error);
-                    saveLink.innerHTML = 'Save';
-                    showSitesNotice('error', 'Ajax request failed during domain validation.');
-                });
-            } else {
-                // If main_domain hasn't changed, proceed with saving without validation
-                saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, saveLink);
+    function initializeMainDomainSelect(row) {
+        if (currentProjectId > 0) {
+            var mainDomainSelect = row ? row.querySelector('select[name="main_domain"]') : document.getElementById('main_domain');
+            if (mainDomainSelect && !mainDomainSelect.classList.contains('select2-initialized')) {
+                fetchNonBlockedDomainsForSelect(mainDomainSelect);
+                if (window.jQuery) {
+                    jQuery(mainDomainSelect).select2({
+                        width: '100%',
+                        placeholder: 'Select a domain',
+                        allowClear: true
+                    }).on('select2:select', function(e) {
+                        mainDomainSelect.value = e.params.data.id;
+                        console.log('Selected value:', mainDomainSelect.value);
+                    }).on('select2:open', function() {
+                        console.log('Select2 opened for', mainDomainSelect);
+                    });
+                }
+                mainDomainSelect.classList.add('select2-initialized');
             }
-        } else {
-            showSitesNotice('error', 'Main Domain is required.');
         }
     }
 
-    // Helper function to avoid code duplication
-    function saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, saveLink) {
+    function saveRow(row) {
+        var siteId = row.getAttribute('data-site-id');
+        var nonce = row.getAttribute('data-update-nonce');
+
+        var siteNameInput = row.querySelector('input[name="site_name"]');
+        var mainDomainSelect = row.querySelector('select[name="main_domain"]');
+        var serverIpInput = row.querySelector('input[name="server_ip"]');
+        var languageInput = row.querySelector('input[name="language"]');
+        var monitoringInputs = row.querySelectorAll('input[name^="monitoring"]');
+        var saveLink = row.querySelector('.sdm-save-site');
+
+        if (!siteNameInput || !mainDomainSelect || !serverIpInput || !languageInput || !saveLink) {
+            console.error('One or more required elements not found:', { siteNameInput, mainDomainSelect, serverIpInput, languageInput, saveLink });
+            return;
+        }
+
+        var mainDomain = window.jQuery ? jQuery(mainDomainSelect).val() : mainDomainSelect.value;
+        if (!mainDomain) {
+            showSitesNotice('error', 'Main Domain is required.');
+            return;
+        }
+
+        var monitoring_settings = { enabled: false, types: {} };
+        monitoringInputs.forEach(function(input) {
+            var name = input.getAttribute('name');
+            if (name === 'monitoring[enabled]') {
+                monitoring_settings.enabled = input.checked;
+            } else if (name && name.match(/monitoring\[types\]\[(.*?)\]/)) {
+                var type = name.match(/monitoring\[types\]\[(.*?)\]/)[1];
+                monitoring_settings.types[type] = input.checked;
+            }
+        });
+
+        saveSite(
+            row,
+            siteId,
+            nonce,
+            siteNameInput.value,
+            mainDomain,
+            serverIpInput.value,
+            languageInput.value,
+            monitoring_settings,
+            saveLink
+        );
+    }
+
+    function saveSite(row, siteId, nonce, siteName, mainDomain, serverIp, language, monitoring_settings, saveLink) {
         var formData = new FormData();
         formData.append('action', 'sdm_update_site');
         formData.append('sdm_main_nonce_field', nonce);
@@ -234,8 +225,8 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('main_domain', mainDomain);
         formData.append('server_ip', serverIp);
         formData.append('language', language);
+        formData.append('monitoring_settings', JSON.stringify(monitoring_settings));
 
-        // Show spinner during save
         saveLink.innerHTML = '<span class="spinner is-active" style="float:none;margin:0;"></span>';
 
         fetch(ajaxurl, {
@@ -243,34 +234,42 @@ document.addEventListener('DOMContentLoaded', function() {
             credentials: 'same-origin',
             body: formData
         })
-        .then(function(response) { return response.json(); })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Network response was not ok ' + response.statusText);
+            }
+            return response.json();
+        })
         .then(function(data) {
             saveLink.innerHTML = 'Save';
             if (data.success) {
-                var siteNameSpan   = row.querySelector('.column-site-name .sdm-display-value');
+                var siteNameSpan = row.querySelector('.column-site-name .sdm-display-value');
                 var mainDomainSpan = row.querySelector('.column-main-domain .sdm-display-value');
-                var serverIpSpan   = row.querySelector('.column-server-ip .sdm-display-value');
-                var languageSpan   = row.querySelector('.column-language .sdm-display-value');
+                var serverIpSpan = row.querySelector('.column-server-ip .sdm-display-value');
+                var languageSpan = row.querySelector('.column-language .sdm-display-value');
+                var monitoringSpan = row.querySelector('.column-monitoring .sdm-display-value');
                 if (siteNameSpan) siteNameSpan.textContent = siteName;
                 if (mainDomainSpan) mainDomainSpan.textContent = mainDomain;
                 if (serverIpSpan) serverIpSpan.textContent = serverIp ? serverIp : '(Not set)';
                 if (languageSpan) languageSpan.textContent = language ? language : '(Not set)';
+                if (monitoringSpan) {
+                    monitoringSpan.textContent = (monitoring_settings.types.RusRegBL ? 'RusRegBL ' : '') +
+                                                (monitoring_settings.types.Http ? 'Http ' : '') || 'None';
+                }
                 toggleEditRow(row, false);
                 showSitesNotice('updated', data.data.message);
             } else {
-                showSitesNotice('error', data.data);
+                showSitesNotice('error', data.data.message || 'Unknown error');
             }
         })
         .catch(function(error) {
             console.error('Update site error:', error);
             saveLink.innerHTML = 'Save';
-            showSitesNotice('error', 'Ajax request failed.');
+            showSitesNotice('error', 'Ajax request failed: ' + error.message);
         });
     }
 
-    // ----------------------------
-    // Handle SVG Icon Editing (only if project is selected)
-    // ----------------------------
+    // Handle SVG Icon Editing
     function openIconModal(siteId) {
         var modal = document.getElementById('sdm-edit-icon-modal');
         var siteIdField = document.getElementById('sdm-icon-site-id');
@@ -279,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (modal && siteIdField && svgInput && currentProjectId > 0) {
             siteIdField.value = siteId;
-            svgInput.value = currentIcon; // Load current SVG (or default)
+            svgInput.value = currentIcon;
             modal.style.display = 'block';
         }
     }
@@ -291,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function() {
             var formData = new FormData(this);
             var svgIcon = document.getElementById('svg_icon').value;
 
-            // Remove width and height attributes from SVG to let CSS control size
             svgIcon = svgIcon.replace(/width="[^"]*"/i, '').replace(/height="[^"]*"/i, '');
             formData.set('svg_icon', svgIcon);
 
@@ -336,7 +334,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Close modal on overlay or close button click (only if project is selected)
     var closeIconModal = document.getElementById('sdm-close-icon-modal');
     var iconModalOverlay = document.querySelector('#sdm-edit-icon-modal .sdm-modal-overlay');
     if (closeIconModal && currentProjectId > 0) {
@@ -348,17 +345,6 @@ document.addEventListener('DOMContentLoaded', function() {
         iconModalOverlay.addEventListener('click', function() {
             document.getElementById('sdm-edit-icon-modal').style.display = 'none';
         });
-    }
-
-    // Initialize Select2 for main_domain in inline editing and add site form
-    function initializeMainDomainSelect(row) {
-        if (currentProjectId > 0) {
-            var mainDomainSelect = row ? row.querySelector('select[name="main_domain"]') : document.getElementById('main_domain');
-            if (mainDomainSelect && !mainDomainSelect.classList.contains('select2-initialized')) {
-                fetchNonBlockedDomainsForSelect(mainDomainSelect);
-                mainDomainSelect.classList.add('select2-initialized');
-            }
-        }
     }
 
     function fetchNonBlockedDomainsForSelect(selectElement) {
@@ -401,14 +387,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Initialize Select2 for add site form when project is selected
     if (currentProjectId > 0) {
         initializeMainDomainSelect();
     }
 
-    // ----------------------------
-    // 2. Handle Delete Site Action
-    // ----------------------------
+    // Handle Delete Site Action
     var deleteSiteButtons = document.querySelectorAll('.sdm-delete-site');
     deleteSiteButtons.forEach(function(button) {
         button.addEventListener('click', function(e) {
@@ -444,9 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ----------------------------
     // Helper: Show Sites Notice
-    // ----------------------------
     function showSitesNotice(type, message) {
         var noticeContainer = document.getElementById('sdm-sites-notice');
         if (!noticeContainer) return;

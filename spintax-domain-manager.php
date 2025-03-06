@@ -115,12 +115,16 @@ function sdm_nonce_field() {
 
 /**
  * Check the main nonce (used in Ajax or form submissions).
- * If verification fails, it will exit with a 403 error.
+ * If verification fails, it will return a JSON error.
  */
 function sdm_check_main_nonce() {
-    check_ajax_referer(SDM_NONCE_ACTION, SDM_NONCE_FIELD);
+    $nonce = isset($_POST[SDM_NONCE_FIELD]) ? $_POST[SDM_NONCE_FIELD] : '';
+    if (!wp_verify_nonce($nonce, SDM_NONCE_ACTION)) {
+        wp_send_json_error(array('message' => __('Invalid nonce.', 'spintax-domain-manager')));
+        wp_die();
+    }
+    return true;
 }
-
 /**
  * Enqueue admin assets including Flag Icons for language flags.
  */

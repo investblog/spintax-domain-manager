@@ -634,3 +634,48 @@ function sdm_ajax_fetch_domains_list() {
     wp_send_json_success(['html' => $html]);
 }
 add_action('wp_ajax_sdm_fetch_domains_list', 'sdm_ajax_fetch_domains_list');
+
+function sdm_ajax_validate_domain() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $domain = isset($_POST['domain']) ? sanitize_text_field($_POST['domain']) : '';
+    $site_id = isset($_POST['site_id']) ? absint($_POST['site_id']) : 0;
+    if (empty($domain)) {
+        wp_send_json_error(__('Domain is required.', 'spintax-domain-manager'));
+    }
+
+    global $wpdb;
+    $prefix = $wpdb->prefix;
+
+    // Проверяем, существует ли домен в sdm_domains и соответствует требованиям
+    $domain_exists = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$prefix}sdm_domains 
+         WHERE domain = %s 
+           AND status = 'active' 
+           AND is_blocked_provider = 0 
+           AND is_blocked_government = 0",
+        $domain
+    ));
+
+    if ($domain_exists <= 0) {
+        wp_send_json_error(__('Domain is not active, blocked, or does not exist.', 'spintax-domain-manager'));
+    }
+
+    // Проверяем, не используется ли домен другим сайтом в sdm_sites, исключая текущий сайт
+    $domain_in_use = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$prefix}sdm_sites 
+         WHERE main_domain = %s" . ($site_id > 0 ? " AND id != %d" : ""),
+        $domain,
+        $site_id
+    ));
+
+    if ($domain_in_use > 0) {
+        wp_send_json_error(__('This domain is already assigned to another site.', 'spintax-domain-manager'));
+    }
+
+    wp_send_json_success(__('Domain is valid and available.', 'spintax-domain-manager'));
+}
+add_action('wp_ajax_sdm_validate_domain', 'sdm_ajax_validate_domain');

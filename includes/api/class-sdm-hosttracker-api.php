@@ -106,4 +106,51 @@ class SDM_HostTracker_API {
 
         return array_values($filtered_tasks);
     }
+
+    /**
+     * Create a new monitoring task in HostTracker.
+     *
+     * @param string $token HostTracker API token.
+     * @param string $domain_url Domain to monitor.
+     * @param string $task_type Type of monitoring (e.g., 'RusRegBL', 'Http').
+     * @return string|WP_Error Task ID or WP_Error on failure.
+     */
+    public static function create_host_tracker_task($token, $domain_url, $task_type) {
+        $api_url = 'https://api.host-tracker.com/tasks'; // Проверь точный URL в документации HostTracker
+        $headers = array(
+            'Authorization' => 'Bearer ' . $token,
+            'Content-Type' => 'application/json',
+        );
+
+        $body = json_encode(array(
+            'url' => $domain_url,
+            'type' => $task_type,
+            'interval' => 5, // Интервал в минутах, настрой под документацию
+            'regions' => array('Russia'), // Настрой регионы
+        ));
+
+        $args = array(
+            'headers' => $headers,
+            'body' => $body,
+            'timeout' => 30, // Увеличим таймаут до 30 секунд
+            'sslverify' => false, // Отключим проверку SSL для тестов (включить на продакшене)
+        );
+
+        $response = wp_remote_post($api_url, $args);
+
+        if (is_wp_error($response)) {
+            error_log('HostTracker create task error: ' . $response->get_error_message());
+            return new WP_Error('api_error', __('Failed to create HostTracker task: ' . $response->get_error_message(), 'spintax-domain-manager'));
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        if (isset($data['id'])) {
+            return $data['id'];
+        } else {
+            error_log('HostTracker create task response: ' . $body);
+            return new WP_Error('api_error', __('Invalid response from HostTracker.', 'spintax-domain-manager'));
+        }
+    }
 }
