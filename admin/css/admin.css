@@ -21,7 +21,7 @@
   --sdm-shadow-medium: rgba(0,0,0,0.15);
 }
 .sdm-hidden {
-  display: none !important;
+  display: none;
 }
 
 /*--------------------------------------------------------------

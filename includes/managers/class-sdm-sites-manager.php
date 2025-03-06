@@ -395,76 +395,105 @@ class SDM_Sites_Manager {
         return true;
     }
 
-    /**
-     * Создание задачи мониторинга HostTracker для домена сайта.
-     *
-     * @param int $site_id ID сайта.
-     * @param string $domain_url URL домена.
-     * @param string $task_type Тип задачи ('RusRegBL' или 'Http').
-     * @return bool|WP_Error True при успехе или ошибка.
-     */
-    public function create_monitoring_task($site_id, $domain_url, $task_type = 'RusRegBL') {
-        global $wpdb;
+/**
+ * Создание задачи мониторинга HostTracker для домена сайта.
+ *
+ * @param int    $site_id   ID сайта.
+ * @param string $domain_url URL домена.
+ * @param string $task_type  Тип задачи ('RusRegBL' или 'Http').
+ * @return bool|WP_Error     True при успехе или ошибка.
+ */
+public function create_monitoring_task($site_id, $domain_url, $task_type = 'RusRegBL') {
+    global $wpdb;
 
-        $site = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_sites WHERE id = %d", $site_id));
-        if (!$site) {
-            return new WP_Error('site_not_found', __('Site not found.', 'spintax-domain-manager'));
-        }
-
-        $domain = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_domains WHERE domain = %s AND site_id = %d", $domain_url, $site_id));
-        if (!$domain) {
-            return new WP_Error('domain_not_found', __('Domain not found for this site.', 'spintax-domain-manager'));
-        }
-
-        $project = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_projects WHERE id = %d", $site->project_id));
-        if (!$project) {
-            return new WP_Error('project_not_found', __('Project not found.', 'spintax-domain-manager'));
-        }
-
-        // Проверяем настройки мониторинга
-        $monitoring_settings = json_decode($site->monitoring_settings, true);
-        $monitoring_enabled = $project->monitoring_enabled;
-        if ($monitoring_settings) {
-            $monitoring_enabled = isset($monitoring_settings['enabled']) ? (bool)$monitoring_settings['enabled'] : $monitoring_enabled;
-            if (!$monitoring_enabled || !isset($monitoring_settings['types'][$task_type]) || !$monitoring_settings['types'][$task_type]) {
-                return new WP_Error('monitoring_disabled', __('Monitoring is disabled for this site or task type.', 'spintax-domain-manager'));
-            }
-        } elseif (!$monitoring_enabled) {
-            return new WP_Error('monitoring_disabled', __('Monitoring is disabled for this project.', 'spintax-domain-manager'));
-        }
-
-        // Получаем аккаунт HostTracker
-        $account_manager = new SDM_Accounts_Manager();
-        $account = $account_manager->get_account_by_project_and_service($site->project_id, 'HostTracker');
-        if (!$account) {
-            return new WP_Error('account_not_found', __('HostTracker account not found for this project.', 'spintax-domain-manager'));
-        }
-
-        // Получаем токен
-        $credentials = json_decode(sdm_decrypt($account->additional_data_enc), true);
-        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-hosttracker-api.php';
-        $token = SDM_HostTracker_API::get_host_tracker_token($credentials);
-        if (!$token) {
-            return new WP_Error('token_error', __('Failed to authenticate with HostTracker.', 'spintax-domain-manager'));
-        }
-
-        // Создаём задачу
-        $task_id = SDM_HostTracker_API::create_host_tracker_task($token, $domain_url, $task_type);
-        if (is_wp_error($task_id)) {
-            return $task_id;
-        }
-
-        // Сохраняем task_id в базе
-        $wpdb->update(
-            $wpdb->prefix . 'sdm_domains',
-            array('hosttracker_task_id' => $task_id),
-            array('id' => $domain->id),
-            array('%s'),
-            array('%d')
-        );
-
-        return true;
+    // 1) Проверяем, что сайт есть
+    $site = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_sites WHERE id = %d",
+        $site_id
+    ));
+    if (!$site) {
+        return new WP_Error('site_not_found', __('Site not found.', 'spintax-domain-manager'));
     }
+
+    // 2) Проверяем, что домен есть и привязан к этому сайту
+    $domain = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_domains 
+         WHERE domain = %s 
+           AND site_id = %d 
+         LIMIT 1",
+        $domain_url,
+        $site_id
+    ));
+    if (!$domain) {
+        return new WP_Error('domain_not_found', __('Domain not found for this site.', 'spintax-domain-manager'));
+    }
+
+    // 3) Проверяем, что проект существует
+    $project = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_projects 
+         WHERE id = %d",
+        $site->project_id
+    ));
+    if (!$project) {
+        return new WP_Error('project_not_found', __('Project not found.', 'spintax-domain-manager'));
+    }
+
+    // 4) Проверяем настройки мониторинга (включен ли вообще)
+    $monitoring_settings = json_decode($site->monitoring_settings, true);
+    $monitoring_enabled = $project->monitoring_enabled;
+    if (!empty($monitoring_settings)) {
+        // Если настройки сайта есть, смотрим включен ли monitoring и конкретный type
+        $monitoring_enabled = isset($monitoring_settings['enabled']) ? (bool)$monitoring_settings['enabled'] : $monitoring_enabled;
+        if (!$monitoring_enabled || empty($monitoring_settings['types'][$task_type])) {
+            return new WP_Error('monitoring_disabled', __('Monitoring is disabled for this site or task type.', 'spintax-domain-manager'));
+        }
+    } elseif (!$monitoring_enabled) {
+        // Если в сайте нет явных настроек, используем настройку из $project->monitoring_enabled
+        return new WP_Error('monitoring_disabled', __('Monitoring is disabled for this project.', 'spintax-domain-manager'));
+    }
+
+    // 5) Готовим язык как тег (например, 'ru' из 'RU_ru')
+    $language_code = '';
+    if (!empty($site->language)) {
+        $lang_parts = explode('_', $site->language);
+        $language_code = strtolower($lang_parts[0]); 
+    }
+
+    // 6) Получаем учётку HostTracker
+    $account_manager = new SDM_Accounts_Manager();
+    $account = $account_manager->get_account_by_project_and_service($site->project_id, 'HostTracker');
+    if (!$account) {
+        return new WP_Error('account_not_found', __('HostTracker account not found for this project.', 'spintax-domain-manager'));
+    }
+
+    // Расшифровываем credentials
+    $credentials = json_decode(sdm_decrypt($account->additional_data_enc), true);
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-hosttracker-api.php';
+
+    // 7) Получаем токен
+    $token = SDM_HostTracker_API::get_host_tracker_token($credentials);
+    if (!$token) {
+        return new WP_Error('token_error', __('Failed to authenticate with HostTracker.', 'spintax-domain-manager'));
+    }
+
+    // 8) Создаём задачу в HostTracker (передаём язык как тег)
+    $task_id = SDM_HostTracker_API::create_host_tracker_task($token, $domain_url, $task_type, $language_code);
+    if (is_wp_error($task_id)) {
+        return $task_id; // Возвращаем WP_Error
+    }
+
+    // 9) Записываем task_id в sdm_domains
+    $wpdb->update(
+        $wpdb->prefix . 'sdm_domains',
+        array('hosttracker_task_id' => $task_id),
+        array('id' => $domain->id),
+        array('%s'),
+        array('%d')
+    );
+
+    return true;
+}
+
 
     /**
      * Удаление всех задач мониторинга для сайта.

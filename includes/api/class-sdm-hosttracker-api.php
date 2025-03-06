@@ -69,50 +69,76 @@ class SDM_HostTracker_API {
      * @param string $task_type 'RusRegBL' или 'Http' и т.п.
      * @return string|WP_Error Возвращаем task_id или WP_Error
      */
-    public static function create_host_tracker_task($token, $domain_url, $task_type) {
+    public static function create_host_tracker_task($token, $domain_url, $task_type, $language_code = null) {
         if (!$token) {
             $msg = 'HostTracker: no token to create ' . $task_type . ' task.';
             error_log($msg);
             return new WP_Error('no_token', $msg);
         }
 
-        // В зависимости от $task_type делаем разные эндпоинты и тело запроса:
+        // 1) Получаем список подтверждённых контактов
+        $contacts = self::get_host_tracker_contacts($token);
+        $contact_ids = array();
+        if (!is_wp_error($contacts) && !empty($contacts)) {
+            // Вытаскиваем только 'id'
+            $contact_ids = array_column($contacts, 'id');
+        } else {
+            // Если не получилось или пусто — можно логировать и продолжать без подписок
+            error_log('No confirmed contacts found (or error fetching) for domain=' . $domain_url);
+        }
+
+        // 2) Выбираем эндпоинт + базовые поля
         switch ($task_type) {
             case 'RusRegBL':
-                // POST /tasks/rusbl, указывая 'taskType'=>'RusRegBL'
                 $api_url = 'https://api1.host-tracker.com/tasks/rusbl';
-                // Пример тела: (как в «новом» коде)
+                // Пример тела
                 $post_body = array(
-                    'name'     => $domain_url,
-                    'url'      => $domain_url,
-                    'taskType' => 'RusRegBL',
-                    'interval' => 30,
-                    'enabled'  => true,
+                    'name'           => $domain_url,
+                    'url'            => $domain_url,
+                    'taskType'       => 'RusRegBL',
+                    'interval'       => 30,          // мин.
+                    'enabled'        => true,
                     'ignoreWarnings' => true,
                 );
                 break;
 
             case 'Http':
-                // POST /tasks, указывая 'type'=>'Http', 'regions'=>['Russia'], и т.д.
-                // (Этот кусок взят из вашего старого кода, можно поднастроить)
                 $api_url = 'https://api1.host-tracker.com/tasks';
                 $post_body = array(
                     'url'      => $domain_url,
                     'type'     => 'Http',
-                    'interval' => 5,
+                    'interval' => 5, 
                     'regions'  => array('Russia'),
+                    'enabled'  => true,
                 );
-                // Можете добавить 'enabled'=>true и т.д. 
                 break;
 
             default:
-                // Если встречается неизвестный тип, вернём ошибку,
-                // или можете повесить 'Http' по умолчанию
                 $msg = "create_host_tracker_task: unknown task_type=$task_type";
                 error_log($msg);
                 return new WP_Error('unknown_task_type', $msg);
         }
 
+        // 3) Добавим подписки, если есть контакты
+        // В HostTracker "subscriptions" — массив, в котором alertTypes => ["Down"] или "Down,Up" 
+        // (выбирайте по желанию). contactIds => [список ID].
+        if (!empty($contact_ids)) {
+            $post_body['subscriptions'] = array(
+                array(
+                    'alertTypes' => array('Down'), // "Down" или "Up", 
+                    'contactIds' => $contact_ids,
+                )
+            );
+        }
+
+        // 4) Добавим теги (например, язык домена)
+        // Если нужно, например, "ru" / "en" / "de". 
+        // HostTracker позволяет multiple tags => ['ru','projectName']
+        if (!empty($language_code)) {
+            $post_body['tags'] = array($language_code);
+        }
+
+        // 5) Делаем запрос
         $args = array(
             'method'  => 'POST',
             'headers' => array(
@@ -121,11 +147,9 @@ class SDM_HostTracker_API {
             ),
             'body'    => json_encode($post_body),
             'timeout' => 30,
-            // 'sslverify' => false, // Если надо отключить SSL-проверку
         );
 
         $response = wp_remote_post($api_url, $args);
-
         if (is_wp_error($response)) {
             error_log('HostTracker create task error: ' . $response->get_error_message());
             return new WP_Error('api_error', 'Failed to create HostTracker task: ' . $response->get_error_message());
@@ -135,17 +159,14 @@ class SDM_HostTracker_API {
         $data = json_decode($body, true);
         $code = wp_remote_retrieve_response_code($response);
 
-        // У RusRegBL при успешном создании обычно HTTP 201
-        // У Http может быть 200 или 201 – лучше выводить лог
         error_log("create_host_tracker_task($task_type) response code=$code, body=$body");
 
-        // Ищем ID задачи
         if (!empty($data['id'])) {
             return $data['id'];
-        } else {
-            return new WP_Error('api_error', 'Invalid response from HostTracker: ' . $body);
-        }
+        } 
+        return new WP_Error('api_error', 'Invalid response from HostTracker: ' . $body);
     }
+
 
     /**
      * Универсальное удаление задачи. Аналогично старому вызову:
@@ -404,6 +425,47 @@ class SDM_HostTracker_API {
 
         // 4) Получаем токен
         return self::get_host_tracker_token($credentials);
+    }
+
+    public static function get_host_tracker_contacts($token) {
+        if (!$token) {
+            return new WP_Error('no_token', 'No HostTracker token provided.');
+        }
+
+        $url = 'https://api1.host-tracker.com/contacts'; // эндпоинт для контактов
+        $args = array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $token,
+                'Accept'        => 'application/json'
+            ),
+            'method'  => 'GET',
+            'timeout' => 30
+        );
+
+        $response = wp_remote_get($url, $args);
+        if (is_wp_error($response)) {
+            return new WP_Error('ht_contacts_error', 'Error fetching HostTracker contacts: ' . $response->get_error_message());
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+
+        if ($code !== 200) {
+            return new WP_Error('ht_contacts_error', "Failed to fetch contacts (HTTP $code): $body");
+        }
+
+        $data = json_decode($body, true);
+        if (!is_array($data)) {
+            return new WP_Error('ht_contacts_error', 'Unexpected response while fetching contacts: ' . $body);
+        }
+
+        // Оставим только подтверждённые контакты (confirmed=true),
+        // чтобы не «сломать» задачу подписками на непроверенные адреса
+        $confirmed = array_filter($data, function($c){
+            return !empty($c['confirmed']);
+        });
+
+        return array_values($confirmed); // возвращаем «чистый» индексированный массив
     }
 
 

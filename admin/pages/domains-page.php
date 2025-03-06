@@ -19,8 +19,12 @@ $all_projects = $projects_manager->get_all_projects();
 $service_manager = new SDM_Service_Types_Manager();
 $services = $service_manager->get_all_services();
 
-// Текущий проект (через GET)
+// Получаем список сайтов для текущего проекта
 $current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) : 0;
+$sites = [];
+if ($current_project_id > 0) {
+    $sites = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_sites WHERE project_id = %d", $current_project_id));
+}
 
 // Генерируем nonce
 $main_nonce = sdm_create_main_nonce();
@@ -104,20 +108,46 @@ $main_nonce = sdm_create_main_nonce();
     </div>
 
     <!-- Modal for Assigning Domains to Site -->
+    <div id="sdm-assign-to-site-modal" class="sdm-modal sdm-hidden">
+        <div class="sdm-modal-content">
+            <span class="sdm-modal-close" id="sdm-close-assign-modal">×</span>
+            <h2 id="sdm-modal-action-title"><?php esc_html_e('Assign Domains to Site', 'spintax-domain-manager'); ?></h2>
+            <p id="sdm-modal-instruction"><?php esc_html_e('Select a site to assign the domains:', 'spintax-domain-manager'); ?></p>
+            <div class="sdm-form-field">
+                <label for="sdm-assign-site-select"><?php esc_html_e('Site:', 'spintax-domain-manager'); ?></label>
+                <select id="sdm-assign-site-select" class="sdm-select">
+                    <option value=""><?php esc_html_e('— Select a site —', 'spintax-domain-manager'); ?></option>
+                    <?php foreach ($sites as $site) : ?>
+                        <option value="<?php echo esc_attr($site->id); ?>">
+                            <?php echo esc_html($site->site_name); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <h4><?php esc_html_e('Selected Domains:', 'spintax-domain-manager'); ?></h4>
+            <ul id="sdm-selected-domains-list"></ul>
+            <p class="submit">
+                <button id="sdm-assign-confirm" class="button button-primary sdm-action-button"><?php esc_html_e('Confirm', 'spintax-domain-manager'); ?></button>
+                <button id="sdm-assign-cancel" class="button sdm-action-button"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
+            </p>
+        </div>
+    </div>
+
+    <!-- Modal for Editing Accounts -->
     <div id="sdm-edit-modal" class="sdm-modal sdm-hidden" data-debug="Modal for editing accounts">
         <div class="sdm-modal-content">
             <span class="sdm-modal-close">×</span>
-            <h2>Edit Account</h2>
-            <p class="sdm-edit-note">This form is for editing an existing account. Required fields are marked with a yellow border.</p>
+            <h2><?php esc_html_e('Edit Account', 'spintax-domain-manager'); ?></h2>
+            <p class="sdm-edit-note"><?php esc_html_e('This form is for editing an existing account. Required fields are marked with a yellow border.', 'spintax-domain-manager'); ?></p>
             <form id="sdm-edit-account-form" class="sdm-form">
                 <?php sdm_nonce_field(); ?>
                 <div class="sdm-form-fields">
                     <div class="sdm-form-field">
-                        <label for="edit-project_id">Project</label>
+                        <label for="edit-project_id"><?php esc_html_e('Project', 'spintax-domain-manager'); ?></label>
                         <input type="text" name="project_id" id="edit-project_id" class="sdm-input" readonly>
                     </div>
                     <div class="sdm-form-field">
-                        <label for="edit-service">Service</label>
+                        <label for="edit-service"><?php esc_html_e('Service', 'spintax-domain-manager'); ?></label>
                         <select name="service" id="edit-service" class="sdm-select" data-nonce="<?php echo esc_attr($main_nonce); ?>">
                             <?php foreach ($services as $srv) : ?>
                                 <option value="<?php echo esc_attr($srv->service_name); ?>" data-params="<?php echo htmlspecialchars(json_encode(json_decode($srv->additional_params, true), JSON_UNESCAPED_SLASHES)); ?>" data-debug="<?php echo esc_attr($srv->additional_params); ?>">
@@ -128,17 +158,17 @@ $main_nonce = sdm_create_main_nonce();
                     </div>
                     <div id="edit-account-fields"></div>
                     <div class="sdm-form-field">
-                        <label for="edit-account_name">Account Name (optional)</label>
+                        <label for="edit-account_name"><?php esc_html_e('Account Name (optional)', 'spintax-domain-manager'); ?></label>
                         <input type="text" name="account_name" id="edit-account_name" class="sdm-input">
                     </div>
                     <div class="sdm-form-field">
-                        <label for="edit-email">Email (optional)</label>
+                        <label for="edit-email"><?php esc_html_e('Email (optional)', 'spintax-domain-manager'); ?></label>
                         <input type="email" name="email" id="edit-email" class="sdm-input">
                     </div>
                 </div>
                 <p class="submit">
-                    <button type="submit" class="button button-primary sdm-action-button">Save Changes</button>
-                    <button type="button" class="button sdm-action-button sdm-modal-close">Cancel</button>
+                    <button type="submit" class="button button-primary sdm-action-button"><?php esc_html_e('Save Changes', 'spintax-domain-manager'); ?></button>
+                    <button type="button" class="button sdm-action-button sdm-modal-close"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
                 </p>
             </form>
         </div>
