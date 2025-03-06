@@ -108,7 +108,7 @@ $main_nonce = sdm_create_main_nonce();
     </div>
 
     <!-- Modal for Assigning Domains to Site -->
-    <div id="sdm-assign-to-site-modal" class="sdm-modal sdm-hidden">
+    <div id="sdm-assign-to-site-modal" class="sdm-modal">
         <div class="sdm-modal-content">
             <span class="sdm-modal-close" id="sdm-close-assign-modal">×</span>
             <h2 id="sdm-modal-action-title"><?php esc_html_e('Assign Domains to Site', 'spintax-domain-manager'); ?></h2>

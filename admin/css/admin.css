@@ -21,7 +21,7 @@
   --sdm-shadow-medium: rgba(0,0,0,0.15);
 }
 .sdm-hidden {
-  display: none;
+  display: none !important;
 }
 
 /*--------------------------------------------------------------
@@ -139,7 +139,7 @@
 .sdm-input {
     width: 300px;
     padding: 8px;
-    border: 1px solid var(--sdm-gray); /* Используем переменную для серой границы */
+    border: 1px solid var(--sdm-gray);
     border-radius: var(--sdm-border-radius);
     background-color: var(--sdm-bg-light);
     box-sizing: border-box;
@@ -188,7 +188,6 @@
 5. ACTION BUTTONS STYLING
 --------------------------------------------------------------*/
 .sdm-action-button {
-  display: inline-block;
   padding: 6px 12px;
   font-size: 13px;
   border-radius: var(--sdm-border-radius);
@@ -202,7 +201,7 @@
 }
 .sdm-action-button:hover {
   opacity: 0.9;
-  color: var(--sdm-red);
+  color: whitesmoke;
 }
 .sdm-edit {
   background-color: var(--sdm-accent);
@@ -216,6 +215,7 @@
   background-color: var(--sdm-red);
   color: var(--sdm-bg-light);
 }
+
 .sdm-unassign,
 .sdm-test {
   background-color: var(--sdm-yellow);
