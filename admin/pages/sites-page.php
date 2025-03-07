@@ -11,6 +11,9 @@ if (!defined('ABSPATH')) {
 global $wpdb;
 $prefix = $wpdb->prefix;
 
+// Определяем, включён ли мониторинг по умолчанию (можно изменить логику)
+$site_monitoring_enabled = true;
+
 // Получаем список проектов для селектора
 $projects_manager = new SDM_Projects_Manager();
 $all_projects = $projects_manager->get_all_projects();
@@ -148,12 +151,14 @@ $main_nonce = sdm_create_main_nonce();
                                 <?php echo (!$rusregbl_enabled && !$http_enabled) ? 'None' : ''; ?>
                             </span>
                             <div class="sdm-edit-input sdm-hidden">
-                                <label><input type="checkbox" name="monitoring[types][RusRegBL]" <?php checked($rusregbl_enabled); ?>> RusRegBL</label><br>
-                                <label><input type="checkbox" name="monitoring[types][Http]" <?php checked($http_enabled); ?>> Http</label>
-                                <input type="hidden" name="monitoring[enabled]" value="1">
+                                <label>
+                                    <input type="checkbox" name="monitoring[enabled]" value="1" <?php checked($site_monitoring_enabled); ?>>
+                                    <?php esc_html_e('Enable Monitoring', 'spintax-domain-manager'); ?>
+                                </label><br>
+                                <label><input type="checkbox" name="monitoring[types][RusRegBL]" value="1" <?php checked($rusregbl_enabled); ?>> RusRegBL</label><br>
+                                <label><input type="checkbox" name="monitoring[types][Http]" value="1" <?php checked($http_enabled); ?>> Http</label>
                             </div>
                         </td>
-
                         <td><?php echo esc_html($site->created_at); ?></td>
                         <td><?php echo esc_html($site->updated_at); ?></td>
                         <td class="column-actions">
@@ -230,9 +235,12 @@ $main_nonce = sdm_create_main_nonce();
                 <td><input type="text" name="language" id="language" placeholder="EN_en" required></td>
             </tr>
             <tr>
-                <th><label><?php esc_html_e('Monitoring', 'spintax-domain-manager'); ?></label></th>
+                <th><?php esc_html_e('Monitoring', 'spintax-domain-manager'); ?></th>
                 <td>
-                    <label><input type="checkbox" name="monitoring[enabled]" value="1" checked> Enable Monitoring</label><br>
+                    <label>
+                        <input type="checkbox" name="monitoring[enabled]" value="1" <?php checked($site_monitoring_enabled); ?>>
+                        <?php esc_html_e('Enable Monitoring', 'spintax-domain-manager'); ?>
+                    </label><br>
                     <label><input type="checkbox" name="monitoring[types][RusRegBL]" value="1" checked> RusRegBL</label><br>
                     <label><input type="checkbox" name="monitoring[types][Http]" value="1"> Http</label>
                 </td>

@@ -58,16 +58,15 @@ class SDM_HostTracker_API {
         return false;
     }
 
+
     /**
-     * Универсальное создание задачи мониторинга. 
-     * Старый код вызывал:
-     *    SDM_HostTracker_API::create_host_tracker_task($token, $domain_url, $task_type)
-     * Мы внутри сделаем «разветвление» для 'RusRegBL', 'Http' и т.д.
+     * Универсальное создание задачи мониторинга.
      *
-     * @param string $token 
-     * @param string $domain_url
-     * @param string $task_type 'RusRegBL' или 'Http' и т.п.
-     * @return string|WP_Error Возвращаем task_id или WP_Error
+     * @param string      $token         Токен HostTracker.
+     * @param string      $domain_url    URL домена.
+     * @param string      $task_type     Тип задачи ('RusRegBL' или 'Http').
+     * @param string|null $language_code Язык (например, 'ru') для передачи в качестве тега.
+     * @return string|WP_Error Возвращает task_id или WP_Error.
      */
     public static function create_host_tracker_task($token, $domain_url, $task_type, $language_code = null) {
         if (!$token) {
@@ -80,36 +79,43 @@ class SDM_HostTracker_API {
         $contacts = self::get_host_tracker_contacts($token);
         $contact_ids = array();
         if (!is_wp_error($contacts) && !empty($contacts)) {
-            // Вытаскиваем только 'id'
+            // Извлекаем только ID контактов
             $contact_ids = array_column($contacts, 'id');
         } else {
-            // Если не получилось или пусто — можно логировать и продолжать без подписок
             error_log('No confirmed contacts found (or error fetching) for domain=' . $domain_url);
         }
 
-        // 2) Выбираем эндпоинт + базовые поля
+        // 2) Формируем URL и тело запроса в зависимости от типа задачи
         switch ($task_type) {
             case 'RusRegBL':
                 $api_url = 'https://api1.host-tracker.com/tasks/rusbl';
-                // Пример тела
                 $post_body = array(
                     'name'           => $domain_url,
                     'url'            => $domain_url,
                     'taskType'       => 'RusRegBL',
-                    'interval'       => 30,          // мин.
+                    'interval'       => 30,          // интервал в минутах
                     'enabled'        => true,
                     'ignoreWarnings' => true,
                 );
                 break;
 
             case 'Http':
-                $api_url = 'https://api1.host-tracker.com/tasks';
+                // Согласно документации для HTTP задач используем новый эндпоинт
+                $api_url = 'https://api1.host-tracker.com/tasks/http';
                 $post_body = array(
-                    'url'      => $domain_url,
-                    'type'     => 'Http',
-                    'interval' => 5, 
-                    'regions'  => array('Russia'),
-                    'enabled'  => true,
+                    "url"                     => $domain_url,
+                    "httpMethod"              => "Get",
+                    "followRedirect"          => true,
+                    "treat300AsError"         => false,
+                    "checkDnsbl"              => false,
+                    "checkDomainExpiration"   => false,
+                    "checkCertificateExpiration" => false,
+                    "timeout"                 => 40000,         // миллисекунды
+                    "keywords"                => array("rkn.gov.ru", "№149-ФЗ"),
+                    "keywordMode"             => "ReverseAny",
+                    "interval"                => 60,            // интервал в минутах
+                    "enabled"                 => true,
+                    "agentPools"              => array("russia")
                 );
                 break;
 
@@ -119,26 +125,22 @@ class SDM_HostTracker_API {
                 return new WP_Error('unknown_task_type', $msg);
         }
 
-        // 3) Добавим подписки, если есть контакты
-        // В HostTracker "subscriptions" — массив, в котором alertTypes => ["Down"] или "Down,Up" 
-        // (выбирайте по желанию). contactIds => [список ID].
+        // 3) Добавляем подписки, если есть контакты
         if (!empty($contact_ids)) {
             $post_body['subscriptions'] = array(
                 array(
-                    'alertTypes' => array('Down'), // "Down" или "Up", 
+                    'alertTypes' => array('Down'),
                     'contactIds' => $contact_ids,
                 )
             );
         }
 
-        // 4) Добавим теги (например, язык домена)
-        // Если нужно, например, "ru" / "en" / "de". 
-        // HostTracker позволяет multiple tags => ['ru','projectName']
+        // 4) Добавляем теги (например, язык домена)
         if (!empty($language_code)) {
             $post_body['tags'] = array($language_code);
         }
 
-        // 5) Делаем запрос
+        // 5) Выполняем запрос к HostTracker
         $args = array(
             'method'  => 'POST',
             'headers' => array(
@@ -167,46 +169,6 @@ class SDM_HostTracker_API {
         return new WP_Error('api_error', 'Invalid response from HostTracker: ' . $body);
     }
 
-
-    /**
-     * Универсальное удаление задачи. Аналогично старому вызову:
-     *   SDM_HostTracker_API::delete_host_tracker_task($token, $task_id)
-     * Теперь добавим $task_type, если нужно другое поведение для RusRegBL/Http.
-     */
-    public static function delete_host_tracker_task($token, $task_id, $task_type = 'RusRegBL') {
-        if (!$token) {
-            error_log("delete_host_tracker_task: no token for $task_id, type=$task_type");
-            return false;
-        }
-
-        // На практике для RusRegBL и Http – удаление одинаковое:
-        // DELETE /tasks?ids=TASK_ID
-        // HostTracker API, как правило, не требует отличать тип
-        // Но если есть разные эндпоинты, сделайте switch.
-        $url = "https://api1.host-tracker.com/tasks?ids=" . urlencode($task_id);
-
-        $args = array(
-            'method' => 'DELETE',
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type'  => 'application/json',
-            ),
-            'timeout' => 30,
-        );
-
-        $response = wp_remote_request($url, $args);
-        if (is_wp_error($response)) {
-            error_log('delete_host_tracker_task error: ' . $response->get_error_message());
-            return false;
-        }
-
-        $code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        error_log("delete_host_tracker_task($task_id, $task_type) code=$code, body=$body");
-
-        // Успешное удаление – это 200 или 204
-        return in_array($code, array(200, 204), true);
-    }
 
     /**
      * Получение всех задач с HostTracker и фильтрация по $task_type.
@@ -467,6 +429,47 @@ class SDM_HostTracker_API {
 
         return array_values($confirmed); // возвращаем «чистый» индексированный массив
     }
+
+    /**
+     * Универсальное удаление задачи.
+     *
+     * @param string $token  Токен HostTracker.
+     * @param string $task_id Идентификатор задачи.
+     * @param string $task_type Тип задачи ('RusRegBL' или 'Http').
+     * @return bool True, если удаление прошло успешно, иначе false.
+     */
+    public static function delete_host_tracker_task($token, $task_id, $task_type = 'RusRegBL') {
+        if (!$token) {
+            error_log("delete_host_tracker_task: no token for task_id=$task_id, type=$task_type");
+            return false;
+        }
+        
+        // Формируем URL для удаления задачи
+        $url = "https://api1.host-tracker.com/tasks?ids=" . urlencode($task_id);
+        
+        $args = array(
+            'method'  => 'DELETE',
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type'  => 'application/json',
+            ),
+            'timeout' => 30,
+        );
+        
+        $response = wp_remote_request($url, $args);
+        if (is_wp_error($response)) {
+            error_log("delete_host_tracker_task error: " . $response->get_error_message());
+            return false;
+        }
+        
+        $code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        error_log("delete_host_tracker_task($task_id, $task_type) code=$code, body=$body");
+        
+        // Успешное удаление должно вернуть 200 или 204
+        return in_array($code, array(200, 204), true);
+    }
+
 
 
 }

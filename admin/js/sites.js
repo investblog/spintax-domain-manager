@@ -4,11 +4,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var mainNonce = mainNonceField ? mainNonceField.value : '';
     console.log('Main nonce:', mainNonce);
 
-    // Get current project ID from the selector to check if a project is selected
+    // Get current project ID from the selector
     var projectSelector = document.getElementById('sdm-project-selector');
     var currentProjectId = projectSelector ? parseInt(projectSelector.value) : 0;
 
-    // Handle "Add New Site" Form Submission via AJAX with domain assignment
+    // Handle "Add New Site" Form Submission via AJAX
     var addSiteForm = document.getElementById('sdm-add-site-form');
     if (addSiteForm) {
         addSiteForm.addEventListener('submit', function(e) {
