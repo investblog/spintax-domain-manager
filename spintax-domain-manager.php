@@ -3,7 +3,7 @@
  * Plugin Name:       Spintax Domain Manager
  * Plugin URI:        https://spintax.net/domain_manager
  * Description:       A WordPress plugin for managing domains, redirects, and external API integrations.
- * Version:           1.0.0
+ * Version:           1.0.2
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Divisor & ChatGPT
@@ -34,6 +34,8 @@ add_action('plugins_loaded', 'sdm_load_textdomain');
 require_once SDM_PLUGIN_DIR . 'includes/database.php';
 require_once SDM_PLUGIN_DIR . 'includes/common-functions.php';
 require_once SDM_PLUGIN_DIR . 'includes/encryption.php';
+require_once SDM_PLUGIN_DIR . 'includes/cron.php';
+
 
 // Include managers (CRUD operations, API integrations, etc.)
 require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-projects-manager.php';
