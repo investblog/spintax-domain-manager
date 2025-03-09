@@ -501,4 +501,28 @@ class SDM_Cloudflare_API {
 
         return $credentials;
     }
+
+    /**
+     * Ищет зону по доменному имени.
+     *
+     * @param string $domain Доменное имя, по которому ищем зону.
+     * @return array|WP_Error Массив с данными зоны или WP_Error, если зона не найдена.
+     */
+    public function get_zone_by_domain( $domain ) {
+        // Получаем все зоны из CloudFlare.
+        $zones = $this->get_zones();
+        if ( is_wp_error( $zones ) ) {
+            return $zones;
+        }
+        
+        // Перебираем зоны и ищем совпадение по имени.
+        foreach ( $zones as $zone ) {
+            if ( isset( $zone['name'] ) && strtolower( $zone['name'] ) === strtolower( $domain ) ) {
+                return $zone;
+            }
+        }
+        
+        return new WP_Error( 'zone_not_found', sprintf( __( 'Zone for domain "%s" not found.', 'spintax-domain-manager' ), $domain ) );
+    }
+
 }
