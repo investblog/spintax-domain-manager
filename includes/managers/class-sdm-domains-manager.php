@@ -398,6 +398,111 @@ class SDM_Domains_Manager {
             'message' => sprintf(__('%d domains updated, %d failed.', 'spintax-domain-manager'), $success, $failed)
         ];
     }
+
+        public function mass_add_domains( $project_id, $domain_list ) {
+        global $wpdb;
+        $project_id = absint( $project_id );
+        if ( $project_id <= 0 ) {
+            return array( 'error' => __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+        }
+
+        // Получаем ID сервиса CloudFlare
+        $cf_service_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}sdm_service_types 
+             WHERE service_name IN (%s, %s) 
+             LIMIT 1",
+            'CloudFlare (API Key)', 'CloudFlare (OAuth)'
+        ));
+        if ( empty( $cf_service_id ) ) {
+            return array( 'error' => __( 'Cloudflare service is not configured.', 'spintax-domain-manager' ) );
+        }
+
+        // Получаем CloudFlare аккаунт для проекта
+        $account = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}sdm_accounts 
+             WHERE project_id = %d 
+               AND service_id = %d 
+             LIMIT 1",
+            $project_id,
+            $cf_service_id
+        ));
+        if ( ! $account ) {
+            return array( 'error' => __( 'No CloudFlare account found for this project.', 'spintax-domain-manager' ) );
+        }
+        if ( empty( $account->email ) || empty( $account->api_key_enc ) ) {
+            return array( 'error' => __( 'Incomplete CloudFlare credentials in account.', 'spintax-domain-manager' ) );
+        }
+        $api_key = sdm_decrypt( $account->api_key_enc );
+        $credentials = array(
+            'email'   => $account->email,
+            'api_key' => $api_key,
+        );
+
+        // Подключаем CloudFlare API
+        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
+        $cf_api = new SDM_Cloudflare_API( $credentials );
+
+        $inserted = 0;
+        $errors   = array();
+
+        foreach ( $domain_list as $domain ) {
+            $domain = trim( $domain );
+            if ( empty( $domain ) ) {
+                continue;
+            }
+
+            // Добавляем зону через CloudFlare API
+            $result = $cf_api->add_zone( $domain );
+            if ( is_wp_error( $result ) ) {
+                $errors[] = sprintf( __( 'Error adding %s: %s', 'spintax-domain-manager' ), $domain, $result->get_error_message() );
+                continue;
+            }
+
+            // Получаем cf_zone_id из ответа (предполагается, что ответ содержит ключ result)
+            $zone_id = isset( $result['result']['id'] ) ? $result['result']['id'] : '';
+            if ( empty( $zone_id ) ) {
+                $errors[] = sprintf( __( 'Error adding %s: no zone ID returned.', 'spintax-domain-manager' ), $domain );
+                continue;
+            }
+
+            // Проверяем, существует ли уже запись для этого домена
+            $existing_id = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}sdm_domains
+                 WHERE project_id = %d AND domain = %s
+                 LIMIT 1",
+                $project_id, $domain
+            ) );
+
+            $data = array(
+                'project_id' => $project_id,
+                'domain'     => $domain,
+                'cf_zone_id' => $zone_id,
+                'status'     => 'active',
+                'updated_at' => current_time( 'mysql' ),
+            );
+
+            if ( $existing_id ) {
+                $wpdb->update(
+                    $wpdb->prefix . 'sdm_domains',
+                    $data,
+                    array( 'id' => $existing_id )
+                );
+            } else {
+                $data['created_at'] = current_time( 'mysql' );
+                $wpdb->insert(
+                    $wpdb->prefix . 'sdm_domains',
+                    $data
+                );
+            }
+            $inserted++;
+        }
+
+        return array(
+            'inserted' => $inserted,
+            'errors'   => $errors,
+        );
+    }
+
 }/*<-- Last! */
 
 /**
@@ -766,3 +871,34 @@ function sdm_ajax_mass_action() {
     }
 }
 add_action('wp_ajax_sdm_mass_action', 'sdm_ajax_mass_action');
+
+function sdm_ajax_mass_add_domains() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $project_id = isset( $_POST['project_id'] ) ? absint( $_POST['project_id'] ) : 0;
+    if ( $project_id <= 0 ) {
+        wp_send_json_error( __( 'Invalid project ID.', 'spintax-domain-manager' ) );
+    }
+
+    $domain_list = isset( $_POST['domain_list'] ) ? json_decode( stripslashes( $_POST['domain_list'] ), true ) : array();
+    if ( empty( $domain_list ) ) {
+        wp_send_json_error( __( 'No domains provided.', 'spintax-domain-manager' ) );
+    }
+
+    $manager = new SDM_Domains_Manager();
+    $result = $manager->mass_add_domains( $project_id, $domain_list );
+
+    if ( isset( $result['error'] ) ) {
+        wp_send_json_error( $result['error'] );
+    }
+
+    $message = sprintf( __( 'Added %d domains to CloudFlare.', 'spintax-domain-manager' ), $result['inserted'] );
+    if ( ! empty( $result['errors'] ) ) {
+        $message .= ' ' . implode( ' | ', $result['errors'] );
+    }
+    wp_send_json_success( array( 'message' => $message ) );
+}
+add_action( 'wp_ajax_sdm_mass_add_domains', 'sdm_ajax_mass_add_domains' );

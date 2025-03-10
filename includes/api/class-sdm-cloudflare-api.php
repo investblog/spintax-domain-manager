@@ -525,4 +525,46 @@ class SDM_Cloudflare_API {
         return new WP_Error( 'zone_not_found', sprintf( __( 'Zone for domain "%s" not found.', 'spintax-domain-manager' ), $domain ) );
     }
 
+        public function add_zone( $domain ) {
+        $url = trailingslashit( $this->endpoint ) . 'zones';
+        $headers = array();
+        if ( ! empty( $this->credentials['email'] ) && ! empty( $this->credentials['api_key'] ) ) {
+            $headers['X-Auth-Email'] = $this->credentials['email'];
+            $headers['X-Auth-Key']   = $this->credentials['api_key'];
+        } elseif ( ! empty( $this->credentials['token'] ) ) {
+            $headers['Authorization'] = 'Bearer ' . $this->credentials['token'];
+        } else {
+            return new WP_Error( 'invalid_credentials', __( 'No valid CloudFlare credentials provided.', 'spintax-domain-manager' ) );
+        }
+        $headers['Content-Type'] = 'application/json';
+
+        $body = wp_json_encode( array(
+            'name'       => $domain,
+            'jump_start' => true, // Если хотите сразу начать сканирование DNS-записей
+        ) );
+
+        $args = array(
+            'method'  => 'POST',
+            'headers' => $headers,
+            'body'    => $body,
+            'timeout' => 20,
+        );
+
+        $response = wp_remote_request( $url, $args );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+        $code = wp_remote_retrieve_response_code( $response );
+        $json = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( $code < 200 || $code >= 300 ) {
+            $message = sprintf( __( 'CloudFlare API responded with error code %d', 'spintax-domain-manager' ), $code );
+            if ( isset( $json['errors'][0]['message'] ) ) {
+                $message .= ' - ' . $json['errors'][0]['message'];
+            }
+            return new WP_Error( 'api_error', $message );
+        }
+        return $json;
+    }
+
+
 }
