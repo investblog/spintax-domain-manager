@@ -12,6 +12,8 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       spintax-domain-manager
  * Domain Path:       /languages
+ * GitHub Plugin URI: https://github.com/investblog/spintax-domain-manager
+ * GitHub Branch: main
  */
 
 if (!defined('ABSPATH')) {
