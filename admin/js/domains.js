@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('sort_direction', sortDirectionParam);
         formData.append('search_term', searchTerm);
         if (isBlockedSort) {
-            formData.append('is_blocked_sort', '1'); // Указываем, что сортируем "blocked"
+            formData.append('is_blocked_sort', '1');
         }
         formData.append('sdm_main_nonce_field', mainNonce);
 
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(function(data) {
-            console.log('Data:', data); // Отладка
+            console.log('Data:', data);
             if (data.success) {
                 container.innerHTML = data.data.html;
                 initializeDynamicListeners();
@@ -224,7 +224,6 @@ document.addEventListener('DOMContentLoaded', function() {
             selectAllCheckbox.addEventListener('change', function() {
                 var checked = this.checked;
                 domainCheckboxes.forEach(function(cb) {
-                    // Skip main domains
                     var row = cb.closest('tr');
                     var isMainDomain = row.querySelector('.sdm-main-domain-icon') !== null;
                     if (!isMainDomain) {
@@ -243,26 +242,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                if (action === 'mass_add') {
-                    openMassAddModal(); // Open modal directly without requiring domain selection
-                    return;
-                }
-
                 var selected = [];
                 document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                     var row = cb.closest('tr');
-                    // Skip main domains
                     var isMainDomain = row.querySelector('.sdm-main-domain-icon') !== null;
                     if (!isMainDomain) {
                         selected.push(cb.value);
                     }
                 });
+
                 if (selected.length === 0 && action !== 'mass_add') {
                     alert('No domains selected (main domains are excluded).');
                     return;
                 }
 
-                if (action === 'assign_site') {
+                if (action === 'mass_add') {
+                    openMassAddModal();
+                    return;
+                }
+
+                if (['assign_site', 'set_abuse_status', 'set_blocked_provider', 'set_blocked_government', 'clear_blocked'].includes(action)) {
                     openAssignToSiteModal(selected, action);
                     return;
                 }
@@ -316,7 +315,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 sortDirection[columnName] = direction;
 
                 if (currentProjectId > 0) {
-                    // Для колонки "blocked" преобразуем значения в числовой формат (Yes -> 1, No -> 0)
                     if (columnName === 'blocked') {
                         fetchDomains(currentProjectId, columnName, direction, '', true);
                     } else {
@@ -402,6 +400,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var selectedDomainsList = document.getElementById('sdm-selected-domains-list');
     var modalActionTitle = document.getElementById('sdm-modal-action-title');
     var modalInstruction = document.getElementById('sdm-modal-instruction');
+    var massActionOptions = document.getElementById('sdm-mass-action-options');
 
     function openAssignToSiteModal(domainIds, action) {
         if (selectedDomainsList) {
@@ -417,11 +416,67 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        if (action === 'assign_site') {
-            modalActionTitle.textContent = 'Assign Domains to Site';
-            modalInstruction.textContent = 'Select a site to assign the domains:';
-            siteSelect.disabled = false;
-            siteSelect.value = '';
+        // Динамически меняем текст кнопки "Confirm" и контент в зависимости от действия
+        var confirmButtonText = '';
+        if (siteSelect) siteSelect.disabled = false; // Разблокируем селект по умолчанию
+        massActionOptions.style.display = 'none'; // Скрываем дополнительные опции по умолчанию
+
+        switch (action) {
+            case 'assign_site':
+                modalActionTitle.textContent = 'Assign Domains to Site';
+                modalInstruction.textContent = 'Select a site to assign the domains:';
+                if (siteSelect) {
+                    siteSelect.style.display = 'block'; // Показываем селект
+                    siteSelect.value = ''; // Сбрасываем выбор
+                }
+                confirmButtonText = 'Assign';
+                break;
+            case 'set_abuse_status':
+                modalActionTitle.textContent = 'Set Abuse Status';
+                modalInstruction.textContent = 'Select an abuse status for the selected domains:';
+                if (siteSelect) siteSelect.style.display = 'none'; // Скрываем селект
+                massActionOptions.style.display = 'block';
+                massActionOptions.innerHTML = `
+                    <label for="sdm-abuse-status-select">Abuse Status:</label>
+                    <select id="sdm-abuse-status-select" class="sdm-select">
+                        <option value="clean">Clean</option>
+                        <option value="phishing">Phishing</option>
+                        <option value="malware">Malware</option>
+                        <option value="spam">Spam</option>
+                        <option value="other">Other</option>
+                    </select>
+                `;
+                confirmButtonText = 'Set Status';
+                break;
+            case 'set_blocked_provider':
+                modalActionTitle.textContent = 'Block by Provider';
+                modalInstruction.textContent = 'Confirm blocking the selected domains by provider.';
+                if (siteSelect) siteSelect.style.display = 'none';
+                massActionOptions.style.display = 'block';
+                massActionOptions.innerHTML = '<p>No additional options required.</p>';
+                confirmButtonText = 'Block';
+                break;
+            case 'set_blocked_government':
+                modalActionTitle.textContent = 'Block by Government';
+                modalInstruction.textContent = 'Confirm blocking the selected domains by government.';
+                if (siteSelect) siteSelect.style.display = 'none';
+                massActionOptions.style.display = 'block';
+                massActionOptions.innerHTML = '<p>No additional options required.</p>';
+                confirmButtonText = 'Block';
+                break;
+            case 'clear_blocked':
+                modalActionTitle.textContent = 'Clear Blocked Status';
+                modalInstruction.textContent = 'Confirm clearing the blocked status for the selected domains.';
+                if (siteSelect) siteSelect.style.display = 'none';
+                massActionOptions.style.display = 'block';
+                massActionOptions.innerHTML = '<p>No additional options required.</p>';
+                confirmButtonText = 'Clear';
+                break;
+        }
+
+        // Устанавливаем текст кнопки
+        if (assignConfirm && confirmButtonText) {
+            assignConfirm.textContent = confirmButtonText;
         }
 
         assignModal.style.display = 'block';
@@ -429,12 +484,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function closeAssignToSiteModal() {
         assignModal.style.display = 'none';
+        // Возвращаем кнопке "Confirm" её исходный текст
+        if (assignConfirm && assignConfirm.dataset.defaultText) {
+            assignConfirm.textContent = assignConfirm.dataset.defaultText;
+        }
+        // Скрываем дополнительные опции
+        if (massActionOptions) massActionOptions.style.display = 'none';
+        if (siteSelect) siteSelect.style.display = 'none'; // Скрываем селект при закрытии
     }
 
     if (assignConfirm) {
         assignConfirm.addEventListener('click', function(e) {
             e.preventDefault();
-            var action = 'assign_site';
+            var action = document.getElementById('sdm-mass-action-select').value;
             var selected = [];
             document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                 var row = cb.closest('tr');
@@ -443,17 +505,35 @@ document.addEventListener('DOMContentLoaded', function() {
                     selected.push(cb.value);
                 }
             });
+
             if (selected.length === 0) {
                 alert('No domains selected (main domains are excluded).');
                 return;
             }
 
             var formData = new FormData();
-            formData.append('action', 'sdm_assign_domains_to_site');
+            formData.append('action', 'sdm_mass_action');
+            formData.append('mass_action', action);
             formData.append('domain_ids', JSON.stringify(selected));
-            formData.append('site_id', siteSelect.value);
             formData.append('project_id', currentProjectId);
             formData.append('sdm_main_nonce_field', mainNonce);
+
+            if (action === 'assign_site') {
+                if (siteSelect && siteSelect.value) {
+                    formData.append('site_id', siteSelect.value);
+                } else {
+                    alert('Please select a site.');
+                    return;
+                }
+            } else if (action === 'set_abuse_status') {
+                var abuseSelect = document.getElementById('sdm-abuse-status-select');
+                if (abuseSelect) {
+                    formData.append('abuse_status', abuseSelect.value);
+                } else {
+                    alert('Abuse status selection is missing.');
+                    return;
+                }
+            }
 
             var spinner = document.createElement('span');
             spinner.className = 'spinner is-active';
@@ -479,7 +559,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(function(error) {
-                console.error('Assign domains error:', error);
+                console.error('Mass action error:', error);
                 showDomainsNotice('error', 'Ajax request failed.');
                 spinner.remove();
             });
@@ -527,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function() {
             spinner.style.margin = '0 5px';
             searchInput.parentNode.appendChild(spinner);
 
-            setTimeout(() => spinner.remove(), 300); // Remove spinner after debounce delay
+            setTimeout(() => spinner.remove(), 300);
         });
     }
 

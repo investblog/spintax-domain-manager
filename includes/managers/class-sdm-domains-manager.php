@@ -334,16 +334,69 @@ class SDM_Domains_Manager {
         return true;
     }
 
-    /**
-     * Returns the total number of domains in the sdm_domains table.
-     *
-     * @return int Total count of domains.
-     */
-    public function count_domains() {
+        /**
+         * Returns the total number of domains in the sdm_domains table.
+         *
+         * @return int Total count of domains.
+         */
+        public function count_domains() {
+            global $wpdb;
+            $table = $wpdb->prefix . 'sdm_domains';
+            $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+            return intval($count);
+        }
+
+        public function mass_update_domains($domain_ids, $action, $options = []) {
         global $wpdb;
-        $table = $wpdb->prefix . 'sdm_domains';
-        $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-        return intval($count);
+        
+        $success = 0;
+        $failed = 0;
+
+        foreach ($domain_ids as $domain_id) {
+            $domain_id = absint($domain_id);
+            $data = ['updated_at' => current_time('mysql')];
+
+            switch ($action) {
+                case 'set_abuse_status':
+                    $abuse_status = $options['abuse_status'] ?? 'clean';
+                    if (in_array($abuse_status, ['clean', 'phishing', 'malware', 'spam', 'other'])) {
+                        $data['abuse_status'] = $abuse_status;
+                    }
+                    break;
+                case 'set_blocked_provider':
+                    $data['is_blocked_provider'] = 1;
+                    $data['is_blocked_government'] = 0;
+                    break;
+                case 'set_blocked_government':
+                    $data['is_blocked_provider'] = 0;
+                    $data['is_blocked_government'] = 1;
+                    break;
+                case 'clear_blocked':
+                    $data['is_blocked_provider'] = 0;
+                    $data['is_blocked_government'] = 0;
+                    break;
+            }
+
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'sdm_domains',
+                $data,
+                ['id' => $domain_id],
+                array_fill(0, count($data), '%s'),
+                ['%d']
+            );
+
+            if (false !== $updated) {
+                $success++;
+            } else {
+                $failed++;
+            }
+        }
+
+        return [
+            'success' => $success,
+            'failed' => $failed,
+            'message' => sprintf(__('%d domains updated, %d failed.', 'spintax-domain-manager'), $success, $failed)
+        ];
     }
 }/*<-- Last! */
 
@@ -505,7 +558,6 @@ function sdm_ajax_fetch_domains_list() {
     // Fetch domains with sorting
     $order_by = "ORDER BY ";
     if ($is_blocked_sort && $sort_column === 'blocked') {
-        // Преобразуем "Yes"/"No" в числовые значения для сортировки (Yes -> 1, No -> 0)
         $order_by .= "CASE WHEN (d.is_blocked_provider OR d.is_blocked_government) THEN 1 ELSE 0 END " . esc_sql($sort_direction);
     } else {
         $order_by .= esc_sql($sort_column) . " " . esc_sql($sort_direction);
@@ -520,9 +572,6 @@ function sdm_ajax_fetch_domains_list() {
             ...$params
         )
     );
-
-    // Отладка: выведем количество найденных доменов
-    echo '<!-- Debug: Found ' . count($domains) . ' domains -->';
 
     ?>
     <table class="wp-list-table widefat fixed striped sdm-table" id="sdm-domains-table">
@@ -620,13 +669,17 @@ function sdm_ajax_fetch_domains_list() {
     <!-- Mass Actions Panel -->
     <div class="sdm-mass-actions" style="margin: 20px 0;">
         <select id="sdm-mass-action-select" class="sdm-select">
-            <option value="">Select Mass Action</option>
-            <option value="sync_ns">Sync NS-Servers</option>
-            <option value="assign_site">Assign to Site</option>
-            <option value="sync_status">Sync Statuses</option>
-            <option value="mass_add">Add Domains</option>
+            <option value=""><?php esc_html_e('Select Mass Action', 'spintax-domain-manager'); ?></option>
+            <option value="sync_ns"><?php esc_html_e('Sync NS-Servers', 'spintax-domain-manager'); ?></option>
+            <option value="assign_site"><?php esc_html_e('Assign to Site', 'spintax-domain-manager'); ?></option>
+            <option value="sync_status"><?php esc_html_e('Sync Statuses', 'spintax-domain-manager'); ?></option>
+            <option value="mass_add"><?php esc_html_e('Add Domains', 'spintax-domain-manager'); ?></option>
+            <option value="set_abuse_status"><?php esc_html_e('Set Abuse Status', 'spintax-domain-manager'); ?></option>
+            <option value="set_blocked_provider"><?php esc_html_e('Block by Provider', 'spintax-domain-manager'); ?></option>
+            <option value="set_blocked_government"><?php esc_html_e('Block by Government', 'spintax-domain-manager'); ?></option>
+            <option value="clear_blocked"><?php esc_html_e('Clear Blocked Status', 'spintax-domain-manager'); ?></option>
         </select>
-        <button id="sdm-mass-action-apply" class="button button-primary sdm-action-button">Apply</button>
+        <button id="sdm-mass-action-apply" class="button button-primary sdm-action-button"><?php esc_html_e('Apply', 'spintax-domain-manager'); ?></button>
     </div>
     <?php
 
@@ -679,3 +732,37 @@ function sdm_ajax_validate_domain() {
     wp_send_json_success(__('Domain is valid and available.', 'spintax-domain-manager'));
 }
 add_action('wp_ajax_sdm_validate_domain', 'sdm_ajax_validate_domain');
+
+function sdm_ajax_mass_action() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $action = isset($_POST['mass_action']) ? sanitize_text_field($_POST['mass_action']) : '';
+    $domain_ids = isset($_POST['domain_ids']) ? json_decode(stripslashes($_POST['domain_ids']), true) : [];
+    $options = [];
+
+    if (empty($domain_ids) || empty($action)) {
+        wp_send_json_error(__('Invalid data provided.', 'spintax-domain-manager'));
+    }
+
+    if ($action === 'assign_site') {
+        $site_id = isset($_POST['site_id']) ? absint($_POST['site_id']) : 0;
+        $manager = new SDM_Domains_Manager();
+        $result = $manager->assign_domains_to_site($domain_ids, $site_id);
+    } else {
+        if ($action === 'set_abuse_status') {
+            $options['abuse_status'] = isset($_POST['abuse_status']) ? sanitize_text_field($_POST['abuse_status']) : 'clean';
+        }
+        $manager = new SDM_Domains_Manager();
+        $result = $manager->mass_update_domains($domain_ids, $action, $options);
+    }
+
+    if ($result['success'] > 0) {
+        wp_send_json_success(['message' => $result['message']]);
+    } else {
+        wp_send_json_error($result['message']);
+    }
+}
+add_action('wp_ajax_sdm_mass_action', 'sdm_ajax_mass_action');

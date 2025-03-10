@@ -107,12 +107,12 @@ $main_nonce = sdm_create_main_nonce();
         </div>
     </div>
 
-    <!-- Modal for Assigning Domains to Site -->
+    <!-- Modal for Assigning Domains to Site or Setting Abuse/Block Status -->
     <div id="sdm-assign-to-site-modal" class="sdm-modal">
         <div class="sdm-modal-content">
             <span class="sdm-modal-close" id="sdm-close-assign-modal">×</span>
-            <h2 id="sdm-modal-action-title"><?php esc_html_e('Assign Domains to Site', 'spintax-domain-manager'); ?></h2>
-            <p id="sdm-modal-instruction"><?php esc_html_e('Select a site to assign the domains:', 'spintax-domain-manager'); ?></p>
+            <h2 id="sdm-modal-action-title"><?php esc_html_e('Mass Action', 'spintax-domain-manager'); ?></h2>
+            <p id="sdm-modal-instruction"><?php esc_html_e('Configure the mass action:', 'spintax-domain-manager'); ?></p>
             <div class="sdm-form-field">
                 <label for="sdm-assign-site-select"><?php esc_html_e('Site:', 'spintax-domain-manager'); ?></label>
                 <select id="sdm-assign-site-select" class="sdm-select">
@@ -124,10 +124,15 @@ $main_nonce = sdm_create_main_nonce();
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="sdm-form-field" id="sdm-mass-action-options" style="display: none;">
+                <!-- Динамическое заполнение для других действий через JS -->
+            </div>
             <h4><?php esc_html_e('Selected Domains:', 'spintax-domain-manager'); ?></h4>
             <ul id="sdm-selected-domains-list"></ul>
             <p class="submit">
-                <button id="sdm-assign-confirm" class="button button-primary sdm-action-button"><?php esc_html_e('Confirm', 'spintax-domain-manager'); ?></button>
+                <button id="sdm-assign-confirm" class="button button-primary sdm-action-button" data-default-text="<?php esc_attr_e('Confirm', 'spintax-domain-manager'); ?>">
+                    <?php esc_html_e('Confirm', 'spintax-domain-manager'); ?>
+                </button>
                 <button id="sdm-assign-cancel" class="button sdm-action-button"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
             </p>
         </div>
