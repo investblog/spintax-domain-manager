@@ -390,9 +390,7 @@ class SDM_Cloudflare_API {
         $rules = array();
         foreach ( $rows as $row ) {
             $final_target = $row->target_url;
-            // etc... (Логика не менялась)
-            // Для примера: используем eq "/"
-            $expression = '(http.request.uri.path eq "/")';
+            $expression = '(http.request.uri.path wildcard r"/*")';
 
             $rules[] = array(
                 'action'      => 'redirect',
