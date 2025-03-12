@@ -644,6 +644,17 @@ function sdm_ajax_fetch_domains_list() {
     $prefix = $wpdb->prefix;
     ob_start();
 
+    // Проверка наличия сервиса Mail-in-a-Box для проекта
+        $mail_in_a_box_enabled = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$prefix}sdm_accounts a 
+                 JOIN {$prefix}sdm_service_types s ON a.service_id = s.id 
+                 WHERE a.project_id = %d AND s.service_name = 'Mail-in-a-Box' 
+                 AND a.additional_data_enc IS NOT NULL AND a.additional_data_enc != ''",
+                $project_id
+            )
+        ) > 0;
+
     // Build WHERE clause for search
     $where = "WHERE d.project_id = %d";
     $params = [$project_id];
@@ -701,18 +712,12 @@ function sdm_ajax_fetch_domains_list() {
                     $is_blocked = ($domain->is_blocked_provider || $domain->is_blocked_government);
                     $is_assigned = !empty($domain->site_id);
                     $is_main_domain = in_array($domain->domain, $main_domains);
+                    // Проверяем статус форвардинга (пока статически, позже через API)
+                    $has_forwarding = false; // Будет обновлено через API
                     ?>
                     <tr id="domain-row-<?php echo esc_attr($domain->id); ?>"
                         data-domain-id="<?php echo esc_attr($domain->id); ?>"
-                        data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
-                        data-site-id="<?php echo esc_attr($domain->site_id); ?>"
-                        data-domain="<?php echo esc_attr($domain->domain); ?>"
-                        data-site-name="<?php echo esc_attr($domain->site_name ?: ''); ?>"
-                        data-abuse-status="<?php echo esc_attr($domain->abuse_status); ?>"
-                        data-blocked="<?php echo esc_attr($is_blocked ? 'Yes' : 'No'); ?>"
-                        data-status="<?php echo esc_attr($domain->status); ?>"
-                        data-last-checked="<?php echo esc_attr($domain->last_checked); ?>"
-                        data-created-at="<?php echo esc_attr($domain->created_at); ?>">
+                        data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>">
                         <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
                             <?php echo esc_html($domain->domain); ?>
                         </td>
@@ -744,7 +749,7 @@ function sdm_ajax_fetch_domains_list() {
                         <td><?php echo esc_html($domain->last_checked); ?></td>
                         <td><?php echo esc_html($domain->created_at); ?></td>
                         <td>
-                            <?php if ($is_active) : ?>
+                            <?php if ($is_active && $mail_in_a_box_enabled) : ?>
                                 <?php if ($is_assigned && !$is_main_domain) : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                     <button type="button" class="sdm-action-button sdm-unassign sdm-mini-icon" data-domain-id="<?php echo esc_attr($domain->id); ?>" title="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>">
@@ -755,6 +760,18 @@ function sdm_ajax_fetch_domains_list() {
                                 <?php else : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                 <?php endif; ?>
+                                <button type="button" class="sdm-action-button sdm-mini-icon sdm-email-forwarding <?php echo $has_forwarding ? 'sdm-email-active' : ''; ?>" data-domain-id="<?php echo esc_attr($domain->id); ?>" data-domain="<?php echo esc_attr($domain->domain); ?>" title="<?php esc_attr_e('Set Email Forwarding', 'spintax-domain-manager'); ?>">
+                                    <?php
+                                    $email_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/email.svg');
+                                    if ($email_svg) {
+                                        echo wp_kses($email_svg, array('svg' => array('width' => true, 'height' => true, 'viewBox' => true), 'path' => array('d' => true, 'fill' => true)));
+                                    } else {
+                                        echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/email.svg') . '" alt="' . esc_attr__('Email Forwarding', 'spintax-domain-manager') . '" width="16" height="16" />';
+                                    }
+                                    ?>
+                                </button>
+                            <?php elseif ($is_active && !$mail_in_a_box_enabled) : ?>
+                                <!-- Не отображаем кнопку, если Mail-in-a-Box не подключен -->
                             <?php else : ?>
                                 <button type="button" class="sdm-action-button sdm-delete-domain sdm-delete sdm-mini-icon" data-domain-id="<?php echo esc_attr($domain->id); ?>" title="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>">
                                     <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>" />

@@ -138,6 +138,41 @@ $main_nonce = sdm_create_main_nonce();
         </div>
     </div>
 
+    <!-- Modal for Email Forwarding Setup -->
+    <div id="sdm-email-forwarding-modal" class="sdm-modal sdm-hidden">
+        <div class="sdm-modal-content">
+            <span class="sdm-modal-close" id="sdm-close-email-modal">×</span>
+            <h2 id="sdm-email-modal-title"><?php esc_html_e('Set Up Email Forwarding', 'spintax-domain-manager'); ?></h2>
+            <p id="sdm-email-modal-instruction"><?php esc_html_e('Configure email forwarding for the selected domain:', 'spintax-domain-manager'); ?></p>
+            <div class="sdm-form-field">
+                <label for="sdm-forwarding-email"><?php esc_html_e('Forwarding Email:', 'spintax-domain-manager'); ?></label>
+                <input type="text" id="sdm-forwarding-email" class="sdm-input" readonly>
+            </div>
+            <div id="sdm-email-settings" style="display: none;">
+                <h4><?php esc_html_e('Email Settings:', 'spintax-domain-manager'); ?></h4>
+                <table class="sdm-settings-table">
+                    <tr><td><?php esc_html_e('Protocol/Method:', 'spintax-domain-manager'); ?></td><td>IMAP</td></tr>
+                    <tr><td><?php esc_html_e('Mail Server:', 'spintax-domain-manager'); ?></td><td>box.mailrouting.site</td></tr>
+                    <tr><td><?php esc_html_e('IMAP Port:', 'spintax-domain-manager'); ?></td><td>993</td></tr>
+                    <tr><td><?php esc_html_e('IMAP Security:', 'spintax-domain-manager'); ?></td><td>SSL or TLS</td></tr>
+                    <tr><td><?php esc_html_e('SMTP Port:', 'spintax-domain-manager'); ?></td><td>465</td></tr>
+                    <tr><td><?php esc_html_e('SMTP Security:', 'spintax-domain-manager'); ?></td><td>SSL or TLS</td></tr>
+                    <tr><td><?php esc_html_e('Username:', 'spintax-domain-manager'); ?></td><td id="sdm-email-username"></td></tr>
+                    <tr><td><?php esc_html_e('Password:', 'spintax-domain-manager'); ?></td><td id="sdm-email-password"></td></tr>
+                </table>
+                <button id="sdm-set-catchall" class="button button-primary sdm-action-button" style="margin-top: 10px;">
+                    <?php esc_html_e('Set Catch-All Forwarding', 'spintax-domain-manager'); ?>
+                </button>
+            </div>
+            <p class="submit" id="sdm-email-submit" style="display: none;">
+                <button id="sdm-email-confirm" class="button button-primary sdm-action-button" data-default-text="<?php esc_attr_e('Create Email', 'spintax-domain-manager'); ?>">
+                    <?php esc_html_e('Create Email', 'spintax-domain-manager'); ?>
+                </button>
+                <button id="sdm-email-cancel" class="button sdm-action-button"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
+            </p>
+        </div>
+    </div>
+
     <!-- Modal for Editing Accounts -->
     <div id="sdm-edit-modal" class="sdm-modal sdm-hidden" data-debug="Modal for editing accounts">
         <div class="sdm-modal-content">
