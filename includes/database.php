@@ -126,7 +126,8 @@ function sdm_create_tables() {
                 (5, %s, %s, %s, NOW(), NOW()),
                 (6, %s, %s, %s, NOW(), NOW()),
                 (7, %s, %s, %s, NOW(), NOW()),
-                (8, %s, %s, %s, NOW(), NOW())
+                (8, %s, %s, %s, NOW(), NOW()),
+                (9, %s, %s, %s, NOW(), NOW())
             ON DUPLICATE KEY UPDATE 
                 service_name = VALUES(service_name), 
                 auth_method = VALUES(auth_method), 
@@ -163,7 +164,11 @@ function sdm_create_tables() {
             'XMLStock', 'User ID & API Key', json_encode(array(
                 "required_fields" => array("user_id", "api_key"),
                 "optional_fields" => array("endpoint")
-            ), JSON_UNESCAPED_SLASHES)
+            ), JSON_UNESCAPED_SLASHES),
+            'Mail-in-a-Box', 'Email/Password', json_encode(array(
+            "required_fields" => array("email", "password", "server_url"),
+            "optional_fields" => array()
+           ), JSON_UNESCAPED_SLASHES)
         )
     );
 
