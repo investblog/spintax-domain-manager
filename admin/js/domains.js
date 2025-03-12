@@ -213,6 +213,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
+        // Email Forwarding Button
+        var emailForwardingButtons = document.querySelectorAll('.sdm-email-forwarding');
+        emailForwardingButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                var domainId = this.getAttribute('data-domain-id');
+                var domain = this.getAttribute('data-domain');
+                var serverUrl = this.getAttribute('data-server-url') || 'box.mailrouting.site'; // Fallback
+                var forwardingEmail = `${domain}@${serverUrl}`;
+                openEmailModal(domainId, domain, forwardingEmail);
+            });
+        });
+
         // Mass Actions
         var massActionSelect = document.getElementById('sdm-mass-action-select');
         var massActionApply = document.getElementById('sdm-mass-action-apply');
@@ -574,6 +587,342 @@ document.addEventListener('DOMContentLoaded', function() {
                     closeAssignToSiteModal();
                 });
             }
+        });
+    }
+
+    // Debounce function for search
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Search functionality
+    var searchInput = document.getElementById('sdm-domain-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(function() {
+            if (currentProjectId > 0) {
+                const searchTerm = searchInput.value.trim().toLowerCase();
+                fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'desc', searchTerm);
+            }
+        }, 300));
+
+        searchInput.addEventListener('input', function() {
+            var spinner = document.createElement('span');
+            spinner.className = 'spinner is-active';
+            spinner.style.float = 'none';
+            spinner.style.margin = '0 5px';
+            searchInput.parentNode.appendChild(spinner);
+
+            setTimeout(() => spinner.remove(), 300);
+        });
+    }
+
+    function showDomainsNotice(type, message) {
+        var noticeContainer = document.getElementById('sdm-domains-notice');
+        if (!noticeContainer) return;
+        var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
+        noticeContainer.innerHTML = '<div class="notice ' + cssClass + ' is-dismissible"><p>' + message + '</p><button class="notice-dismiss" type="button">×</button></div>';
+        
+        var dismissBtn = noticeContainer.querySelector('.notice-dismiss');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function() {
+                noticeContainer.innerHTML = '';
+            });
+        }
+    }
+
+    // Email Forwarding Modal
+    var emailModal = document.getElementById('sdm-email-forwarding-modal');
+    var emailConfirm = document.getElementById('sdm-email-confirm');
+    var emailCancel = document.getElementById('sdm-email-cancel');
+    var closeEmailButton = document.getElementById('sdm-close-email-modal');
+    var setCatchallButton = document.getElementById('sdm-set-catchall');
+    var emailSubmit = document.getElementById('sdm-email-submit');
+
+    function openEmailModal(domainId, domain, forwardingEmail) {
+        var emailField = document.getElementById('sdm-forwarding-email');
+        var emailSettings = document.getElementById('sdm-email-settings');
+        var emailUsername = document.getElementById('sdm-email-username');
+        var emailPassword = document.getElementById('sdm-email-password');
+
+        if (emailField) {
+            emailField.value = forwardingEmail;
+        }
+
+        // Показываем модальное окно
+        emailModal.style.display = 'block';
+        emailSubmit.style.display = 'block';
+
+        function closeEmailModal() {
+            emailModal.style.display = 'none';
+            emailSettings.style.display = 'none';
+            setCatchallButton.style.display = 'none';
+            emailSubmit.style.display = 'none';
+        }
+
+        if (emailCancel && closeEmailButton) {
+            emailCancel.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeEmailModal();
+            });
+            closeEmailButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeEmailModal();
+            });
+        }
+
+        if (emailConfirm) {
+            emailConfirm.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Creating email for domain:', domainId);
+                // Здесь будет добавлена логика AJAX для создания email (позже)
+                if (emailUsername && emailPassword) {
+                    emailUsername.textContent = forwardingEmail;
+                    emailPassword.textContent = 'generated_password'; // Пример, заменится на реальный пароль
+                    emailSettings.style.display = 'block';
+                    setCatchallButton.style.display = 'inline-block';
+                    emailSubmit.style.display = 'none';
+                }
+            });
+        }
+
+        if (setCatchallButton) {
+            setCatchallButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Setting Catch-All for domain:', domainId);
+                // Здесь будет добавлена логика AJAX для настройки Catch-All (позже)
+            });
+        }
+    }
+
+    function initializeDynamicListeners() {
+        // Delete Inactive Domains
+        var deleteDomainButtons = document.querySelectorAll('.sdm-delete-domain');
+        deleteDomainButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!confirm('Are you sure you want to delete this domain?')) return;
+
+                var row = this.closest('tr');
+                var domainId = row.getAttribute('data-domain-id');
+
+                var spinner = document.createElement('span');
+                spinner.className = 'spinner is-active';
+                spinner.style.float = 'none';
+                spinner.style.margin = '0 5px';
+                this.innerHTML = '';
+                this.appendChild(spinner);
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_delete_domain');
+                formData.append('domain_id', domainId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showDomainsNotice('updated', data.data.message);
+                        row.parentNode.removeChild(row);
+                        fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'desc');
+                    } else {
+                        showDomainsNotice('error', data.data);
+                    }
+                    spinner.remove();
+                })
+                .catch(function(error) {
+                    console.error('Delete domain error:', error);
+                    showDomainsNotice('error', 'Ajax request failed.');
+                    spinner.remove();
+                });
+            });
+        });
+
+        // Unassign Single Domain
+        var unassignButtons = document.querySelectorAll('.sdm-unassign');
+        unassignButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!confirm('Are you sure you want to unassign this domain?')) return;
+
+                var row = this.closest('tr');
+                var domainId = row.getAttribute('data-domain-id');
+
+                var spinner = document.createElement('span');
+                spinner.className = 'spinner is-active';
+                spinner.style.float = 'none';
+                spinner.style.margin = '0 5px';
+                this.innerHTML = '';
+                this.appendChild(spinner);
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_unassign_domain');
+                formData.append('domain_id', domainId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showDomainsNotice('updated', data.data.message);
+                        row.querySelector('.sdm-site-link').parentNode.innerHTML = '(Unassigned)';
+                        row.querySelector('.sdm-unassign').remove();
+                        if (row.querySelector('.sdm-main-domain-icon')) {
+                            row.querySelector('.sdm-main-domain-icon').remove();
+                        }
+                        row.querySelector('.sdm-domain-checkbox').style.display = 'inline-block';
+                        fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'desc');
+                    } else {
+                        showDomainsNotice('error', data.data);
+                    }
+                    spinner.remove();
+                })
+                .catch(function(error) {
+                    console.error('Unassign domain error:', error);
+                    showDomainsNotice('error', 'Ajax request failed.');
+                    spinner.remove();
+                });
+            });
+        });
+
+        // Email Forwarding Button
+        var emailForwardingButtons = document.querySelectorAll('.sdm-email-forwarding');
+        emailForwardingButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                var domainId = this.getAttribute('data-domain-id');
+                var domain = this.getAttribute('data-domain');
+                var serverUrl = this.getAttribute('data-server-url') || 'box.mailrouting.site'; // Fallback
+                var forwardingEmail = `${domain}@${serverUrl}`;
+                openEmailModal(domainId, domain, forwardingEmail);
+            });
+        });
+
+        // Mass Actions
+        var massActionSelect = document.getElementById('sdm-mass-action-select');
+        var massActionApply = document.getElementById('sdm-mass-action-apply');
+        var domainCheckboxes = document.querySelectorAll('.sdm-domain-checkbox');
+
+        // "Select all" checkbox (excluding main domains)
+        var selectAllCheckbox = document.getElementById('sdm-select-all-domains');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                var checked = this.checked;
+                domainCheckboxes.forEach(function(cb) {
+                    var row = cb.closest('tr');
+                    var isMainDomain = row.querySelector('.sdm-main-domain-icon') !== null;
+                    if (!isMainDomain) {
+                        cb.checked = checked;
+                    }
+                });
+            });
+        }
+
+        if (massActionApply && massActionSelect) {
+            massActionApply.addEventListener('click', function(e) {
+                e.preventDefault();
+                var action = massActionSelect.value;
+                if (!action) {
+                    alert('Please select a mass action.');
+                    return;
+                }
+
+                var selected = [];
+                document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
+                    var row = cb.closest('tr');
+                    var isMainDomain = row.querySelector('.sdm-main-domain-icon') !== null;
+                    if (!isMainDomain) {
+                        selected.push(cb.value);
+                    }
+                });
+
+                if (selected.length === 0 && action !== 'mass_add') {
+                    alert('No domains selected (main domains are excluded).');
+                    return;
+                }
+
+                if (action === 'mass_add') {
+                    openMassAddModal();
+                    return;
+                }
+
+                if (['assign_site', 'set_abuse_status', 'set_blocked_provider', 'set_blocked_government', 'clear_blocked'].includes(action)) {
+                    openAssignToSiteModal(selected, action);
+                    return;
+                }
+
+                var formData = new FormData();
+                formData.append('action', 'sdm_mass_action');
+                formData.append('mass_action', action);
+                formData.append('domain_ids', JSON.stringify(selected));
+                formData.append('project_id', currentProjectId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showDomainsNotice('updated', data.data.message);
+                        fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'desc');
+                    } else {
+                        showDomainsNotice('error', data.data);
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Mass action error:', error);
+                    showDomainsNotice('error', 'Ajax request failed.');
+                });
+            });
+        }
+    }
+
+    function initializeSorting() {
+        var sortableHeaders = document.querySelectorAll('.sdm-sortable');
+        sortableHeaders.forEach(function(header) {
+            header.addEventListener('click', function(e) {
+                e.preventDefault();
+                let columnName = this.dataset.column;
+                let direction = sortDirection[columnName] === 'asc' ? 'desc' : 'asc';
+
+                sortableHeaders.forEach(function(col) {
+                    if (col !== this) {
+                        col.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+                        sortDirection[col.dataset.column] = 'asc';
+                    }
+                }.bind(this));
+
+                this.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+                this.classList.add('sdm-sorted-' + direction);
+                sortDirection[columnName] = direction;
+
+                if (currentProjectId > 0) {
+                    if (columnName === 'blocked') {
+                        fetchDomains(currentProjectId, columnName, direction, '', true);
+                    } else {
+                        fetchDomains(currentProjectId, columnName, direction);
+                    }
+                }
+                lastSortedColumn = columnName;
+            });
         });
     }
 

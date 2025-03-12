@@ -644,16 +644,33 @@ function sdm_ajax_fetch_domains_list() {
     $prefix = $wpdb->prefix;
     ob_start();
 
-    // Проверка наличия сервиса Mail-in-a-Box для проекта
-        $mail_in_a_box_enabled = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$prefix}sdm_accounts a 
-                 JOIN {$prefix}sdm_service_types s ON a.service_id = s.id 
-                 WHERE a.project_id = %d AND s.service_name = 'Mail-in-a-Box' 
-                 AND a.additional_data_enc IS NOT NULL AND a.additional_data_enc != ''",
-                $project_id
-            )
-        ) > 0;
+    // Проверка наличия сервиса Mail-in-a-Box для проекта и получение server_url
+    $mail_in_a_box_data = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT a.additional_data_enc FROM {$prefix}sdm_accounts a 
+             JOIN {$prefix}sdm_service_types s ON a.service_id = s.id 
+             WHERE a.project_id = %d AND s.service_name = 'Mail-in-a-Box' 
+             AND a.additional_data_enc IS NOT NULL AND a.additional_data_enc != ''",
+            $project_id
+        )
+    );
+
+    $mail_in_a_box_enabled = !empty($mail_in_a_box_data);
+    $server_url = '';
+    if ($mail_in_a_box_enabled) {
+        // Расшифровываем additional_data_enc (предполагаем, что у вас есть функция для расшифровки)
+        $additional_data_enc = $mail_in_a_box_data->additional_data_enc;
+        // Здесь должна быть логика расшифровки (зависит от вашей реализации шифрования)
+        // Для примера предположим, что данные хранятся в JSON и доступны после расшифровки
+        $additional_data = json_decode($additional_data_enc, true); // Замените на реальную расшифровку
+        if (is_array($additional_data) && isset($additional_data['server_url'])) {
+            $server_url = esc_attr($additional_data['server_url']);
+            // Удаляем "https://" для использования только домена
+            $server_url = str_replace(['https://', 'http://'], '', $server_url);
+        } else {
+            $server_url = 'box.mailrouting.site'; // Фallback, если server_url не найден
+        }
+    }
 
     // Build WHERE clause for search
     $where = "WHERE d.project_id = %d";
@@ -760,7 +777,11 @@ function sdm_ajax_fetch_domains_list() {
                                 <?php else : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                 <?php endif; ?>
-                                <button type="button" class="sdm-action-button sdm-mini-icon sdm-email-forwarding <?php echo $has_forwarding ? 'sdm-email-active' : ''; ?>" data-domain-id="<?php echo esc_attr($domain->id); ?>" data-domain="<?php echo esc_attr($domain->domain); ?>" title="<?php esc_attr_e('Set Email Forwarding', 'spintax-domain-manager'); ?>">
+                                <button type="button" class="sdm-action-button sdm-mini-icon sdm-email-forwarding <?php echo $has_forwarding ? 'sdm-email-active' : ''; ?>" 
+                                        data-domain-id="<?php echo esc_attr($domain->id); ?>" 
+                                        data-domain="<?php echo esc_attr($domain->domain); ?>" 
+                                        data-server-url="<?php echo $server_url; ?>" 
+                                        title="<?php esc_attr_e('Set Email Forwarding', 'spintax-domain-manager'); ?>">
                                     <?php
                                     $email_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/email.svg');
                                     if ($email_svg) {
@@ -771,7 +792,16 @@ function sdm_ajax_fetch_domains_list() {
                                     ?>
                                 </button>
                             <?php elseif ($is_active && !$mail_in_a_box_enabled) : ?>
-                                <!-- Не отображаем кнопку, если Mail-in-a-Box не подключен -->
+                                <?php if ($is_assigned && !$is_main_domain) : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
+                                    <button type="button" class="sdm-action-button sdm-unassign sdm-mini-icon" data-domain-id="<?php echo esc_attr($domain->id); ?>" title="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>">
+                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>" />
+                                    </button>
+                                <?php elseif ($is_assigned && $is_main_domain) : ?>
+                                    <!-- No checkbox or actions for main domains -->
+                                <?php else : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
+                                <?php endif; ?>
                             <?php else : ?>
                                 <button type="button" class="sdm-action-button sdm-delete-domain sdm-delete sdm-mini-icon" data-domain-id="<?php echo esc_attr($domain->id); ?>" title="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>">
                                     <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>" />

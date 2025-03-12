@@ -139,7 +139,7 @@ $main_nonce = sdm_create_main_nonce();
     </div>
 
     <!-- Modal for Email Forwarding Setup -->
-    <div id="sdm-email-forwarding-modal" class="sdm-modal sdm-hidden">
+    <div id="sdm-email-forwarding-modal" class="sdm-modal">
         <div class="sdm-modal-content">
             <span class="sdm-modal-close" id="sdm-close-email-modal">×</span>
             <h2 id="sdm-email-modal-title"><?php esc_html_e('Set Up Email Forwarding', 'spintax-domain-manager'); ?></h2>
@@ -174,7 +174,7 @@ $main_nonce = sdm_create_main_nonce();
     </div>
 
     <!-- Modal for Editing Accounts -->
-    <div id="sdm-edit-modal" class="sdm-modal sdm-hidden" data-debug="Modal for editing accounts">
+    <div id="sdm-edit-modal" class="sdm-modal" data-debug="Modal for editing accounts">
         <div class="sdm-modal-content">
             <span class="sdm-modal-close">×</span>
             <h2><?php esc_html_e('Edit Account', 'spintax-domain-manager'); ?></h2>
