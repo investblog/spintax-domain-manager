@@ -90,7 +90,18 @@ function sdm_create_tables() {
         FOREIGN KEY (service_id) REFERENCES {$wpdb->prefix}sdm_service_types(id) ON DELETE RESTRICT
     ) $charset_collate;";
 
-    // 6) Redirects table: redirect rules associated with a domain.
+    // 6) Email Forwarding table: stores email forwarding data for domains.
+    $email_forwarding_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_email_forwarding (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        domain_id BIGINT UNSIGNED NOT NULL,
+        email_address VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        catch_all_enabled TINYINT(1) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (domain_id) REFERENCES {$wpdb->prefix}sdm_domains(id) ON DELETE CASCADE
+    ) $charset_collate;";
+
+    // 7) Redirects table: redirect rules associated with a domain.
     $redirects_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_redirects (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         domain_id BIGINT UNSIGNED NOT NULL,
@@ -102,7 +113,7 @@ function sdm_create_tables() {
         user_agent TEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY domain_id (domain_id),  -- Гарантирует одну запись на каждый domain_id
+        UNIQUE KEY domain_id (domain_id),
         FOREIGN KEY (domain_id) REFERENCES {$wpdb->prefix}sdm_domains(id) ON DELETE CASCADE
     ) $charset_collate;";
 
@@ -112,6 +123,7 @@ function sdm_create_tables() {
     dbDelta($domains_sql);
     dbDelta($service_types_sql);
     dbDelta($accounts_sql);
+    dbDelta($email_forwarding_sql); // Добавляем создание новой таблицы
     dbDelta($redirects_sql);
 
     // Добавляем начальные записи в sdm_service_types, если они ещё не существуют
@@ -166,9 +178,9 @@ function sdm_create_tables() {
                 "optional_fields" => array("endpoint")
             ), JSON_UNESCAPED_SLASHES),
             'Mail-in-a-Box', 'Email/Password', json_encode(array(
-            "required_fields" => array("email", "password", "server_url"),
-            "optional_fields" => array()
-           ), JSON_UNESCAPED_SLASHES)
+                "required_fields" => array("email", "password", "server_url"),
+                "optional_fields" => array()
+            ), JSON_UNESCAPED_SLASHES)
         )
     );
 
@@ -180,10 +192,10 @@ function sdm_create_tables() {
         }
     }
 
-    // Установить автоинкремент на 9, если записи успешно добавлены
+    // Установить автоинкремент на 10, если записи успешно добавлены
     $count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}sdm_service_types");
-    if ($count === 8) {
-        $wpdb->query("ALTER TABLE {$wpdb->prefix}sdm_service_types AUTO_INCREMENT = 9");
+    if ($count === 9) {
+        $wpdb->query("ALTER TABLE {$wpdb->prefix}sdm_service_types AUTO_INCREMENT = 10");
     }
 
     // Проверка и коррекция JSON в additional_params после вставки
@@ -259,6 +271,7 @@ function sdm_remove_tables() {
     global $wpdb;
     // Drop tables in order to respect foreign key constraints.
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_redirects");
+    $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_email_forwarding"); // Добавляем удаление новой таблицы
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_accounts");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_service_types");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}sdm_domains");

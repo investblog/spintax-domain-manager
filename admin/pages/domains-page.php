@@ -143,24 +143,25 @@ $main_nonce = sdm_create_main_nonce();
         <div class="sdm-modal-content">
             <span class="sdm-modal-close" id="sdm-close-email-modal">×</span>
             <h2 id="sdm-email-modal-title"><?php esc_html_e('Set Up Email Forwarding', 'spintax-domain-manager'); ?></h2>
-            <p id="sdm-email-modal-instruction"><?php esc_html_e('Configure email forwarding for the selected domain:', 'spintax-domain-manager'); ?></p>
+            <p id="sdm-email-modal-instruction"><?php esc_html_e('Configure email forwarding for the selected domain. Click "Create Email" to generate a new email address.', 'spintax-domain-manager'); ?></p>
             <div class="sdm-form-field">
                 <label for="sdm-forwarding-email"><?php esc_html_e('Forwarding Email:', 'spintax-domain-manager'); ?></label>
-                <input type="text" id="sdm-forwarding-email" class="sdm-input" readonly>
+                <input type="text" id="sdm-forwarding-email" class="sdm-input" readonly placeholder="<?php esc_attr_e('Email will be generated after creation', 'spintax-domain-manager'); ?>">
             </div>
+            <div id="sdm-email-status" class="sdm-notice" style="display: none; margin-top: 10px;"></div>
             <div id="sdm-email-settings" style="display: none;">
                 <h4><?php esc_html_e('Email Settings:', 'spintax-domain-manager'); ?></h4>
                 <table class="sdm-settings-table">
-                    <tr><td><?php esc_html_e('Protocol/Method:', 'spintax-domain-manager'); ?></td><td>IMAP</td></tr>
-                    <tr><td><?php esc_html_e('Mail Server:', 'spintax-domain-manager'); ?></td><td>box.mailrouting.site</td></tr>
-                    <tr><td><?php esc_html_e('IMAP Port:', 'spintax-domain-manager'); ?></td><td>993</td></tr>
-                    <tr><td><?php esc_html_e('IMAP Security:', 'spintax-domain-manager'); ?></td><td>SSL or TLS</td></tr>
-                    <tr><td><?php esc_html_e('SMTP Port:', 'spintax-domain-manager'); ?></td><td>465</td></tr>
-                    <tr><td><?php esc_html_e('SMTP Security:', 'spintax-domain-manager'); ?></td><td>SSL or TLS</td></tr>
-                    <tr><td><?php esc_html_e('Username:', 'spintax-domain-manager'); ?></td><td id="sdm-email-username"></td></tr>
-                    <tr><td><?php esc_html_e('Password:', 'spintax-domain-manager'); ?></td><td id="sdm-email-password"></td></tr>
+                    <tr><td><?php esc_html_e('Protocol/Method:', 'spintax-domain-manager'); ?></td><td id="sdm-email-protocol">IMAP</td></tr>
+                    <tr><td><?php esc_html_e('Mail Server:', 'spintax-domain-manager'); ?></td><td id="sdm-email-server">[Dynamic]</td></tr>
+                    <tr><td><?php esc_html_e('IMAP Port:', 'spintax-domain-manager'); ?></td><td id="sdm-email-imap-port">993</td></tr>
+                    <tr><td><?php esc_html_e('IMAP Security:', 'spintax-domain-manager'); ?></td><td id="sdm-email-imap-security">SSL/TLS</td></tr>
+                    <tr><td><?php esc_html_e('SMTP Port:', 'spintax-domain-manager'); ?></td><td id="sdm-email-smtp-port">465</td></tr>
+                    <tr><td><?php esc_html_e('SMTP Security:', 'spintax-domain-manager'); ?></td><td id="sdm-email-smtp-security">SSL/TLS</td></tr>
+                    <tr><td><?php esc_html_e('Username:', 'spintax-domain-manager'); ?></td><td id="sdm-email-username">[Generated]</td></tr>
+                    <tr><td><?php esc_html_e('Password:', 'spintax-domain-manager'); ?></td><td id="sdm-email-password">[Generated]</td></tr>
                 </table>
-                <button id="sdm-set-catchall" class="button button-primary sdm-action-button" style="margin-top: 10px;">
+                <button id="sdm-set-catchall" class="button button-primary sdm-action-button" style="margin-top: 10px; display: none;">
                     <?php esc_html_e('Set Catch-All Forwarding', 'spintax-domain-manager'); ?>
                 </button>
             </div>
