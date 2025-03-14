@@ -949,3 +949,210 @@ function sdm_ajax_mass_add_domains() {
     wp_send_json_success( array( 'message' => $message ) );
 }
 add_action( 'wp_ajax_sdm_mass_add_domains', 'sdm_ajax_mass_add_domains' );
+
+
+/**
+ * AJAX Handler: Create Email Forwarding via Mail-in-a-Box API.
+ */
+function sdm_ajax_create_email_forwarding() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $domain_id  = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
+    $project_id = isset( $_POST['project_id'] ) ? absint( $_POST['project_id'] ) : 0;
+    if ( ! $domain_id || ! $project_id ) {
+        wp_send_json_error( __( 'Invalid domain or project ID.', 'spintax-domain-manager' ) );
+    }
+
+    global $wpdb;
+    // Получаем доменное имя
+    $domain_name = $wpdb->get_var( $wpdb->prepare(
+        "SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+        $domain_id
+    ) );
+    if ( ! $domain_name ) {
+        wp_send_json_error( __( 'Domain not found.', 'spintax-domain-manager' ) );
+    }
+
+    // Получаем аккаунт Mail‑in‑a‑Box
+    $mail_account = $wpdb->get_row( $wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_accounts 
+         WHERE project_id = %d 
+           AND service_id = (
+               SELECT id FROM {$wpdb->prefix}sdm_service_types 
+               WHERE service_name = 'Mail-in-a-Box' LIMIT 1
+           )
+         LIMIT 1",
+        $project_id
+    ) );
+    if ( ! $mail_account ) {
+        wp_send_json_error( __( 'Mail-in-a-Box account not found.', 'spintax-domain-manager' ) );
+    }
+
+    // Дешифруем
+    $additional_data_dec = sdm_decrypt( $mail_account->additional_data_enc );
+    $additional_data = json_decode( $additional_data_dec, true );
+    if ( ! is_array( $additional_data ) || empty( $additional_data['server_url'] ) ) {
+        wp_send_json_error( __( 'Invalid Mail-in-a-Box account data.', 'spintax-domain-manager' ) );
+    }
+
+    $server_url     = rtrim( $additional_data['server_url'], '/' ); // https://box.mailrouting.site
+    $admin_email    = isset($additional_data['email']) ? $additional_data['email'] : '';      // Админский email
+    $admin_password = isset($additional_data['password']) ? $additional_data['password'] : ''; // Пароль админа
+    if ( ! $admin_email || ! $admin_password ) {
+        wp_send_json_error( __( 'Mail-in-a-Box admin credentials are missing.', 'spintax-domain-manager' ) );
+    }
+
+    // Извлекаем домен mail-сервера (например box.mailrouting.site) для формирования email
+    $host = parse_url( $server_url, PHP_URL_HOST );
+    if ( ! $host ) {
+        $host = 'box.mailrouting.site'; // fallback
+    }
+
+    // Формируем email: domain.com@box.mailrouting.site
+    $email_address = $domain_name . '@' . $host;
+
+    // Генерируем пароль
+    $generated_password = wp_generate_password( 12, false );
+
+    // Подключаем класс
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-mailinabox-api.php';
+    $mapi = new SDM_Mailinabox_API( $server_url, $admin_email, $admin_password );
+
+    // Пытаемся создать почтовый ящик
+    $add_result = $mapi->add_user( $email_address, $generated_password );
+    if ( is_wp_error( $add_result ) ) {
+        wp_send_json_error( $add_result->get_error_message() );
+    }
+
+    // Записываем в таблицу email_forwarding
+    $wpdb->insert(
+        $wpdb->prefix . 'sdm_email_forwarding',
+        array(
+            'domain_id'        => $domain_id,
+            'email_address'    => $email_address,
+            'password'         => $generated_password,
+            'catch_all_enabled'=> 0,
+        ),
+        array( '%d','%s','%s','%d' )
+    );
+
+    wp_send_json_success( array(
+        'email_address' => $email_address,
+        'password'      => $generated_password,
+        'server_url'    => $host,
+        'message'       => __( 'Email created successfully.', 'spintax-domain-manager' ),
+    ) );
+}
+add_action( 'wp_ajax_sdm_create_email_forwarding', 'sdm_ajax_create_email_forwarding' );
+
+
+/**
+ * AJAX Handler: Set Catch-All Forwarding via Cloudflare Email Routing API.
+ */
+function sdm_ajax_set_catchall_forwarding() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    $domain_id = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
+    if ( ! $domain_id ) {
+        wp_send_json_error( __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+    }
+
+    global $wpdb;
+    // Получаем запись email‑форвардинга для домена
+    $record = $wpdb->get_row( $wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_email_forwarding WHERE domain_id = %d",
+        $domain_id
+    ) );
+    if ( ! $record ) {
+        wp_send_json_error( __( 'Email forwarding record not found.', 'spintax-domain-manager' ) );
+    }
+    $email_address = $record->email_address;
+
+    // Получаем project_id из таблицы доменов
+    $project_id = $wpdb->get_var( $wpdb->prepare(
+        "SELECT project_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+        $domain_id
+    ) );
+    if ( ! $project_id ) {
+        wp_send_json_error( __( 'Project not found for this domain.', 'spintax-domain-manager' ) );
+    }
+
+    // Получаем Cloudflare аккаунт для проекта (используем сервисы типа "CloudFlare (API Key)" или "CloudFlare (OAuth)")
+    $cf_service_id = $wpdb->get_var( $wpdb->prepare(
+        "SELECT id FROM {$wpdb->prefix}sdm_service_types 
+         WHERE service_name LIKE 'CloudFlare%%' 
+         LIMIT 1"
+    ) );
+    $cf_account = $wpdb->get_row( $wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_accounts 
+         WHERE project_id = %d AND service_id = %d 
+         LIMIT 1",
+        $project_id,
+        $cf_service_id
+    ) );
+    if ( ! $cf_account ) {
+        wp_send_json_error( __( 'Cloudflare account not found for this project.', 'spintax-domain-manager' ) );
+    }
+    // Дешифруем креденшелы Cloudflare (для простоты используем email и api_key)
+    $credentials = array();
+    if ( ! empty( $cf_account->email ) && ! empty( $cf_account->api_key_enc ) ) {
+        $credentials['email'] = $cf_account->email;
+        $credentials['api_key'] = sdm_decrypt( $cf_account->api_key_enc );
+    } elseif ( ! empty( $cf_account->token ) ) {
+        $credentials['token'] = $cf_account->token;
+    } else {
+        wp_send_json_error( __( 'Invalid Cloudflare credentials.', 'spintax-domain-manager' ) );
+    }
+
+    // Получаем cf_zone_id из таблицы доменов
+    $zone_id = $wpdb->get_var( $wpdb->prepare(
+        "SELECT cf_zone_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+        $domain_id
+    ) );
+    if ( ! $zone_id ) {
+        wp_send_json_error( __( 'Cloudflare zone ID not found for domain.', 'spintax-domain-manager' ) );
+    }
+
+    // Подключаем Cloudflare API
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
+    $cf_api = new SDM_Cloudflare_API( $credentials );
+
+    // Вызываем метод для настройки Catch-All через Cloudflare Email Routing API.
+    // Здесь мы используем универсальный метод api_request_extended.
+    // Допустим, API требует передачи параметров: catch_all=true и destination (наш email).
+    $result = $cf_api->api_request_extended(
+        "zones/{$zone_id}/email/routing/forwarding",
+        array(),
+        'POST',
+        array(
+            'catch_all'   => true,
+            'destination' => $email_address,
+        )
+    );
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( $result->get_error_message() );
+    }
+
+    // Обновляем запись email‑форвардинга, устанавливая catch_all_enabled = 1
+    $updated = $wpdb->update(
+        $wpdb->prefix . 'sdm_email_forwarding',
+        array( 'catch_all_enabled' => 1 ),
+        array( 'domain_id' => $domain_id ),
+        array( '%d' ),
+        array( '%d' )
+    );
+    if ( false === $updated ) {
+        wp_send_json_error( __( 'Failed to update email forwarding record.', 'spintax-domain-manager' ) );
+    }
+
+    wp_send_json_success( array(
+        'message' => __( 'Catch-All forwarding set successfully.', 'spintax-domain-manager' )
+    ) );
+}
+add_action( 'wp_ajax_sdm_set_catchall_forwarding', 'sdm_ajax_set_catchall_forwarding' );
