@@ -97,7 +97,12 @@ function sdm_cron_check_cloudflare_abuse() {
     error_log('sdm_cron_check_cloudflare_abuse: Started');
 
     // Выбираем домены, привязанные к сайтам с активным статусом
-    $domains = $wpdb->get_results("SELECT id, domain, cf_zone_id, abuse_status, site_id FROM {$wpdb->prefix}sdm_domains WHERE site_id IS NOT NULL AND status = 'active'");
+    $domains = $wpdb->get_results("
+        SELECT id, domain, cf_zone_id, abuse_status, site_id
+        FROM {$wpdb->prefix}sdm_domains
+        WHERE site_id IS NOT NULL
+          AND status = 'active'
+    ");
     if ( empty( $domains ) ) {
         error_log('sdm_cron_check_cloudflare_abuse: No domains to process.');
         return;
@@ -106,7 +111,11 @@ function sdm_cron_check_cloudflare_abuse() {
     // Для каждого домена получаем данные из CloudFlare и обновляем abuse_status
     foreach ( $domains as $domain_obj ) {
         // Получаем project_id через связь со сайтом
-        $project_id = $wpdb->get_var( $wpdb->prepare("SELECT project_id FROM {$wpdb->prefix}sdm_sites WHERE id = %d", $domain_obj->site_id) );
+        $project_id = $wpdb->get_var( $wpdb->prepare("
+            SELECT project_id
+            FROM {$wpdb->prefix}sdm_sites
+            WHERE id = %d
+        ", $domain_obj->site_id) );
         if ( ! $project_id ) {
             error_log("sdm_cron_check_cloudflare_abuse: No project_id for domain {$domain_obj->domain}");
             continue;
@@ -121,26 +130,31 @@ function sdm_cron_check_cloudflare_abuse() {
         }
         $cf_api = new SDM_Cloudflare_API( $cf_credentials );
 
-        // Получаем зону: если cf_zone_id задан, используем его, иначе пытаемся найти по доменному имени
+        // Получаем зону: если cf_zone_id задан, используем его, иначе ищем по доменному имени
         if ( ! empty( $domain_obj->cf_zone_id ) ) {
-            $zone = $cf_api->api_request("zones/{$domain_obj->cf_zone_id}");
+            $zone_response = $cf_api->api_request_extended("zones/{$domain_obj->cf_zone_id}", [], 'GET');
+            if ( is_wp_error( $zone_response ) || empty( $zone_response['result'] ) ) {
+                error_log("sdm_cron_check_cloudflare_abuse: Zone not found or invalid response for domain {$domain_obj->domain}");
+                continue;
+            }
+            $zone = $zone_response['result'];
         } else {
             if ( method_exists($cf_api, 'get_zone_by_domain') ) {
                 $zone = $cf_api->get_zone_by_domain( $domain_obj->domain );
+                if ( is_wp_error( $zone ) || ! $zone ) {
+                    error_log("sdm_cron_check_cloudflare_abuse: Zone not found for domain {$domain_obj->domain}");
+                    continue;
+                }
             } else {
                 error_log("sdm_cron_check_cloudflare_abuse: get_zone_by_domain method not available for domain {$domain_obj->domain}");
                 continue;
             }
         }
 
-        if ( is_wp_error( $zone ) || ! $zone ) {
-            error_log("sdm_cron_check_cloudflare_abuse: Zone not found for domain {$domain_obj->domain}");
-            continue;
-        }
-
         // Извлекаем meta.phishing_detected
-        $phishing_detected = ( isset($zone['meta']['phishing_detected']) && $zone['meta']['phishing_detected'] ) ? 'phishing' : 'clean';
+        $phishing_detected = ( ! empty($zone['meta']['phishing_detected']) ) ? 'phishing' : 'clean';
 
+        // Обновляем abuse_status в базе, если изменился
         if ( $domain_obj->abuse_status !== $phishing_detected ) {
             $wpdb->update(
                 "{$wpdb->prefix}sdm_domains",
