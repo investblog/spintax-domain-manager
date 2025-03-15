@@ -1,7 +1,7 @@
 <?php
 /**
  * File: admin/pages/domains-page.php
- * Description: Displays the Domains interface for a selected project, with mass actions, individual domain actions, and column sorting, styled like redirects.
+ * Description: Displays the Domains interface for a selected project, with mass actions, etc.
  */
 
 if (!defined('ABSPATH')) {
@@ -23,7 +23,9 @@ $services = $service_manager->get_all_services();
 $current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) : 0;
 $sites = [];
 if ($current_project_id > 0) {
-    $sites = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_sites WHERE project_id = %d", $current_project_id));
+    $sites = $wpdb->get_results(
+        $wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_sites WHERE project_id = %d", $current_project_id)
+    );
 }
 
 // Генерируем nonce
@@ -64,7 +66,7 @@ $main_nonce = sdm_create_main_nonce();
     <!-- Project Indicator -->
     <?php if ($current_project_id > 0) : ?>
         <p class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
-            <?php 
+            <?php
             $project_name = '';
             foreach ($all_projects as $proj) {
                 if ($proj->id == $current_project_id) {
@@ -73,22 +75,22 @@ $main_nonce = sdm_create_main_nonce();
                 }
             }
             echo sprintf(
-                __('Viewing domains for project: %d - %s', 'spintax-domain-manager'), 
-                $current_project_id, 
+                __('Viewing domains for project: %d - %s', 'spintax-domain-manager'),
+                $current_project_id,
                 esc_html($project_name ?: 'Unknown')
-            ); 
+            );
             ?>
         </p>
     <?php else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e('Please select a project to view its domains.', 'spintax-domain-manager'); ?></p>
     <?php endif; ?>
 
-    <!-- Full-width domains table (no left column) -->
+    <!-- Full-width domains table -->
     <div style="width: 100%;">
         <!-- Domains Table (loaded via AJAX for dynamic updates) -->
         <div id="sdm-domains-container">
             <?php if ($current_project_id > 0) : ?>
-                <!-- Таблица инициализируется через JS (fetchDomains) -->
+                <!-- Table is initialized via JS (fetchDomains) -->
             <?php endif; ?>
         </div>
     </div>
@@ -124,9 +126,7 @@ $main_nonce = sdm_create_main_nonce();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="sdm-form-field" id="sdm-mass-action-options" style="display: none;">
-                <!-- Динамическое заполнение для других действий через JS -->
-            </div>
+            <div class="sdm-form-field" id="sdm-mass-action-options" style="display: none;"></div>
             <h4><?php esc_html_e('Selected Domains:', 'spintax-domain-manager'); ?></h4>
             <ul id="sdm-selected-domains-list"></ul>
             <p class="submit">
@@ -143,34 +143,74 @@ $main_nonce = sdm_create_main_nonce();
         <div class="sdm-modal-content">
             <span class="sdm-modal-close" id="sdm-close-email-modal">×</span>
             <h2 id="sdm-email-modal-title"><?php esc_html_e('Set Up Email Forwarding', 'spintax-domain-manager'); ?></h2>
-            <p id="sdm-email-modal-instruction"><?php esc_html_e('Configure email forwarding for the selected domain. Click "Create Email" to generate a new email address.', 'spintax-domain-manager'); ?></p>
-            <div class="sdm-form-field">
-                <label for="sdm-forwarding-email"><?php esc_html_e('Forwarding Email:', 'spintax-domain-manager'); ?></label>
-                <input type="text" id="sdm-forwarding-email" class="sdm-input" readonly placeholder="<?php esc_attr_e('Email will be generated after creation', 'spintax-domain-manager'); ?>">
+
+            <!-- Step 1: Create Mail-in-a-Box email -->
+            <button id="sdm-email-confirm"
+                    class="button button-primary sdm-action-button"
+                    style="margin-top:10px;">
+                <?php esc_html_e('Create Email (Mail-in-a-Box)', 'spintax-domain-manager'); ?>
+            </button>
+
+            <!-- Step 2: Create CF custom address -->
+            <button id="sdm-create-cf-address"
+                    class="button button-primary sdm-action-button"
+                    style="margin-top:10px; display:none;">
+                <?php esc_html_e('Create CF Address', 'spintax-domain-manager'); ?>
+            </button>
+
+            <!-- Сокращённая инструкция (Instead of Steps 3 & 4) -->
+            <div id="sdm-email-instructions" style="margin-top: 20px; display:none;">
+                <h3><?php esc_html_e('Almost done!', 'spintax-domain-manager'); ?></h3>
+                <p><?php esc_html_e('Please confirm your new email using the verification email from Cloudflare. Then:', 'spintax-domain-manager'); ?></p>
+                <ol>
+                    <li><?php esc_html_e('Go to your Cloudflare Dashboard.', 'spintax-domain-manager'); ?></li>
+                    <li><?php esc_html_e('Select your domain and click "Email Routing".', 'spintax-domain-manager'); ?></li>
+                    <li><?php esc_html_e('Click "Enable Email Routing" if prompted and follow the steps to add MX/TXT records.', 'spintax-domain-manager'); ?></li>
+                    <li><?php esc_html_e('Toggle Catch-All to "Send" if you wish all@yourdomain to be forwarded.', 'spintax-domain-manager'); ?></li>
+                </ol>
+                <p style="margin-top: 10px;">
+                    <a href="#" target="_blank" id="sdm-cf-routing-link" class="button">
+                        <?php esc_html_e('Open Cloudflare Routing Page', 'spintax-domain-manager'); ?>
+                    </a>
+                </p>
             </div>
-            <div id="sdm-email-status" class="sdm-notice" style="display: none; margin-top: 10px;"></div>
-            <div id="sdm-email-settings" style="display: none;">
+
+            <!-- Блок статуса (ошибки/успех) -->
+            <div id="sdm-email-status"
+                 class="sdm-notice"
+                 style="display:none; margin-top:10px;">
+            </div>
+
+            <!-- После создания ящика (Step 1) показываем Email Settings -->
+            <div id="sdm-email-settings" style="display: none; margin-top: 20px;">
                 <h4><?php esc_html_e('Email Settings:', 'spintax-domain-manager'); ?></h4>
                 <table class="sdm-settings-table">
-                    <tr><td><?php esc_html_e('Protocol/Method:', 'spintax-domain-manager'); ?></td><td id="sdm-email-protocol">IMAP</td></tr>
-                    <tr><td><?php esc_html_e('Mail Server:', 'spintax-domain-manager'); ?></td><td id="sdm-email-server">[Dynamic]</td></tr>
-                    <tr><td><?php esc_html_e('IMAP Port:', 'spintax-domain-manager'); ?></td><td id="sdm-email-imap-port">993</td></tr>
-                    <tr><td><?php esc_html_e('IMAP Security:', 'spintax-domain-manager'); ?></td><td id="sdm-email-imap-security">SSL/TLS</td></tr>
-                    <tr><td><?php esc_html_e('SMTP Port:', 'spintax-domain-manager'); ?></td><td id="sdm-email-smtp-port">465</td></tr>
-                    <tr><td><?php esc_html_e('SMTP Security:', 'spintax-domain-manager'); ?></td><td id="sdm-email-smtp-security">SSL/TLS</td></tr>
-                    <tr><td><?php esc_html_e('Username:', 'spintax-domain-manager'); ?></td><td id="sdm-email-username">[Generated]</td></tr>
-                    <tr><td><?php esc_html_e('Password:', 'spintax-domain-manager'); ?></td><td id="sdm-email-password">[Generated]</td></tr>
+                    <tr>
+                        <td><?php esc_html_e('Forwarding Email:', 'spintax-domain-manager'); ?></td>
+                        <td>
+                            <input type="text"
+                                   id="sdm-forwarding-email"
+                                   class="sdm-input"
+                                   readonly
+                                   placeholder="<?php esc_attr_e('Email will appear here', 'spintax-domain-manager'); ?>">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><?php esc_html_e('Mail Server:', 'spintax-domain-manager'); ?></td>
+                        <td id="sdm-email-server">[Dynamic]</td>
+                    </tr>
+                    <tr>
+                        <td><?php esc_html_e('Username:', 'spintax-domain-manager'); ?></td>
+                        <td id="sdm-email-username">[Generated]</td>
+                    </tr>
+                    <tr>
+                        <td><?php esc_html_e('Password:', 'spintax-domain-manager'); ?></td>
+                        <td id="sdm-email-password">[Generated]</td>
+                    </tr>
                 </table>
-                <button id="sdm-set-catchall" class="button button-primary sdm-action-button" style="margin-top: 10px; display: none;">
-                    <?php esc_html_e('Set Catch-All Forwarding', 'spintax-domain-manager'); ?>
-                </button>
+                <!-- Ссылка на webmail -->
+                <p id="sdm-webmail-link" style="margin-top: 10px;"></p>
             </div>
-            <p class="submit" id="sdm-email-submit" style="display: none;">
-                <button id="sdm-email-confirm" class="button button-primary sdm-action-button" data-default-text="<?php esc_attr_e('Create Email', 'spintax-domain-manager'); ?>">
-                    <?php esc_html_e('Create Email', 'spintax-domain-manager'); ?>
-                </button>
-                <button id="sdm-email-cancel" class="button sdm-action-button"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
-            </p>
         </div>
     </div>
 

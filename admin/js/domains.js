@@ -119,7 +119,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Единая функция для установки динамических обработчиков событий
+    // Функция для отображения уведомлений
+    function showDomainsNotice(type, message) {
+        var noticeContainer = document.getElementById('sdm-domains-notice');
+        if (!noticeContainer) return;
+        var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
+        noticeContainer.innerHTML = '<div class="notice ' + cssClass + ' is-dismissible"><p>' + message + '</p><button class="notice-dismiss" type="button">×</button></div>';
+        var dismissBtn = noticeContainer.querySelector('.notice-dismiss');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function() {
+                noticeContainer.innerHTML = '';
+            });
+        }
+    }
+
+    // Функция для установки динамических обработчиков (удаление, отмена назначения, массовые действия и т.д.)
     function initializeDynamicListeners() {
         // Удаление неактивных доменов
         var deleteDomainButtons = document.querySelectorAll('.sdm-delete-domain');
@@ -127,22 +141,18 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (!confirm('Are you sure you want to delete this domain?')) return;
-
                 var row = this.closest('tr');
                 var domainId = row.getAttribute('data-domain-id');
-
                 var spinner = document.createElement('span');
                 spinner.className = 'spinner is-active';
                 spinner.style.float = 'none';
                 spinner.style.margin = '0 5px';
                 this.innerHTML = '';
                 this.appendChild(spinner);
-
                 var formData = new FormData();
                 formData.append('action', 'sdm_delete_domain');
                 formData.append('domain_id', domainId);
                 formData.append('sdm_main_nonce_field', mainNonce);
-
                 fetch(ajaxurl, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -173,22 +183,18 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (!confirm('Are you sure you want to unassign this domain?')) return;
-
                 var row = this.closest('tr');
                 var domainId = row.getAttribute('data-domain-id');
-
                 var spinner = document.createElement('span');
                 spinner.className = 'spinner is-active';
                 spinner.style.float = 'none';
                 spinner.style.margin = '0 5px';
                 this.innerHTML = '';
                 this.appendChild(spinner);
-
                 var formData = new FormData();
                 formData.append('action', 'sdm_unassign_domain');
                 formData.append('domain_id', domainId);
                 formData.append('sdm_main_nonce_field', mainNonce);
-
                 fetch(ajaxurl, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -224,19 +230,14 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
                 var domainId = this.getAttribute('data-domain-id');
-                var domain = this.getAttribute('data-domain');
-                var serverUrl = this.getAttribute('data-server-url') || 'box.mailrouting.site'; // Fallback
-                var forwardingEmail = `${domain}@${serverUrl}`;
-                openEmailModal(domainId, domain, forwardingEmail);
+                openEmailModal(domainId);
             });
         });
 
-        // Массовые действия
+        // Массовые действия (код не изменялся)
         var massActionSelect = document.getElementById('sdm-mass-action-select');
         var massActionApply = document.getElementById('sdm-mass-action-apply');
         var domainCheckboxes = document.querySelectorAll('.sdm-domain-checkbox');
-
-        // "Select all" (исключая главные домены)
         var selectAllCheckbox = document.getElementById('sdm-select-all-domains');
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', function() {
@@ -250,7 +251,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
         }
-
         if (massActionApply && massActionSelect) {
             massActionApply.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -259,7 +259,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert('Please select a mass action.');
                     return;
                 }
-
                 var selected = [];
                 document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                     var row = cb.closest('tr');
@@ -268,29 +267,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         selected.push(cb.value);
                     }
                 });
-
                 if (selected.length === 0 && action !== 'mass_add') {
                     alert('No domains selected (main domains are excluded).');
                     return;
                 }
-
                 if (action === 'mass_add') {
                     openMassAddModal();
                     return;
                 }
-
-                if (['assign_site', 'set_abuse_status', 'set_blocked_provider', 'set_blocked_government', 'clear_blocked'].includes(action)) {
+                if ([
+                    'assign_site',
+                    'set_abuse_status',
+                    'set_blocked_provider',
+                    'set_blocked_government',
+                    'clear_blocked'
+                ].includes(action)) {
                     openAssignToSiteModal(selected, action);
                     return;
                 }
-
                 var formData = new FormData();
                 formData.append('action', 'sdm_mass_action');
                 formData.append('mass_action', action);
                 formData.append('domain_ids', JSON.stringify(selected));
                 formData.append('project_id', currentProjectId);
                 formData.append('sdm_main_nonce_field', mainNonce);
-
                 fetch(ajaxurl, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -321,18 +321,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.preventDefault();
                 let columnName = this.dataset.column;
                 let direction = sortDirection[columnName] === 'asc' ? 'desc' : 'asc';
-
                 sortableHeaders.forEach(function(col) {
                     if (col !== this) {
                         col.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
                         sortDirection[col.dataset.column] = 'asc';
                     }
                 }.bind(this));
-
                 this.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
                 this.classList.add('sdm-sorted-' + direction);
                 sortDirection[columnName] = direction;
-
                 if (currentProjectId > 0) {
                     if (columnName === 'blocked') {
                         fetchDomains(currentProjectId, columnName, direction, '', true);
@@ -358,45 +355,24 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // Функция для отображения уведомлений
-    function showDomainsNotice(type, message) {
-        var noticeContainer = document.getElementById('sdm-domains-notice');
-        if (!noticeContainer) return;
-        var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
-        noticeContainer.innerHTML = '<div class="notice ' + cssClass + ' is-dismissible"><p>' + message + '</p><button class="notice-dismiss" type="button">×</button></div>';
-        
-        var dismissBtn = noticeContainer.querySelector('.notice-dismiss');
-        if (dismissBtn) {
-            dismissBtn.addEventListener('click', function() {
-                noticeContainer.innerHTML = '';
-            });
-        }
-    }
-
-    /* ----------------------- МОДАЛЬНЫЕ ОКНА ----------------------- */
-
-    // Modal: Mass Add Domains
+    // Модальное окно "Mass Add Domains"
     var massAddModal = document.getElementById('sdm-mass-add-modal');
     var modalConfirm = document.getElementById('sdm-modal-confirm');
     var modalClose = document.getElementById('sdm-modal-close');
 
     function openMassAddModal() {
         if (!massAddModal) return;
-        // Клонируем модал, чтобы избежать накопления обработчиков
         var modalClone = massAddModal.cloneNode(true);
-        massAddModal.remove(); // Удаляем старый модал
-        document.body.appendChild(modalClone); // Добавляем новый
+        massAddModal.remove();
+        document.body.appendChild(modalClone);
         massAddModal = modalClone;
-
         var textarea = massAddModal.querySelector('#sdm-mass-add-textarea');
         if (textarea) {
             textarea.value = '';
         }
         massAddModal.style.display = 'block';
-
         var confirmBtn = massAddModal.querySelector('#sdm-modal-confirm');
         var closeBtn = massAddModal.querySelector('#sdm-modal-close');
-
         if (confirmBtn) {
             confirmBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -410,13 +386,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }).filter(function(item) {
                     return item !== '';
                 });
-
                 var formData = new FormData();
                 formData.append('action', 'sdm_mass_add_domains');
                 formData.append('domain_list', JSON.stringify(domainList));
                 formData.append('project_id', currentProjectId);
                 formData.append('sdm_main_nonce_field', mainNonce);
-
                 fetch(ajaxurl, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -438,7 +412,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }, { once: true });
         }
-
         if (closeBtn) {
             closeBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -453,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Modal: Assign to Site / Set Abuse/Block Status
+    // Modal: Assigning / Setting Abuse/Block Status
     var assignModal = document.getElementById('sdm-assign-to-site-modal');
     var assignConfirm = document.getElementById('sdm-assign-confirm');
     var assignCancel = document.getElementById('sdm-assign-cancel');
@@ -466,13 +439,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function openAssignToSiteModal(domainIds, action) {
         if (!assignModal) return;
-        // Клонируем модал, чтобы избежать накопления обработчиков
         var modalClone = assignModal.cloneNode(true);
-        assignModal.remove(); // Удаляем старый модал
-        document.body.appendChild(modalClone); // Добавляем новый
+        assignModal.remove();
+        document.body.appendChild(modalClone);
         assignModal = modalClone;
-
-        // Обновляем ссылки на элементы после клонирования
         var selectedDomainsList = assignModal.querySelector('#sdm-selected-domains-list');
         var modalActionTitle = assignModal.querySelector('#sdm-modal-action-title');
         var modalInstruction = assignModal.querySelector('#sdm-modal-instruction');
@@ -481,7 +451,6 @@ document.addEventListener('DOMContentLoaded', function() {
         var confirmBtn = assignModal.querySelector('#sdm-assign-confirm');
         var cancelBtn = assignModal.querySelector('#sdm-assign-cancel');
         var closeBtn = assignModal.querySelector('#sdm-close-assign-modal');
-
         if (selectedDomainsList) {
             selectedDomainsList.innerHTML = '';
             domainIds.forEach(function(id) {
@@ -494,12 +463,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
-
-        // Изменяем текст кнопки "Confirm" и контент в зависимости от действия
         var confirmButtonText = '';
         if (siteSelect) siteSelect.disabled = false;
         massActionOptions.style.display = 'none';
-
         switch (action) {
             case 'assign_site':
                 modalActionTitle.textContent = 'Assign Domains to Site';
@@ -552,12 +518,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmButtonText = 'Clear';
                 break;
         }
-
         if (confirmBtn && confirmButtonText) {
             confirmBtn.textContent = confirmButtonText;
         }
         assignModal.style.display = 'block';
-
         if (confirmBtn) {
             confirmBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -570,19 +534,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         selected.push(cb.value);
                     }
                 });
-
                 if (selected.length === 0) {
                     alert('No domains selected (main domains are excluded).');
                     return;
                 }
-
                 var formData = new FormData();
                 formData.append('action', 'sdm_mass_action');
                 formData.append('mass_action', action);
                 formData.append('domain_ids', JSON.stringify(selected));
                 formData.append('project_id', currentProjectId);
                 formData.append('sdm_main_nonce_field', mainNonce);
-
                 if (action === 'assign_site') {
                     if (siteSelect && siteSelect.value) {
                         formData.append('site_id', siteSelect.value);
@@ -599,14 +560,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                 }
-
                 var spinner = document.createElement('span');
                 spinner.className = 'spinner is-active';
                 spinner.style.float = 'none';
                 spinner.style.margin = '0 5px';
                 this.innerHTML = '';
                 this.appendChild(spinner);
-
                 fetch(ajaxurl, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -630,7 +589,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }, { once: true });
         }
-
         if (cancelBtn || closeBtn) {
             [cancelBtn, closeBtn].forEach(function(btn) {
                 if (btn) {
@@ -657,195 +615,271 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Modal: Email Forwarding Setup
-    var emailModal = document.getElementById('sdm-email-forwarding-modal');
-    var emailConfirm = document.getElementById('sdm-email-confirm');
-    var emailCancel = document.getElementById('sdm-email-cancel');
-    var closeEmailButton = document.getElementById('sdm-close-email-modal');
-    var setCatchallButton = document.getElementById('sdm-set-catchall');
-    var emailSubmit = document.getElementById('sdm-email-submit');
-    var emailStatus = document.getElementById('sdm-email-status');
-
-    function openEmailModal(domainId, domain, forwardingEmail) {
+    // =================== Email Forwarding Modal (Steps 3 & 4 commented out) ===================
+    function openEmailModal(domainId) {
+        var emailModal = document.getElementById('sdm-email-forwarding-modal');
         if (!emailModal) return;
-        // Клонируем модал, чтобы избежать накопления обработчиков
+        // Клонируем модал, чтобы не копить старые слушатели
         var modalClone = emailModal.cloneNode(true);
-        emailModal.remove(); // Удаляем старый модал
-        document.body.appendChild(modalClone); // Добавляем новый
+        emailModal.remove();
+        document.body.appendChild(modalClone);
         emailModal = modalClone;
+        emailModal.style.display = 'block';
 
-        var emailField = emailModal.querySelector('#sdm-forwarding-email');
-        var emailSettings = emailModal.querySelector('#sdm-email-settings');
-        var emailServer = emailModal.querySelector('#sdm-email-server');
-        var emailUsername = emailModal.querySelector('#sdm-email-username');
-        var emailPassword = emailModal.querySelector('#sdm-email-password');
-        var emailStatus = emailModal.querySelector('#sdm-email-status');
-        var emailConfirm = emailModal.querySelector('#sdm-email-confirm');
-        var emailCancel = emailModal.querySelector('#sdm-email-cancel');
-        var closeEmailButton = emailModal.querySelector('#sdm-close-email-modal');
-        var setCatchallButton = emailModal.querySelector('#sdm-set-catchall');
-        var emailSubmit = emailModal.querySelector('#sdm-email-submit');
+        var closeBtn       = emailModal.querySelector('#sdm-close-email-modal');
+        var emailStatus    = emailModal.querySelector('#sdm-email-status');
+        var createEmailBtn = emailModal.querySelector('#sdm-email-confirm');    // Step 1
+        var createCfBtn    = emailModal.querySelector('#sdm-create-cf-address'); // Step 2
 
-        // Обнуляем поля и скрываем секции
-        if (emailField) {
-            emailField.value = '';
-        }
-        if (emailServer) {
-            emailServer.textContent = '[Dynamic]';
-        }
-        if (emailUsername) {
-            emailUsername.textContent = '[Generated]';
-        }
-        if (emailPassword) {
-            emailPassword.textContent = '[Generated]';
-        }
-        if (emailSettings) {
-            emailSettings.style.display = 'none';
-        }
-        if (setCatchallButton) {
-            setCatchallButton.style.display = 'none';
-        }
+        // Оставляем только две кнопки. Steps 3 & 4 не используются
+        var emailSettings  = emailModal.querySelector('#sdm-email-settings');
+        var emailField     = emailModal.querySelector('#sdm-forwarding-email');
+        var emailServer    = emailModal.querySelector('#sdm-email-server');
+        var emailUsername  = emailModal.querySelector('#sdm-email-username');
+        var emailPassword  = emailModal.querySelector('#sdm-email-password');
+        var webmailLink    = emailModal.querySelector('#sdm-webmail-link');
+
+        // Инструкция "Almost done!" (финальный блок)
+        var finalInstructions = emailModal.querySelector('#sdm-email-instructions');
+
+        // Скрываем статус
         if (emailStatus) {
             emailStatus.style.display = 'none';
             emailStatus.innerHTML = '';
         }
 
-        // Показываем модальное окно
-        emailModal.style.display = 'block';
-        emailSubmit.style.display = 'block';
-
-        function closeEmailModal() {
-            emailModal.style.display = 'none';
-            if (emailStatus) {
-                emailStatus.style.display = 'none';
-                emailStatus.innerHTML = '';
-            }
-            if (emailSettings) {
-                emailSettings.style.display = 'none';
-            }
-            if (setCatchallButton) {
-                setCatchallButton.style.display = 'none';
-            }
-        }
-
-        // Обработчики закрытия окна (с опцией once)
-        if (emailCancel) {
-            emailCancel.addEventListener('click', function(e) {
+        // Закрытие окна
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                closeEmailModal();
-            }, { once: true });
-        }
-        if (closeEmailButton) {
-            closeEmailButton.addEventListener('click', function(e) {
-                e.preventDefault();
-                closeEmailModal();
+                emailModal.style.display = 'none';
             }, { once: true });
         }
 
-        // Обработчик создания email через Mail-in-a-Box API
-        if (emailConfirm) {
-            emailConfirm.addEventListener('click', function(e) {
+        // ------------------ Step 1: Create Email (Mail-in-a-Box) ------------------
+        if (createEmailBtn) {
+            createEmailBtn.addEventListener('click', function(e) {
                 e.preventDefault();
+                if (emailStatus) {
+                    emailStatus.style.display = 'block';
+                    emailStatus.innerHTML = '<span class="spinner is-active"></span> Creating mailbox in Mail-in-a-Box...';
+                }
                 var formData = new FormData();
                 formData.append('action', 'sdm_create_email_forwarding');
                 formData.append('domain_id', domainId);
                 formData.append('project_id', currentProjectId);
                 formData.append('sdm_main_nonce_field', mainNonce);
-
-                if (emailStatus) {
-                    emailStatus.style.display = 'block';
-                    emailStatus.innerHTML = '<span class="spinner is-active" style="float: none; margin-right: 5px;"></span> Creating email...';
-                }
-
                 fetch(ajaxurl, {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: formData
                 })
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
+                .then(function(resp){ return resp.json(); })
+                .then(function(data){
                     if (emailStatus) {
                         emailStatus.innerHTML = '';
                     }
-                    if (data.success) {
-                        if (emailField && emailServer && emailUsername && emailPassword) {
-                            emailField.value = data.data.email_address;
-                            emailServer.textContent = data.data.server_url || '[Dynamic]';
-                            emailUsername.textContent = data.data.email_address;
-                            emailPassword.textContent = data.data.password;
-                            emailSettings.style.display = 'block';
-                            setCatchallButton.style.display = 'inline-block';
-                            emailSubmit.style.display = 'none';
-                        }
+                    if (!data.success) {
                         if (emailStatus) {
-                            emailStatus.innerHTML = '<div class="notice notice-success is-dismissible"><p>' + data.data.message + '</p><button type="button" class="notice-dismiss">×</button></div>';
-                            var dismissBtn = emailStatus.querySelector('.notice-dismiss');
-                            if (dismissBtn) {
-                                dismissBtn.addEventListener('click', function() {
-                                    emailStatus.style.display = 'none';
-                                    emailStatus.innerHTML = '';
-                                }, { once: true });
-                            }
+                            emailStatus.innerHTML = '<div class="notice notice-error"><p>' + data.data + '</p></div>';
                         }
-                    } else {
-                        if (emailStatus) {
-                            emailStatus.innerHTML = '<div class="notice notice-error is-dismissible"><p>' + data.data + '</p><button type="button" class="notice-dismiss">×</button></div>';
-                            var dismissBtn = emailStatus.querySelector('.notice-dismiss');
-                            if (dismissBtn) {
-                                dismissBtn.addEventListener('click', function() {
-                                    emailStatus.style.display = 'none';
-                                    emailStatus.innerHTML = '';
-                                }, { once: true });
-                            }
-                        }
+                        return;
                     }
-                })
-                .catch(function(error) {
-                    console.error('Error creating email:', error);
+                    // Заполняем поля
+                    if (emailField) { emailField.value = data.data.email_address; }
+                    if (emailServer) { emailServer.textContent = data.data.server_url || '[Dynamic]'; }
+                    if (emailUsername) { emailUsername.textContent = data.data.email_address; }
+                    if (emailPassword) { emailPassword.textContent = data.data.password; }
+                    if (webmailLink) {
+                        var mailUrl = 'https://' + data.data.server_url + '/mail';
+                        webmailLink.innerHTML = 'Please verify your new email: <a href="' + mailUrl + '" target="_blank">' + mailUrl + '</a>';
+                    }
+                    if (emailSettings) { emailSettings.style.display = 'block'; }
                     if (emailStatus) {
-                        emailStatus.innerHTML = '<div class="notice notice-error is-dismissible"><p>Ajax request failed.</p><button type="button" class="notice-dismiss">×</button></div>';
-                        var dismissBtn = emailStatus.querySelector('.notice-dismiss');
-                        if (dismissBtn) {
-                            dismissBtn.addEventListener('click', function() {
-                                emailStatus.style.display = 'none';
-                                emailStatus.innerHTML = '';
-                            }, { once: true });
-                        }
+                        emailStatus.innerHTML = '<div class="notice notice-success"><p>' + data.data.message + '</p></div>';
+                    }
+                    // Скрываем Step 1, показываем Step 2
+                    createEmailBtn.style.display = 'none';
+                    if (createCfBtn) { createCfBtn.style.display = 'inline-block'; }
+                })
+                .catch(function(error){
+                    console.error('Create mailbox error:', error);
+                    if (emailStatus) {
+                        emailStatus.innerHTML = '<div class="notice notice-error"><p>Ajax request failed.</p></div>';
                     }
                 });
             }, { once: true });
         }
 
-        // Обработчик для настройки Catch-All (пока заглушка)
-        if (setCatchallButton) {
-            setCatchallButton.addEventListener('click', function(e) {
+        // ------------------ Step 2: Create CF Address ------------------
+        if (createCfBtn) {
+            createCfBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                console.log('Setting Catch-All for domain:', domainId);
-                // Здесь будет логика AJAX для настройки Catch-All
+                if (emailStatus) {
+                    emailStatus.style.display = 'block';
+                    emailStatus.innerHTML = '<span class="spinner is-active"></span> Creating CF custom address...';
+                }
+                var formData = new FormData();
+                formData.append('action', 'sdm_create_cf_custom_address');
+                formData.append('domain_id', domainId);
+                formData.append('sdm_main_nonce_field', mainNonce);
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(data){
+                    if (emailStatus) {
+                        emailStatus.innerHTML = '';
+                    }
+                    if (!data.success) {
+                        if (emailStatus) {
+                            emailStatus.innerHTML = '<div class="notice notice-error"><p>' + data.data + '</p></div>';
+                        }
+                        return;
+                    }
+                    if (emailStatus) {
+                        emailStatus.innerHTML = '<div class="notice notice-success"><p>' + data.data.message + '</p></div>';
+                    }
+                    // Скрываем Step 2
+                    createCfBtn.style.display = 'none';
+                    // Показываем финальный блок "Almost done!"
+                    if (finalInstructions) {
+                        finalInstructions.style.display = 'block';
+                        // После отображения инструкции, обновляем ссылку
+                        fetchAccountIdAndOpenLink(domainId);
+                    }
+                })
+                .catch(function(error){
+                    console.error('Create CF address error:', error);
+                    if (emailStatus) {
+                        emailStatus.innerHTML = '<div class="notice notice-error"><p>Ajax request failed.</p></div>';
+                    }
+                });
             }, { once: true });
         }
-    }
 
-    // Функция поиска с использованием debounce
-    var searchInput = document.getElementById('sdm-domain-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(function() {
-            if (currentProjectId > 0) {
-                const searchTerm = searchInput.value.trim().toLowerCase();
-                fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'desc', searchTerm);
+    // Функция для получения account_id по домену и установки ссылки
+    function fetchAccountIdAndOpenLink(domainId) {
+        // Получаем строку таблицы по domainId
+        var row = document.getElementById('domain-row-' + domainId);
+        if (!row) {
+            console.error('Domain row not found for domainId:', domainId);
+            return;
+        }
+        // Извлекаем доменное имя из первой колонки
+        var trueDomain = row.querySelector('.sdm-domain').textContent.trim();
+        var formData = new FormData();
+        formData.append('action', 'sdm_get_zone_account_details_by_domain');
+        formData.append('domain', trueDomain);
+        formData.append('sdm_main_nonce_field', mainNonce);
+        fetch(ajaxurl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var accountId = data.data.account_id;
+                // Формируем URL: https://dash.cloudflare.com/{accountId}/{trueDomain}/email/routing
+                var routingURL = 'https://dash.cloudflare.com/' + accountId + '/' + trueDomain + '/email/routing';
+                // Устанавливаем ссылку в кнопке
+                var routingLinkBtn = document.querySelector('#sdm-cf-routing-link');
+                if (routingLinkBtn) {
+                    routingLinkBtn.href = routingURL;
+                }
+            } else {
+                console.error('Failed to get zone details:', data.data);
             }
-        }, 300));
-
-        searchInput.addEventListener('input', function() {
-            var spinner = document.createElement('span');
-            spinner.className = 'spinner is-active';
-            spinner.style.float = 'none';
-            spinner.style.margin = '0 5px';
-            searchInput.parentNode.appendChild(spinner);
-            setTimeout(() => spinner.remove(), 300);
+        })
+        .catch(function(error) {
+            console.error('Error fetching zone details:', error);
         });
     }
 
-    // Если нужно инициализировать сортировку после загрузки новых данных
-    initializeSorting();
+    }
+
+    // Функция для получения account_id по zone_id и установки ссылки
+    function fetchAccountIdAndOpenLink(domainId) {
+        // Получаем строку таблицы по domainId (в ней должен быть data-zone-id)
+        var row = document.getElementById('domain-row-' + domainId);
+        if (!row) {
+            console.error('Domain row not found for domainId:', domainId);
+            return;
+        }
+        var zoneId = row.getAttribute('data-zone-id');
+        // Также получаем настоящее доменное имя
+        var trueDomain = row.querySelector('.sdm-domain').textContent.trim();
+        var formData = new FormData();
+        formData.append('action', 'sdm_get_zone_details');
+        formData.append('zone_id', zoneId);
+        formData.append('sdm_main_nonce_field', mainNonce);
+        fetch(ajaxurl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var accountId = data.data.account_id;
+                // Формируем URL: https://dash.cloudflare.com/{accountId}/{trueDomain}/email/routing
+                var routingURL = 'https://dash.cloudflare.com/' + accountId + '/' + trueDomain + '/email/routing';
+                // Устанавливаем ссылку в кнопке
+                var routingLinkBtn = document.querySelector('#sdm-cf-routing-link');
+                if (routingLinkBtn) {
+                    routingLinkBtn.href = routingURL;
+                }
+            } else {
+                console.error('Failed to get zone details:', data.data);
+            }
+        })
+        .catch(function(error) {
+            console.error('Error fetching zone details:', error);
+        });
+    }
+
+    // Инициализация сортировки (дублируется для надёжности)
+    function initializeSorting() {
+        var sortableHeaders = document.querySelectorAll('.sdm-sortable');
+        sortableHeaders.forEach(function(header) {
+            header.addEventListener('click', function(e) {
+                e.preventDefault();
+                let columnName = this.dataset.column;
+                let direction = sortDirection[columnName] === 'asc' ? 'desc' : 'asc';
+                sortableHeaders.forEach(function(col) {
+                    if (col !== this) {
+                        col.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+                        sortDirection[col.dataset.column] = 'asc';
+                    }
+                }.bind(this));
+                this.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
+                this.classList.add('sdm-sorted-' + direction);
+                sortDirection[columnName] = direction;
+                if (currentProjectId > 0) {
+                    if (columnName === 'blocked') {
+                        fetchDomains(currentProjectId, columnName, direction, '', true);
+                    } else {
+                        fetchDomains(currentProjectId, columnName, direction);
+                    }
+                }
+                lastSortedColumn = columnName;
+            });
+        });
+    }
+
+    // Функция-дебаунс для поиска
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
 });

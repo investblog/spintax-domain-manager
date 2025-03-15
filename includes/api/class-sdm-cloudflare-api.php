@@ -175,23 +175,39 @@ class SDM_Cloudflare_API {
             $args['body'] = wp_json_encode( $body );
         }
 
+        // Добавляем логирование запроса
+        error_log("CloudFlare API Request:");
+        error_log("URL: " . $url);
+        error_log("Method: " . $method);
+        error_log("Headers: " . print_r($headers, true));
+        if ( isset($args['body']) ) {
+            error_log("Request Body: " . $args['body']);
+        }
+
         $response = wp_remote_request( $url, $args );
         if ( is_wp_error( $response ) ) {
+            error_log("CloudFlare API Request Error: " . $response->get_error_message());
             return $response;
         }
 
         $code = wp_remote_retrieve_response_code( $response );
-        $json = json_decode( wp_remote_retrieve_body( $response ), true );
+        $response_body = wp_remote_retrieve_body( $response );
+        error_log("CloudFlare API Response Code: " . $code);
+        error_log("CloudFlare API Response Body: " . $response_body);
+
+        $json = json_decode( $response_body, true );
 
         if ( $code < 200 || $code >= 300 ) {
             $message = 'CloudFlare API responded with error code ' . $code;
             if ( isset($json['errors'][0]['message']) ) {
                 $message .= ' - ' . $json['errors'][0]['message'];
             }
+            error_log("CloudFlare API Error: " . $message);
             return new WP_Error( 'api_error', $message );
         }
         return $json;
     }
+
 
 
     /**
@@ -563,6 +579,202 @@ class SDM_Cloudflare_API {
         }
         return $json;
     }
+
+
+    // Просто включить....
+
+    public function enable_email_routing($zone_id) {
+        $endpoint = "zones/{$zone_id}/email/routing/enable";
+        // Пустое тело (можно (object)[] или просто [] )
+        $body = (object)[];
+
+        return $this->api_request_extended(
+            $endpoint,
+            array(),  // query args
+            'POST',
+            $body     // пустой объект
+        );
+    }
+
+
+    /**
+     * Включает Email Routing (добавляет необходимые MX/TXT) для зоны.
+     * POST /zones/{zone_id}/email/routing/dns
+     *
+     * @param string $zone_id
+     * @param string $domain  (например, "vavada.boats")
+     * @return array|WP_Error
+     */
+    public function enable_email_routing_dns( $zone_id, $domain ) {
+        $endpoint = "zones/{$zone_id}/email/routing/dns";
+
+        // Согласно документации, в body нужно передать name: "example.net", 
+        // т.е. сам домен (без http/https).
+        // Пример:
+        // POST /zones/{zone_id}/email/routing/dns
+        // { "name": "vavada.boats" }
+        $body = array(
+            'name' => $domain,
+        );
+
+        return $this->api_request_extended(
+            $endpoint,
+            array(),
+            'POST',
+            $body
+        );
+    }
+
+    /**
+     * Создаёт новое правило (Routing Rule) для зоны.
+     * POST /zones/{zone_id}/email/routing/rules
+     *
+     * @param string  $zone_id
+     * @param array   $matchers  e.g. [ [ 'type'=>'all' ] ]
+     * @param array   $actions   e.g. [ [ 'type'=>'forward', 'value'=>['someone@example.com'] ] ]
+     * @param bool    $enabled
+     * @param string  $name
+     * @param int     $priority
+     * @return array|WP_Error
+     */
+    public function create_routing_rule( $zone_id, $matchers, $actions, $enabled = true, $name = '', $priority = 0 ) {
+        $endpoint = "zones/{$zone_id}/email/routing/rules";
+
+        $body = array(
+            'matchers' => $matchers,
+            'actions'  => $actions,
+            'enabled'  => $enabled,
+            'name'     => $name,
+            'priority' => $priority,
+        );
+
+        return $this->api_request_extended(
+            $endpoint,
+            array(),
+            'POST',
+            $body
+        );
+    }
+
+    /**
+     * (Опционально) Обновляет существующее правило по rule_id.
+     * PUT /zones/{zone_id}/email/routing/rules/{rule_id}
+     *
+     * @param string $zone_id
+     * @param string $rule_id
+     * @param array  $matchers
+     * @param array  $actions
+     * @param bool   $enabled
+     * @param string $name
+     * @param int    $priority
+     * @return array|WP_Error
+     */
+    public function update_routing_rule( $zone_id, $rule_id, $matchers, $actions, $enabled = true, $name = '', $priority = 0 ) {
+        $endpoint = "zones/{$zone_id}/email/routing/rules/{$rule_id}";
+
+        $body = array(
+            'matchers' => $matchers,
+            'actions'  => $actions,
+            'enabled'  => $enabled,
+            'name'     => $name,
+            'priority' => $priority,
+        );
+
+        return $this->api_request_extended(
+            $endpoint,
+            array(),
+            'PUT',
+            $body
+        );
+    }
+
+    /**
+     * Creates or updates a Catch-All rule for the specified zone.
+     * POST /zones/{zone_id}/email/routing/rules
+     *
+     * @param string $zone_id
+     * @param string $forwarding_email
+     * @return array|WP_Error
+     */
+    public function set_catch_all_rule($zone_id, $forwarding_email) {
+        // Новый endpoint для catch-all правила
+        $endpoint = "zones/{$zone_id}/email/routing/rules/catch_all";
+
+        $body = array(
+            'matchers' => array(
+                array(
+                    'type' => 'all'
+                )
+            ),
+            'actions' => array(
+                array(
+                    'type'  => 'forward',
+                    'value' => array($forwarding_email)
+                )
+            ),
+            'enabled' => true,
+            'name'    => 'SDM Catch-All Rule'
+        );
+
+        error_log("Set Catch-All Rule - Request Body: " . print_r($body, true));
+
+        // Используем PUT вместо POST
+        $response = $this->api_request_extended(
+            $endpoint,
+            array(),
+            'PUT',
+            $body
+        );
+
+        error_log("Set Catch-All Rule - Response: " . print_r($response, true));
+
+        return $response;
+    }
+
+    /**
+     * Получить детальную информацию о зоне (включая account_id).
+     */
+    public function get_zone_details($zone_id) {
+        // GET /zones/{zone_id}
+        return $this->api_request_extended(
+            "zones/{$zone_id}",
+            [],
+            'GET'
+        );
+    }
+
+    /**
+     * Создать Destination Address (внешний email) в Cloudflare.
+     * POST /accounts/{account_id}/email/routing/addresses
+     */
+    public function create_destination_address($account_id, $externalEmail) {
+        $endpoint = "accounts/{$account_id}/email/routing/addresses";
+        $body = [
+            'email' => $externalEmail, // Внешний адрес, на который будем пересылать
+        ];
+
+        return $this->api_request_extended(
+            $endpoint,
+            [],
+            'POST',
+            $body
+        );
+    }
+
+    /**
+     * List Destination Addresses (Cloudflare Email Routing).
+     * GET /accounts/{account_id}/email/routing/addresses
+     *
+     * @param string $account_id
+     * @param array  $query (например, ['page'=>1, 'per_page'=>50, 'email'=>'some@address'])
+     * @return array|WP_Error
+     */
+    public function list_destination_addresses($account_id, $query = []) {
+        $endpoint = "accounts/{$account_id}/email/routing/addresses";
+        return $this->api_request_extended($endpoint, $query, 'GET');
+    }
+
+
 
 
 }
