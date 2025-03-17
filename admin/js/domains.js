@@ -841,35 +841,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Инициализация сортировки (дублируется для надёжности)
-    // function initializeSorting() {
-    //     var sortableHeaders = document.querySelectorAll('.sdm-sortable');
-    //     sortableHeaders.forEach(function(header) {
-    //         header.addEventListener('click', function(e) {
-    //             e.preventDefault();
-    //             let columnName = this.dataset.column;
-    //             let direction = sortDirection[columnName] === 'asc' ? 'desc' : 'asc';
-    //             sortableHeaders.forEach(function(col) {
-    //                 if (col !== this) {
-    //                     col.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
-    //                     sortDirection[col.dataset.column] = 'asc';
-    //                 }
-    //             }.bind(this));
-    //             this.classList.remove('sdm-sorted-asc', 'sdm-sorted-desc');
-    //             this.classList.add('sdm-sorted-' + direction);
-    //             sortDirection[columnName] = direction;
-    //             if (currentProjectId > 0) {
-    //                 if (columnName === 'blocked') {
-    //                     fetchDomains(currentProjectId, columnName, direction, '', true);
-    //                 } else {
-    //                     fetchDomains(currentProjectId, columnName, direction);
-    //                 }
-    //             }
-    //             lastSortedColumn = columnName;
-    //         });
-    //     });
-    // }
-
     // Функция-дебаунс для поиска
     function debounce(func, wait) {
         let timeout;

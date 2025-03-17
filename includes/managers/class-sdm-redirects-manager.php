@@ -689,7 +689,7 @@ class SDM_Redirects_Manager {
                         $rules[] = [
                             'action' => 'redirect',
                             'description' => "SDM domain_id={$redirect->domain_id}",
-                            'expression' => '(http.request.uri.path eq "/")',
+                            'expression' => '(http.request.uri.path wildcard r"/*")',
                             'action_parameters' => [
                                 'from_value' => [
                                     'target_url' => ['value' => rtrim($redirect->target_url, '/')],
