@@ -80,7 +80,7 @@ class SDM_Redirects_Manager {
                     'redirect_type'         => $redirect_type,
                     'preserve_query_string' => $preserve_query_string,
                     'user_agent'            => $user_agent,
-                    'updated_at'            => current_time( 'mysql' ),
+                   // 'updated_at'            => current_time( 'mysql' ),
                 ),
                 array( 'id' => $existing_redirect_id ),
                 array( '%s','%s','%s','%s','%d','%s','%s' ),
@@ -103,7 +103,7 @@ class SDM_Redirects_Manager {
                     'preserve_query_string' => $preserve_query_string,
                     'user_agent'            => $user_agent,
                     'created_at'            => current_time( 'mysql' ),
-                    'updated_at'            => current_time( 'mysql' ),
+                   // 'updated_at'            => current_time( 'mysql' ),
                 ),
                 array( '%d','%s','%s','%s','%s','%d','%s','%s','%s' )
             );
@@ -181,7 +181,7 @@ class SDM_Redirects_Manager {
                 'redirect_type'         => $redirect_type,
                 'preserve_query_string' => $preserve_query_string,
                 'user_agent'            => $user_agent,
-                'updated_at'            => current_time( 'mysql' ),
+               // 'updated_at'            => current_time( 'mysql' ),
             ),
             array( 'id' => $redirect_id ),
             array( '%d','%s','%s','%s','%s','%d','%s','%s' ),
@@ -481,6 +481,18 @@ class SDM_Redirects_Manager {
                     error_log("Failed to create Page Rule for domain ID {$redirect->domain_id}: " . $prResp->get_error_message());
                     $errors[] = "Domain ID {$redirect->domain_id}: " . $prResp->get_error_message();
                 } else {
+                    // Обновляем updated_at после успешной синхронизации
+                    $update = $wpdb->update(
+                        "{$wpdb->prefix}sdm_redirects",
+                        array('updated_at' => current_time('mysql')),
+                        array('id' => $redirect->id),
+                        array('%s'),
+                        array('%d')
+                    );
+                    if ( false === $update ) {
+                        error_log("Failed to update updated_at for redirect ID {$redirect->id}");
+                        $errors[] = "Domain ID {$redirect->domain_id}: failed to update sync time";
+                    }
                     $success_count++;
                 }
             }
@@ -492,6 +504,7 @@ class SDM_Redirects_Manager {
         }
         return true;
     }
+
 
     /**
      * Helper: Extracts the domain from a URL.
@@ -1119,6 +1132,7 @@ function sdm_ajax_fetch_redirects_list() {
                     <tr>
                         <th class="sdm-sortable" data-column="domain"><?php esc_html_e('Domain', 'spintax-domain-manager'); ?></th>
                         <th><?php esc_html_e('Redirect Type', 'spintax-domain-manager'); ?></th>
+                        <th><?php esc_html_e('Last Sync', 'spintax-domain-manager'); ?></th>
                         <th>
                             <?php esc_html_e('Actions', 'spintax-domain-manager'); ?>
                             <input type="checkbox" class="sdm-select-all-site-redirects" data-site-id="<?php echo esc_attr($site->id); ?>" style="margin-left: 5px; vertical-align: middle;">
@@ -1137,7 +1151,8 @@ function sdm_ajax_fetch_redirects_list() {
                                     r.redirect_type, 
                                     r.preserve_query_string, 
                                     r.user_agent, 
-                                    r.created_at AS redirect_created_at
+                                    r.created_at AS redirect_created_at,
+                                    r.updated_at
                              FROM {$prefix}sdm_domains d
                              LEFT JOIN {$prefix}sdm_redirects r ON d.id = r.domain_id
                              WHERE d.project_id = %d AND d.site_id = %d $order_by",
@@ -1158,6 +1173,7 @@ function sdm_ajax_fetch_redirects_list() {
                                 'preserve_query_string' => $domain->preserve_query_string,
                                 'user_agent' => $domain->user_agent,
                                 'created_at' => $domain->redirect_created_at,
+                                'updated_at' => isset($domain->updated_at) ? $domain->updated_at : ''
                             );
                             $redirect_type = $redirect->id ? $redirect->redirect_type : '';
                             $is_main_domain = ($domain->domain === $site->main_domain);
@@ -1209,6 +1225,16 @@ function sdm_ajax_fetch_redirects_list() {
                                         </button>
                                     </div>
                                 </td>
+                                <!-- Новая колонка Last Sync -->
+                                <td>
+                                    <?php if ($redirect->id) : ?>
+                                        <?php echo !empty($redirect->updated_at)
+                                            ? esc_html($redirect->updated_at)
+                                            : esc_html__('Never synced', 'spintax-domain-manager'); ?>
+                                    <?php else : ?>
+                                        <em><?php esc_html_e('N/A', 'spintax-domain-manager'); ?></em>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <?php if (!$is_main_domain) : ?>
                                         <input type="checkbox" class="sdm-redirect-checkbox" value="<?php echo esc_attr($domain->id); ?>" data-site-id="<?php echo esc_attr($site->id); ?>">
@@ -1238,7 +1264,7 @@ function sdm_ajax_fetch_redirects_list() {
                         <?php endforeach;
                     else : ?>
                         <tr>
-                            <td colspan="3"><?php esc_html_e('No domains found for this site.', 'spintax-domain-manager'); ?></td>
+                            <td colspan="4"><?php esc_html_e('No domains found for this site.', 'spintax-domain-manager'); ?></td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -1256,7 +1282,7 @@ function sdm_ajax_fetch_redirects_list() {
             </div>
         <?php endforeach;
 
-        // Add a section for domains not linked to sites
+        // Add a section for domains not linked to sites (без колонки Last Sync)
         $unattached_domains = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT d.*, 
@@ -1267,7 +1293,8 @@ function sdm_ajax_fetch_redirects_list() {
                         r.redirect_type, 
                         r.preserve_query_string, 
                         r.user_agent, 
-                        r.created_at AS redirect_created_at
+                        r.created_at AS redirect_created_at,
+                        r.updated_at
                  FROM {$prefix}sdm_domains d
                  LEFT JOIN {$prefix}sdm_redirects r ON d.id = r.domain_id
                  WHERE d.project_id = %d AND d.site_id IS NULL $order_by",
@@ -1298,6 +1325,7 @@ function sdm_ajax_fetch_redirects_list() {
                             'preserve_query_string' => $domain->preserve_query_string,
                             'user_agent' => $domain->user_agent,
                             'created_at' => $domain->redirect_created_at,
+                            'updated_at' => isset($domain->updated_at) ? $domain->updated_at : ''
                         );
                         $redirect_type = $redirect->id ? $redirect->redirect_type : '';
                         ?>
@@ -1367,6 +1395,7 @@ function sdm_ajax_fetch_redirects_list() {
     wp_send_json_success(array('html' => $html));
 }
 add_action('wp_ajax_sdm_fetch_redirects_list', 'sdm_ajax_fetch_redirects_list');
+
 
 /**
  * Returns inline SVG markup for the given redirect type.

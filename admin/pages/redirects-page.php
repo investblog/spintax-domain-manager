@@ -1,7 +1,7 @@
 <?php
 /**
  * File: admin/pages/redirects-page.php
- * Description: Displays the Redirects interface for a selected project, 
+ * Description: Displays the Redirects interface for a selected project,
  *              with mass actions, grouping by sites, and CloudFlare sync.
  */
 
@@ -66,8 +66,8 @@ $main_nonce = sdm_create_main_nonce();
                 }
             }
             echo sprintf(
-                __('Viewing redirects for project: %d - %s', 'spintax-domain-manager'), 
-                $current_project_id, 
+                __('Viewing redirects for project: %d - %s', 'spintax-domain-manager'),
+                $current_project_id,
                 esc_html($project_name ?: 'Unknown')
             ); 
             ?>
