@@ -527,7 +527,7 @@ class SDM_Sites_Manager {
                 $task_found = false;
                 foreach ($tasks as $task) {
                     if ($task['id'] === $domain->hosttracker_task_id) {
-                        $is_blocked = (bool)$task['lastState'];
+                        $is_blocked = !$task['lastState']; // если lastState == true => домен Up => не заблокирован
                         $wpdb->update(
                             $wpdb->prefix . 'sdm_domains',
                             array(
