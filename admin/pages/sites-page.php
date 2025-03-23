@@ -11,7 +11,8 @@ if (!defined('ABSPATH')) {
 global $wpdb;
 $prefix = $wpdb->prefix;
 
-// Определяем, включён ли мониторинг по умолчанию (можно изменить логику)
+// Определяем, включён ли мониторинг по дефолту для существующих сайтов (это значение используется при редактировании).
+// Для новых сайтов управление мониторингом убрано из формы, и мониторинг будет создан в выключенном состоянии.
 $site_monitoring_enabled = true;
 
 // Получаем список проектов для селектора
@@ -213,8 +214,9 @@ $main_nonce = sdm_create_main_nonce();
             </tr>
             <tr>
                 <th><label for="server_ip"><?php esc_html_e('Server IP (optional)', 'spintax-domain-manager'); ?></label></th>
-                <td><input type="text" name="server_ip" id="server_ip"></td>
+                <td><input type="text" name="server_ip" id="server_ip" value="<?php echo esc_attr( sdm_get_server_ip() ); ?>"></td>
             </tr>
+
             <tr>
                 <th><label for="main_domain"><?php esc_html_e('Main Domain', 'spintax-domain-manager'); ?></label></th>
                 <td>
@@ -234,17 +236,8 @@ $main_nonce = sdm_create_main_nonce();
                 <th><label for="language"><?php esc_html_e('Language', 'spintax-domain-manager'); ?></label></th>
                 <td><input type="text" name="language" id="language" placeholder="EN_en" required></td>
             </tr>
-            <tr>
-                <th><?php esc_html_e('Monitoring', 'spintax-domain-manager'); ?></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="monitoring[enabled]" value="1" <?php checked($site_monitoring_enabled); ?>>
-                        <?php esc_html_e('Enable Monitoring', 'spintax-domain-manager'); ?>
-                    </label><br>
-                    <label><input type="checkbox" name="monitoring[types][RusRegBL]" value="1" checked> RusRegBL</label><br>
-                    <label><input type="checkbox" name="monitoring[types][Http]" value="1"> Http</label>
-                </td>
-            </tr>
+            <!-- Поля мониторинга удалены. При добавлении нового сайта мониторинг будет создан в выключенном состоянии.
+                 Если пользователь захочет включить мониторинг, он сможет настроить его при редактировании сайта. -->
         </table>
         <p class="submit">
             <button type="submit" class="button button-primary"><?php esc_html_e('Add Site', 'spintax-domain-manager'); ?></button>
