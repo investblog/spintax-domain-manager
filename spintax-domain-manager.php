@@ -51,6 +51,7 @@ require_once SDM_PLUGIN_DIR . 'includes/managers/class-sdm-service-types-manager
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-xmlstock-api.php';
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-hosttracker-api.php';
+require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-yandex-api.php';
 
 // Optionally include GraphQL support
 if (file_exists(SDM_PLUGIN_DIR . 'includes/graphql-support.php')) {
@@ -60,6 +61,7 @@ if (file_exists(SDM_PLUGIN_DIR . 'includes/graphql-support.php')) {
 // Load admin interface (admin menu and pages)
 if (is_admin()) {
     require_once SDM_PLUGIN_DIR . 'admin/admin-menu.php';
+    require_once SDM_PLUGIN_DIR . 'admin/pages/help-page.php';
 }
 
 // Register activation, deactivation and uninstall hooks

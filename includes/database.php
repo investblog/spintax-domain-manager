@@ -165,9 +165,9 @@ function sdm_create_tables() {
                 "required_fields" => array("username", "api_key"),
                 "optional_fields" => array("test_mode")
             ), JSON_UNESCAPED_SLASHES),
-            'Yandex', 'User ID & Webmaster API Token', json_encode(array(
-                "required_fields" => array("user_id", "webmaster_api_token"),
-                "optional_fields" => array("oauth_token")
+            'Yandex', 'User ID & OAuth Token', json_encode(array(
+                "required_fields" => array("user_id", "oauth_token"),
+                "optional_fields" => array()
             ), JSON_UNESCAPED_SLASHES),
             'Google', 'API Key, Client ID, Client Secret, Refresh Token', json_encode(array(
                 "required_fields" => array("api_key", "client_id", "client_secret", "refresh_token"),

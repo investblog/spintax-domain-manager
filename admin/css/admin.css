@@ -2,23 +2,25 @@
 1. GLOBAL HELPER CLASSES
 --------------------------------------------------------------*/
 :root {
-  --sdm-border: #eee;
+  --sdm-border: #EDEFF2;
   --sdm-border-radius: 4px;
-  --sdm-bg-light: #fff;
-  --sdm-bg-th: #f5f5f5;
-  --sdm-bg-th-hover: #e5e5e5;
-  --sdm-bg-tr-hover: #f9f9f9;
-  --sdm-accent: #0073aa;
-  --sdm-green: #46b450;
-  --sdm-red: #dc3232;
-  --sdm-yellow: #f7b500;
-  --sdm-gray: #ccc;
-  --sdm-dark-gray: #444;
-  --sdm-notice-blue: #2271b1;
-  --sdm-notice-error-bg: #fef2f2;
-  --sdm-notice-success-bg: #f7fcf2;
-  --sdm-shadow-light: rgba(0,0,0,0.05);
-  --sdm-shadow-medium: rgba(0,0,0,0.15);
+  --sdm-bg-light: #FFFFFF;
+  --sdm-bg-th: #EDEFF2;
+  --sdm-bg-th-hover: #D8DDE4;
+  --sdm-bg-tr-hover: #F5F6F8;
+  --sdm-accent: #F38020;
+  --sdm-accent-rgb: 243, 128, 32;
+  --sdm-green: #00CC66;
+  --sdm-red: #E63946;
+  --sdm-yellow: #F5A623;
+  --sdm-gray: #C5C8CC;
+  --sdm-contrast: #2C2D30;
+  --sdm-dark-gray: #2C2D30;
+  --sdm-notice-blue: #007BFF;
+  --sdm-notice-error-bg: #FFF0F1;
+  --sdm-notice-success-bg: #E6F9F0;
+  --sdm-shadow-light: rgba(44, 45, 48, 0.05);
+  --sdm-shadow-medium: rgba(44, 45, 48, 0.15);
 }
 .sdm-hidden {
   display: none !important;
@@ -193,42 +195,53 @@
   border-radius: var(--sdm-border-radius);
   text-decoration: none;
   margin-right: 5px;
-  transition: opacity 0.2s ease, background-color 0.2s ease;
+  transition: background-color 0.2s ease;
   cursor: pointer;
-  border: none;
+  border: 1px solid var(--sdm-border);
   background-color: var(--sdm-bg-light);
   color: var(--sdm-accent);
 }
+
 .sdm-action-button:hover {
-  opacity: 0.9;
-  color: whitesmoke;
+  background-color: rgba(var(--sdm-accent-rgb), 0.1); /* Лёгкий оранжевый фон */
+  color: var(--sdm-accent);
 }
+
 .sdm-edit {
   background-color: var(--sdm-accent);
-  color: var(--sdm-bg-light);
+  color: #FFFFFF; /* Белый текст для контраста */
+  border: none;
 }
+
 .sdm-save {
   background-color: var(--sdm-green);
-  color: var(--sdm-bg-light);
+  color: #FFFFFF;
+  border: none;
 }
+
 .sdm-delete {
   background-color: var(--sdm-red);
-  color: var(--sdm-bg-light);
+  color: #FFFFFF;
+  border: none;
 }
 
 .sdm-unassign,
 .sdm-test {
   background-color: var(--sdm-yellow);
-  color: var(--sdm-bg-light);
+  color: #FFFFFF;
+  border: none;
 }
+
 .sdm-fetch-button {
   padding: 6px 16px;
 }
+
 .sdm-status {
   margin-left: 10px;
   font-size: 13px;
   color: #666;
 }
+
 .sdm-action-button.sdm-mini-icon {
   display: inline-flex;
   align-items: center;
@@ -238,7 +251,6 @@
   padding: 0;
   margin-left: 3px;
   background-color: transparent;
-/*  color: var(--sdm-accent);*/
   vertical-align: middle;
 }
 .sdm-action-button.sdm-mini-icon img {
@@ -367,11 +379,11 @@
 }
 
 tr[data-site-id="0"] {
-    background-color: #f9f9f9;
+    background-color: #F5F6F8; /* Обновлено под Cloudflare */
     color: #666;
 }
 tr[data-site-id="0"]:hover {
-    background-color: #f0f0f0;
+    background-color: #EDEFF2; /* Чуть темнее при наведении */
 }
 
 tr[data-site-id="0"] .sdm-target-domain {
@@ -408,8 +420,8 @@ tr[data-site-id="0"] .sdm-target-domain {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10000; /* Увеличиваем z-index для надёжности */
-    display: none; /* По умолчанию скрыто, но .sdm-hidden переопределяет это */
+    z-index: 10000;
+    display: none;
 }
 
 .sdm-modal-overlay {
@@ -418,7 +430,7 @@ tr[data-site-id="0"] .sdm-target-domain {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.5); /* Затемнение фона */
+    background: rgba(44, 45, 48, 0.5); /* Тёмно-серая полупрозрачность */
 }
 
 .sdm-modal-content {
@@ -429,10 +441,10 @@ tr[data-site-id="0"] .sdm-target-domain {
     background: var(--sdm-bg-light);
     padding: 20px;
     border-radius: var(--sdm-border-radius);
-    max-width: 600px; /* Используем максимум 600px для согласованности с формой */
+    max-width: 600px;
     width: 90%;
-    box-shadow: 0 4px 6px var(--sdm-shadow-medium); /* Используем переменную тени */
-    border: 1px solid var(--sdm-border); /* Используем переменную границы */
+    box-shadow: 0 4px 6px var(--sdm-shadow-medium);
+    border: 1px solid var(--sdm-border);
 }
 
 .sdm-modal-close {
@@ -441,12 +453,12 @@ tr[data-site-id="0"] .sdm-target-domain {
     right: 15px;
     font-size: 20px;
     cursor: pointer;
-    color: var(--sdm-gray); /* Используем переменную серого цвета */
+    color: var(--sdm-gray);
     transition: color 0.2s ease;
 }
 
 .sdm-modal-close:hover {
-    color: var(--sdm-red); /* Используем переменную красного цвета */
+    color: var(--sdm-red);
 }
 
 .sdm-modal-actions {
@@ -457,13 +469,11 @@ tr[data-site-id="0"] .sdm-target-domain {
     margin-left: 10px;
 }
 
-/* Стиль для текста редактирования */
 .sdm-edit-note {
     color: var(--sdm-dark-gray);
     font-style: italic;
     margin-bottom: 15px;
 }
-
 
 /*--------------------------------------------------------------
 9. SITE ICONS (e.g. flags or custom SVG)
@@ -483,13 +493,13 @@ tr[data-site-id="0"] .sdm-target-domain {
   opacity: 0.8;
 }
 tr[data-redirect-type="main"] {
-  background-color: #f0f8f0;
+  background-color: #E6F9F0; /* Бледно-зелёный как у Cloudflare */
 }
 tr[data-redirect-type="glue"] {
-  background-color: #fef8e7;
+  background-color: #FFF5E6; /* Бледно-оранжевый */
 }
 tr[data-redirect-type="hidden"] {
-  background-color: #fef0f0;
+  background-color: #FFF0F1; /* Бледно-красный */
 }
 .sdm-redirect-type-display {
   position: relative;
@@ -500,7 +510,7 @@ tr[data-redirect-type="hidden"] {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
+  background: #2C2D30; /* Тёмно-серый Cloudflare */
   color: var(--sdm-bg-light);
   padding: 4px 8px;
   border-radius: var(--sdm-border-radius);
@@ -533,8 +543,62 @@ tr[data-redirect-type="hidden"] {
 }
 #sdm_copy_key_button:focus {
   outline: none;
-  box-shadow: 0 0 0 1px var(--sdm-accent), 0 0 2px 1px rgba(0,124,186,0.3);
+  box-shadow: 0 0 0 1px var(--sdm-accent), 0 0 2px 1px rgba(243, 128, 32, 0.3);
 }
 .sdm-textarea {
   width: 100%;
+}
+
+/* === Compact Actions Menu (CloudFlare-like) === */
+.sdm-actions-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.sdm-actions-trigger.button {
+    cursor: pointer;
+    background: var(--sdm-bg-light);
+    color: var(--sdm-dark-gray);
+    border: 1px solid var(--sdm-border);
+    border-radius: var(--sdm-border-radius);
+    padding: 5px 8px;
+    line-height: 1.2;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sdm-actions-trigger.button:hover {
+    background-color: var(--sdm-bg-tr-hover);
+    color: var(--sdm-dark-gray);
+}
+
+.sdm-actions-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--sdm-bg-light);
+    border: 1px solid var(--sdm-border);
+    border-radius: var(--sdm-border-radius);
+    min-width: 140px;
+    padding: 5px 0;
+    box-shadow: 0 2px 6px var(--sdm-shadow-medium);
+    z-index: 999;
+    display: none;
+}
+
+.sdm-actions-dropdown a {
+    display: block;
+    padding: 8px 12px;
+    color: var(--sdm-contrast);
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+.sdm-actions-dropdown a:hover {
+    background-color: rgba(var(--sdm-accent-rgb), 0.2);
+    color: var(--sdm-dark-gray);
+}
+
+.sdm-actions-dropdown hr {
+    margin: 3px 0;
+    border: none;
+    border-top: 1px solid var(--sdm-border);
 }

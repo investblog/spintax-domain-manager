@@ -420,4 +420,32 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
+
+        document.addEventListener('click', (e) => {
+        // Клик по кнопке-триггеру (троеточие)
+        const trigger = e.target.closest('.sdm-actions-trigger');
+        if (trigger) {
+            e.preventDefault();
+            // Ищем выпадающее меню рядом
+            const menuWrap = trigger.closest('.sdm-actions-menu');
+            const dropdown = menuWrap.querySelector('.sdm-actions-dropdown');
+
+            // Закрываем все другие открытые меню
+            document.querySelectorAll('.sdm-actions-dropdown').forEach(dd => dd.style.display = 'none');
+
+            // Переключаем текущее
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                dropdown.style.display = 'block';
+            }
+            return;
+        }
+
+        // Если клик вне меню - закрываем все открытые
+        if (!e.target.closest('.sdm-actions-dropdown')) {
+            document.querySelectorAll('.sdm-actions-dropdown').forEach(dd => dd.style.display = 'none');
+        }
+    });
+
 });

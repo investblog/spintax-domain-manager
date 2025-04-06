@@ -162,11 +162,30 @@ $main_nonce = sdm_create_main_nonce();
                         </td>
                         <td><?php echo esc_html($site->created_at); ?></td>
                         <td><?php echo esc_html($site->updated_at); ?></td>
+
                         <td class="column-actions">
-                            <a href="#" class="sdm-action-button sdm-edit-site sdm-edit"><?php esc_html_e('Edit', 'spintax-domain-manager'); ?></a>
-                            <a href="#" class="sdm-action-button sdm-save-site sdm-save sdm-hidden"><?php esc_html_e('Save', 'spintax-domain-manager'); ?></a> |
-                            <a href="#" class="sdm-action-button sdm-delete-site sdm-delete"><?php esc_html_e('Delete', 'spintax-domain-manager'); ?></a>
+                            <!-- Обёртка для выпадающего меню -->
+                            <div class="sdm-actions-menu">
+                                <!-- Кнопка-триггер (иконка «троеточие» или любая другая) -->
+                                <button type="button" class="sdm-actions-trigger button">
+                                    <span class="dashicons dashicons-ellipsis"></span>
+                                </button>
+
+                                <!-- Скрытое выпадающее меню -->
+                                <div class="sdm-actions-dropdown" style="display: none;">
+                                    <!-- Здесь те же ссылки, что раньше были в одной строке, 
+                                         но со старыми классами, чтобы ваш JS продолжал работать -->
+                                    <a href="#" class="sdm-edit-site sdm-edit"><?php esc_html_e('Edit', 'spintax-domain-manager'); ?></a>
+                                    <a href="#" class="sdm-save-site sdm-save sdm-hidden"><?php esc_html_e('Save', 'spintax-domain-manager'); ?></a>
+                                    <hr>
+                                    <a href="#" class="sdm-delete-site sdm-delete"><?php esc_html_e('Delete', 'spintax-domain-manager'); ?></a>
+                                    <hr>
+                                    <!-- Если у вас была отдельная кнопка для Яндекса, перенесите её сюда -->
+                                    <a href="#" class="sdm-yandex-webmaster"><?php esc_html_e('Add to Yandex', 'spintax-domain-manager'); ?></a>
+                                </div>
+                            </div>
                         </td>
+
                     </tr>
                 <?php endforeach; ?>
             <?php else : ?>

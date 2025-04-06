@@ -432,7 +432,7 @@ function sdm_ajax_test_sdm_account() {
         }
     }
 
-    // Тестирование подключения для разных сервисов
+    // === HostTracker ===
     if ($service->service_name === 'HostTracker') {
         if (empty($credentials['login']) || empty($credentials['password'])) {
             wp_send_json_error(array('message' => __('Incomplete HostTracker credentials (login and password are required).', 'spintax-domain-manager')));
@@ -442,20 +442,6 @@ function sdm_ajax_test_sdm_account() {
         if (!$token) {
             wp_send_json_error(array('message' => __('Failed to authenticate with HostTracker.', 'spintax-domain-manager')));
         }
-
-        $args = array(
-            'method' => 'POST',
-            'body' => json_encode(array("login" => $credentials['login'], "password" => $credentials['password'])),
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ),
-            'timeout' => 30,
-        );
-        $response = wp_remote_post('https://api1.host-tracker.com/users/token', $args);
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body);
-        $expirationTime = $data && property_exists($data, 'expirationTime') ? $data->expirationTime : null;
 
         $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, $credentials['task_type'] ?? 'RusRegBL');
         if (!$tasks) {
@@ -475,22 +461,19 @@ function sdm_ajax_test_sdm_account() {
             array('%d')
         );
         wp_send_json_success(array('data' => array(
-            'message' => sprintf(__('Authentication successful. Found %d tasks.', 'spintax-domain-manager'), $task_count),
-            'token' => $token,
-            'expirationTime' => $expirationTime
+            'message' => sprintf(__('Authentication successful. Found %d tasks.', 'spintax-domain-manager'), $task_count)
         )));
-    } elseif (in_array($service->service_name, ['CloudFlare (API Key)', 'CloudFlare (OAuth)'])) {
-        // Получаем креденшелы через метод API
+    }
+
+    // === CloudFlare ===
+    elseif (in_array($service->service_name, ['CloudFlare (API Key)', 'CloudFlare (OAuth)'])) {
         require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
         $credentials = SDM_Cloudflare_API::get_project_cf_credentials($account->project_id, $service->id);
         if (is_wp_error($credentials)) {
             wp_send_json_error(array('message' => $credentials->get_error_message()));
         }
 
-        // Создаём экземпляр API
         $cloudflare_api = new SDM_Cloudflare_API($credentials);
-
-        // Тестируем подключение, получая количество зон
         $zone_count = $cloudflare_api->check_account();
         if (is_wp_error($zone_count)) {
             wp_send_json_error(array('message' => $zone_count->get_error_message()));
@@ -510,10 +493,56 @@ function sdm_ajax_test_sdm_account() {
         wp_send_json_success(array('data' => array(
             'message' => sprintf(__('CloudFlare connection successful. Found %d zones.', 'spintax-domain-manager'), $zone_count)
         )));
-    } else {
+    }
+
+    // === Yandex ===
+    elseif ($service->service_name === 'Yandex') {
+        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-yandex-api.php';
+
+        $token = $credentials['oauth_token'] ?? '';
+        $user_id = $credentials['user_id'] ?? '';
+        // error_log(print_r($credentials, true));
+
+
+        if (empty($token) || empty($user_id)) {
+            wp_send_json_error(array('message' => __('Missing Yandex Webmaster token or User ID.', 'spintax-domain-manager')));
+        }
+
+        $result = SDM_Yandex_API::check_credentials($token, $user_id);
+
+        if (!empty($result['success'])) {
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . 'sdm_accounts',
+                array(
+                    'last_tested_at' => current_time('mysql'),
+                    'last_test_result' => 'Success'
+                ),
+                array('id' => $account_id),
+                array('%s', '%s'),
+                array('%d')
+            );
+
+            wp_send_json_success(array('data' => array(
+                'message' => $result['message'] ?? 'Yandex API token is valid.'
+            )));
+        } else {
+            $error_details = isset($result['error']) ? $result['error'] : 'Unknown error';
+            $debug_response = isset($result['response']) ? json_encode($result['response'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '';
+
+            wp_send_json_error(array(
+                'message' => 'Yandex API error: ' . $error_details,
+                'response' => $debug_response
+            ));
+        }
+    }
+
+    // === Other or unsupported service ===
+    else {
         wp_send_json_error(array('message' => __('Testing not implemented for this service.', 'spintax-domain-manager')));
     }
 }
+
 add_action('wp_ajax_sdm_test_sdm_account', 'sdm_ajax_test_sdm_account');
 
 function sdm_ajax_get_service_params() {
