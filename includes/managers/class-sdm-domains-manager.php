@@ -11,6 +11,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SDM_Domains_Manager {
 
     /**
+     * Retrieve CloudFlare account for a project. Tries API Key then OAuth.
+     *
+     * @param int $project_id
+     * @return object|false
+     */
+    private function get_cloudflare_account($project_id) {
+        $account_manager = new SDM_Accounts_Manager();
+        $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (API Key)');
+        if (!$account) {
+            $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (OAuth)');
+        }
+        return $account;
+    }
+
+    /**
      * Fetches zones (domains) from CloudFlare for a given project
      * and syncs them into the sdm_domains table.
      *
@@ -44,14 +59,7 @@ class SDM_Domains_Manager {
         }
 
         // 2) Получаем CloudFlare аккаунт для данного проекта
-        $account = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}sdm_accounts 
-             WHERE project_id = %d 
-               AND service_id = %d 
-             LIMIT 1",
-            $project_id,
-            $cf_service_id
-        ) );
+        $account = $this->get_cloudflare_account( $project_id );
         if ( ! $account ) {
             return array(
                 'error' => __( 'No CloudFlare account found for this project.', 'spintax-domain-manager' )
@@ -406,26 +414,8 @@ class SDM_Domains_Manager {
             return array( 'error' => __( 'Invalid project ID.', 'spintax-domain-manager' ) );
         }
 
-        // Получаем ID сервиса CloudFlare
-        $cf_service_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$wpdb->prefix}sdm_service_types 
-             WHERE service_name IN (%s, %s) 
-             LIMIT 1",
-            'CloudFlare (API Key)', 'CloudFlare (OAuth)'
-        ));
-        if ( empty( $cf_service_id ) ) {
-            return array( 'error' => __( 'Cloudflare service is not configured.', 'spintax-domain-manager' ) );
-        }
-
         // Получаем CloudFlare аккаунт для проекта
-        $account = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}sdm_accounts 
-             WHERE project_id = %d 
-               AND service_id = %d 
-             LIMIT 1",
-            $project_id,
-            $cf_service_id
-        ));
+        $account = $this->get_cloudflare_account( $project_id );
         if ( ! $account ) {
             return array( 'error' => __( 'No CloudFlare account found for this project.', 'spintax-domain-manager' ) );
         }
@@ -646,28 +636,13 @@ function sdm_ajax_fetch_domains_list() {
     ob_start();
 
     // Проверка наличия сервиса Mail-in-a-Box для проекта и получение server_url
-    $mail_in_a_box_data = $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT a.additional_data_enc 
-             FROM {$prefix}sdm_accounts a 
-             JOIN {$prefix}sdm_service_types s 
-               ON a.service_id = s.id 
-             WHERE a.project_id = %d 
-               AND s.service_name = 'Mail-in-a-Box' 
-               AND a.additional_data_enc IS NOT NULL 
-               AND a.additional_data_enc != '' 
-             LIMIT 1",
-            $project_id
-        )
-    );
+    $account_manager = new SDM_Accounts_Manager();
+    $mail_in_a_box_data = $account_manager->get_account_by_project_and_service($project_id, 'Mail-in-a-Box');
 
-    $mail_in_a_box_enabled = !empty($mail_in_a_box_data);
+    $mail_in_a_box_enabled = $mail_in_a_box_data && !empty($mail_in_a_box_data->additional_data_enc);
     $server_url = '';
     if ($mail_in_a_box_enabled) {
-        // Расшифровка additional_data_enc
-        $additional_data_enc = $mail_in_a_box_data->additional_data_enc;
-        // Предполагаем, что вы используете sdm_decrypt и json_decode
-        $additional_data = json_decode($additional_data_enc, true); 
+        $additional_data = json_decode($mail_in_a_box_data->additional_data_enc, true);
         if (is_array($additional_data) && isset($additional_data['server_url'])) {
             $server_url = esc_attr($additional_data['server_url']);
             // Удаляем http/https префикс
@@ -1036,16 +1011,8 @@ function sdm_ajax_create_email_forwarding() {
     }
 
     // Получаем аккаунт Mail‑in‑a‑Box
-    $mail_account = $wpdb->get_row( $wpdb->prepare(
-        "SELECT * FROM {$wpdb->prefix}sdm_accounts 
-         WHERE project_id = %d 
-           AND service_id = (
-               SELECT id FROM {$wpdb->prefix}sdm_service_types 
-               WHERE service_name = 'Mail-in-a-Box' LIMIT 1
-           )
-         LIMIT 1",
-        $project_id
-    ) );
+    $account_manager = new SDM_Accounts_Manager();
+    $mail_account = $account_manager->get_account_by_project_and_service($project_id, 'Mail-in-a-Box');
     if ( ! $mail_account ) {
         wp_send_json_error( __( 'Mail-in-a-Box account not found.', 'spintax-domain-manager' ) );
     }
@@ -1172,19 +1139,7 @@ function sdm_ajax_create_cf_custom_address() {
     }
 
     // Получаем Cloudflare учётку
-    $cf_service_id = $wpdb->get_var($wpdb->prepare("
-        SELECT id FROM {$wpdb->prefix}sdm_service_types
-        WHERE service_name IN ('CloudFlare (API Key)', 'CloudFlare (OAuth)')
-        LIMIT 1
-    "));
-    if (!$cf_service_id) {
-        wp_send_json_error('Cloudflare service not found.');
-    }
-    $account = $wpdb->get_row($wpdb->prepare("
-        SELECT * FROM {$wpdb->prefix}sdm_accounts
-        WHERE project_id = %d AND service_id = %d
-        LIMIT 1
-    ", $project_id, $cf_service_id));
+    $account = $this->get_cloudflare_account($project_id);
     if (!$account) {
         wp_send_json_error('No CloudFlare account found for this project.');
     }
@@ -1300,19 +1255,7 @@ function sdm_ajax_set_catchall_forwarding() {
     }
 
     // Получаем Cloudflare-аккаунт
-    $cf_service_id = $wpdb->get_var($wpdb->prepare("
-        SELECT id FROM {$wpdb->prefix}sdm_service_types
-        WHERE service_name IN ('CloudFlare (API Key)', 'CloudFlare (OAuth)')
-        LIMIT 1
-    "));
-    if (!$cf_service_id) {
-        wp_send_json_error('Cloudflare service not found.');
-    }
-    $account = $wpdb->get_row($wpdb->prepare("
-        SELECT * FROM {$wpdb->prefix}sdm_accounts
-        WHERE project_id = %d AND service_id = %d
-        LIMIT 1
-    ", $project_id, $cf_service_id));
+    $account = $this->get_cloudflare_account($project_id);
     if (!$account) {
         wp_send_json_error('No CloudFlare account found for this project.');
     }
@@ -1422,28 +1365,7 @@ function sdm_ajax_enable_email_routing() {
     $trueDomain = $row->domain; // Настоящее имя домена (например "vavadacasino.yachts")
 
     // 2) Получаем Cloudflare‑аккаунт (как в set_catchall_forwarding)
-    $cf_service_id = $wpdb->get_var("
-        SELECT id
-        FROM {$wpdb->prefix}sdm_service_types
-        WHERE service_name IN ('CloudFlare (API Key)', 'CloudFlare (OAuth)')
-        LIMIT 1
-    ");
-    if (!$cf_service_id) {
-        wp_send_json_error('Cloudflare service not found.');
-    }
-
-    $account = $wpdb->get_row($wpdb->prepare("
-        SELECT *
-        FROM {$wpdb->prefix}sdm_accounts
-        WHERE project_id = (
-            SELECT project_id
-            FROM {$wpdb->prefix}sdm_domains
-            WHERE id = %d
-            LIMIT 1
-        )
-          AND service_id = %d
-        LIMIT 1
-    ", $domain_id, $cf_service_id));
+    $account = $this->get_cloudflare_account($project_id);
     if (!$account) {
         wp_send_json_error('No CloudFlare account found for this domain/project.');
     }
@@ -1521,20 +1443,7 @@ function sdm_ajax_get_zone_account_details_by_domain() {
     }
 
     // Получаем Cloudflare учётку для проекта
-    $cf_service_id = $wpdb->get_var($wpdb->prepare("
-        SELECT id FROM {$wpdb->prefix}sdm_service_types
-        WHERE service_name IN ('CloudFlare (API Key)', 'CloudFlare (OAuth)')
-        LIMIT 1
-    "));
-    if ( ! $cf_service_id ) {
-        wp_send_json_error('Cloudflare service not found.');
-    }
-
-    $account_row = $wpdb->get_row($wpdb->prepare("
-         SELECT * FROM {$wpdb->prefix}sdm_accounts
-         WHERE project_id = %d AND service_id = %d
-         LIMIT 1
-    ", $row->project_id, $cf_service_id));
+    $account_row = $this->get_cloudflare_account($row->project_id);
     if ( ! $account_row ) {
         wp_send_json_error('No Cloudflare account found for this project.');
     }

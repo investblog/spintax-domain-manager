@@ -52,14 +52,14 @@ $main_nonce = sdm_create_main_nonce();
                         data-service="<?php echo esc_attr($account->service); ?>">
                         <!-- Project ID (read-only) -->
                         <td class="column-project-id">
-                            <?php echo esc_html($account->project_id); ?>
+                            <?php echo $account->project_id !== null ? esc_html($account->project_id) : '-'; ?>
                         </td>
 
                         <!-- Project Name (read-only) -->
                         <td class="column-project-name">
                             <?php echo !empty($account->project_name)
                                 ? esc_html($account->project_name)
-                                : esc_html__('(No project)', 'spintax-domain-manager'); ?>
+                                : esc_html__('Global', 'spintax-domain-manager'); ?>
                         </td>
 
                         <!-- Service (read-only) -->
@@ -121,6 +121,7 @@ $main_nonce = sdm_create_main_nonce();
                 <div class="sdm-form-field">
                     <label for="project_id" class="sdm-label"><?php esc_html_e('Project', 'spintax-domain-manager'); ?></label>
                     <select name="project_id" id="project_id" required class="sdm-select">
+                        <option value="global">Global</option>
                         <?php foreach ($all_projects as $proj) : ?>
                             <option value="<?php echo esc_attr($proj->id); ?>">
                                 <?php echo sprintf('%d - %s', $proj->id, $proj->project_name); ?>

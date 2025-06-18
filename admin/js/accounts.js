@@ -104,6 +104,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('sdm-add-account-form').addEventListener('submit', function(e) {
         e.preventDefault();
         var formData = new FormData(this);
+        if (formData.get('project_id') === 'global') {
+            formData.set('project_id', '');
+        }
         formData.append('action', 'sdm_create_sdm_account');
 
         // Собираем данные из динамических полей
@@ -303,6 +306,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     editForm.addEventListener('submit', function(e) {
                         e.preventDefault();
                         var formData = new FormData(this);
+                        if (formData.get('project_id') === 'global') {
+                            formData.set('project_id', '');
+                        }
                         formData.append('action', 'sdm_update_sdm_account');
 
                         // Собираем данные из всех полей формы, включая динамические и пустые, как в форме добавления
@@ -311,7 +317,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
 
                         // Добавляем фиксированные поля, включая пустые, как в форме добавления
-                        formData.append('project_id', projectIdHidden.value || '');
+                        var pid = projectIdHidden.value || '';
+                        if (pid === 'global') pid = '';
+                        formData.append('project_id', pid);
                         formData.append('account_id', accountIdHidden.value || '');
                         formData.append('account_name', accountNameInput.value || '');
                         formData.append('email', emailInput.value || '');
@@ -372,8 +380,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 data.data.accounts.forEach(account => {
                     table.innerHTML += `
                         <tr id="account-row-${account.id}" data-account-id="${account.id}" data-update-nonce="${nonce}" data-service="${account.service}">
-                            <td class="column-project-id">${account.project_id}</td>
-                            <td class="column-project-name">${account.project_name || '(No project)'}</td>
+                            <td class="column-project-id">${account.project_id !== null ? account.project_id : '-'}</td>
+                            <td class="column-project-name">${account.project_name || 'Global'}</td>
                             <td class="column-service"><span class="sdm-display-value">${account.service}</span></td>
                             <td class="column-account-name"><span class="sdm-display-value">${account.account_name || ''}</span></td>
                             <td class="column-email"><span class="sdm-display-value">${account.email || ''}</span></td>
