@@ -95,12 +95,12 @@ function sdm_admin_menu() {
 
     // Submenu: Help
     add_submenu_page(
-        'sdm-dashboard',                             // ← Важно: тот же slug, что и у top-level меню
-        __('Help & Instructions', 'spintax-domain-manager'), // Page title
-        __('Help & Instructions', 'spintax-domain-manager'), // Menu title
-        'manage_options',                            // Capability
-        'sdm-help-page',                             // Menu slug (URL параметр)
-        'sdm_render_help_page'                       // Callback для содержимого
+        'sdm-dashboard',
+        __('Help & Instructions', 'spintax-domain-manager'),
+        __('Help & Instructions', 'spintax-domain-manager'),
+        'manage_options',
+        'sdm-help-page',
+        'sdm_render_help_page'
     );
 
 
