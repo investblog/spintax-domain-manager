@@ -11,31 +11,39 @@ if (!defined('ABSPATH')) {
 class SDM_Accounts_Manager {
 
     public function get_account_by_project_and_service($project_id, $service_name) {
-            global $wpdb;
+        global $wpdb;
 
-            $service = $wpdb->get_row($wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}sdm_service_types WHERE service_name = %s LIMIT 1",
-                $service_name
-            ));
+        $service = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}sdm_service_types WHERE service_name = %s LIMIT 1",
+            $service_name
+        ));
 
-            if (!$service) {
-                error_log('SDM_Accounts_Manager: Service not found: ' . $service_name);
-                return false;
-            }
+        if (!$service) {
+            error_log('SDM_Accounts_Manager: Service not found: ' . $service_name);
+            return false;
+        }
 
+        $account = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}sdm_accounts
+             WHERE project_id = %d AND service_id = %d LIMIT 1",
+            $project_id,
+            $service->id
+        ));
+
+        if (!$account && stripos($service_name, 'CloudFlare') === false) {
             $account = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}sdm_accounts 
-                 WHERE project_id = %d AND service_id = %d LIMIT 1",
-                $project_id,
+                "SELECT * FROM {$wpdb->prefix}sdm_accounts
+                 WHERE project_id IS NULL AND service_id = %d LIMIT 1",
                 $service->id
             ));
-
-            if (!$account) {
-                error_log('SDM_Accounts_Manager: Account not found for project_id=' . $project_id . ', service=' . $service_name);
-            }
-
-            return $account;
         }
+
+        if (!$account) {
+            error_log('SDM_Accounts_Manager: Account not found for project_id=' . $project_id . ', service=' . $service_name);
+        }
+
+        return $account;
+    }
         
     /**
      * Retrieve all accounts from the database, 
@@ -68,7 +76,7 @@ class SDM_Accounts_Manager {
         global $wpdb;
         $table = $wpdb->prefix . 'sdm_accounts';
 
-        $project_id = absint($data['project_id'] ?? 0);
+        $project_id = isset($data['project_id']) && $data['project_id'] !== '' ? absint($data['project_id']) : null;
         $site_id = isset($data['site_id']) && !empty($data['site_id']) ? absint($data['site_id']) : null; // Устанавливаем NULL, если site_id не указано или пустое
 
         // Get service_id by service_name from sdm_service_types

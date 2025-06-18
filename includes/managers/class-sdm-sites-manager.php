@@ -50,18 +50,8 @@ class SDM_Sites_Manager {
             return false;
         }
 
-        $account = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}sdm_accounts 
-             WHERE project_id = %d AND service_id = %d LIMIT 1",
-            $project_id,
-            $service->id
-        ));
-
-        if (!$account) {
-            error_log('SDM_Accounts_Manager: Account not found for project_id=' . $project_id . ', service=' . $service_name);
-        }
-
-        return $account;
+        $account_manager = new SDM_Accounts_Manager();
+        return $account_manager->get_account_by_project_and_service($project_id, $service_name);
     }
 
     /**

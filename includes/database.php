@@ -24,7 +24,7 @@ function sdm_create_tables() {
     // 2) Sites table: sites attached to a project with monitoring settings.
     $sites_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_sites (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        project_id BIGINT UNSIGNED NOT NULL,
+        project_id BIGINT UNSIGNED NULL DEFAULT NULL,
         site_name VARCHAR(255) NOT NULL,
         server_ip VARCHAR(45) DEFAULT NULL,
         svg_icon TEXT DEFAULT NULL,
@@ -71,7 +71,7 @@ function sdm_create_tables() {
     // 5) Accounts table: external service accounts linked to a project.
     $accounts_sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}sdm_accounts (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        project_id BIGINT UNSIGNED NOT NULL,
+        project_id BIGINT UNSIGNED NULL DEFAULT NULL,
         site_id BIGINT UNSIGNED DEFAULT NULL,
         service_id BIGINT UNSIGNED NOT NULL,
         account_name VARCHAR(255) DEFAULT NULL,
@@ -264,6 +264,13 @@ function sdm_create_tables() {
     $existing_columns = $wpdb->get_col("SHOW COLUMNS FROM $sites_table");
     if (!in_array('monitoring_settings', $existing_columns)) {
         $wpdb->query("ALTER TABLE $sites_table ADD COLUMN monitoring_settings JSON DEFAULT NULL COMMENT 'JSON for monitoring settings (e.g., enabled types: RusRegBL, Http)'");
+    }
+
+    // Миграция project_id в wp_sdm_accounts: делаем поле допускающим NULL
+    $accounts_table = $wpdb->prefix . 'sdm_accounts';
+    $column_info = $wpdb->get_row("SHOW COLUMNS FROM $accounts_table LIKE 'project_id'");
+    if ($column_info && strpos($column_info->Type, 'bigint') !== false && $column_info->Null === 'NO') {
+        $wpdb->query("ALTER TABLE $accounts_table MODIFY project_id BIGINT UNSIGNED NULL DEFAULT NULL");
     }
 }
 
