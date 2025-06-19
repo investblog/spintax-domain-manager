@@ -1139,7 +1139,11 @@ function sdm_ajax_create_cf_custom_address() {
     }
 
     // Получаем Cloudflare учётку
-    $account = $this->get_cloudflare_account($project_id);
+    $account_manager = new SDM_Accounts_Manager();
+    $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (API Key)');
+    if (!$account) {
+        $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (OAuth)');
+    }
     if (!$account) {
         wp_send_json_error('No CloudFlare account found for this project.');
     }
@@ -1255,7 +1259,11 @@ function sdm_ajax_set_catchall_forwarding() {
     }
 
     // Получаем Cloudflare-аккаунт
-    $account = $this->get_cloudflare_account($project_id);
+    $account_manager = new SDM_Accounts_Manager();
+    $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (API Key)');
+    if (!$account) {
+        $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (OAuth)');
+    }
     if (!$account) {
         wp_send_json_error('No CloudFlare account found for this project.');
     }
@@ -1365,7 +1373,11 @@ function sdm_ajax_enable_email_routing() {
     $trueDomain = $row->domain; // Настоящее имя домена (например "vavadacasino.yachts")
 
     // 2) Получаем Cloudflare‑аккаунт (как в set_catchall_forwarding)
-    $account = $this->get_cloudflare_account($project_id);
+    $account_manager = new SDM_Accounts_Manager();
+    $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (API Key)');
+    if (!$account) {
+        $account = $account_manager->get_account_by_project_and_service($project_id, 'CloudFlare (OAuth)');
+    }
     if (!$account) {
         wp_send_json_error('No CloudFlare account found for this domain/project.');
     }
@@ -1443,7 +1455,11 @@ function sdm_ajax_get_zone_account_details_by_domain() {
     }
 
     // Получаем Cloudflare учётку для проекта
-    $account_row = $this->get_cloudflare_account($row->project_id);
+    $account_manager = new SDM_Accounts_Manager();
+    $account_row = $account_manager->get_account_by_project_and_service($row->project_id, 'CloudFlare (API Key)');
+    if (!$account_row) {
+        $account_row = $account_manager->get_account_by_project_and_service($row->project_id, 'CloudFlare (OAuth)');
+    }
     if ( ! $account_row ) {
         wp_send_json_error('No Cloudflare account found for this project.');
     }
