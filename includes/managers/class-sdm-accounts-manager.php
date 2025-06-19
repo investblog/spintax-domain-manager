@@ -30,7 +30,7 @@ class SDM_Accounts_Manager {
             $service->id
         ));
 
-        if (!$account && stripos($service_name, 'CloudFlare') === false) {
+        if (!$account) {
             $account = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}sdm_accounts
                  WHERE project_id IS NULL AND service_id = %d LIMIT 1",
