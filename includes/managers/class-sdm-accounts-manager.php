@@ -545,6 +545,53 @@ function sdm_ajax_test_sdm_account() {
         }
     }
 
+    // === Namecheap ===
+    elseif ( $service->service_name === 'NameCheap' ) {
+
+        // 1) Расшифровываем JSON-креденшелы
+        $creds = array();
+        if ( ! empty( $account->additional_data_enc ) ) {
+            $json = sdm_decrypt( $account->additional_data_enc );
+            $creds = json_decode( $json, true );
+        }
+
+        $username = $creds['username'] ?? '';
+        $api_key  = $creds['api_key']  ?? '';
+        $api_ip   = $creds['api_ip']   ?? '';
+
+        if ( empty( $username ) || empty( $api_key ) ) {
+            wp_send_json_error( array(
+                'message' => __( 'Incomplete Namecheap credentials (username & API key are required).', 'spintax-domain-manager' )
+            ) );
+        }
+
+        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-namecheap-api.php';
+        $api    = new SDM_Namecheap_API( compact( 'username', 'api_key', 'api_ip' ) );
+        $result = $api->check_credentials();
+
+        if ( ! $result['success'] ) {
+            wp_send_json_error( array( 'message' => $result['message'] ) );
+        }
+
+        // Обновляем last_test_*
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . 'sdm_accounts',
+            array(
+                'last_tested_at'   => current_time( 'mysql' ),
+                'last_test_result' => 'Success',
+            ),
+            array( 'id' => $account_id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+
+        wp_send_json_success( array( 'data' => array(
+            'message' => __( 'Namecheap credentials valid — balance endpoint responded OK.', 'spintax-domain-manager' ),
+        ) ) );
+    }
+
+
     // === Other or unsupported service ===
     else {
         wp_send_json_error(array('message' => __('Testing not implemented for this service.', 'spintax-domain-manager')));

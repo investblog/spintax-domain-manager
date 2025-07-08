@@ -52,6 +52,7 @@ require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-xmlstock-api.php';
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-hosttracker-api.php';
 require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-yandex-api.php';
+require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-namecheap-api.php';
 
 // Optionally include GraphQL support
 if (file_exists(SDM_PLUGIN_DIR . 'includes/graphql-support.php')) {
