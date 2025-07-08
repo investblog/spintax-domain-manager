@@ -159,11 +159,11 @@ function sdm_create_tables() {
             ), JSON_UNESCAPED_SLASHES),
             'NameCheap', 'Username & API', json_encode(array(
                 "required_fields" => array("username", "api_key"),
-                "optional_fields" => array("sandbox_mode")
+                "optional_fields" => array("api_ip")
             ), JSON_UNESCAPED_SLASHES),
             'NameSilo', 'Username & API', json_encode(array(
                 "required_fields" => array("username", "api_key"),
-                "optional_fields" => array("test_mode")
+                "optional_fields" => array("api_ip")
             ), JSON_UNESCAPED_SLASHES),
             'Yandex', 'User ID & OAuth Token', json_encode(array(
                 "required_fields" => array("user_id", "oauth_token"),
