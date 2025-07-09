@@ -725,16 +725,18 @@ function sdm_ajax_fetch_domains_list() {
                             $domain->id
                         )
                     );
-                    // Если $has_forwarding == true, добавляем класс "sdm-email-active"
                     $forwarding_class = $has_forwarding ? 'sdm-email-active' : '';
                     ?>
                     <tr id="domain-row-<?php echo esc_attr($domain->id); ?>"
                         data-domain-id="<?php echo esc_attr($domain->id); ?>"
                         data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>">
 
+                        <!-- Domain ------------------------------------------------------------- -->
                         <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
                             <?php echo esc_html($domain->domain); ?>
                         </td>
+
+                        <!-- Site link / main-icon -------------------------------------------- -->
                         <td>
                             <?php if ($is_assigned) : ?>
                                 <a href="?page=sdm-sites&project_id=<?php echo esc_attr($project_id); ?>"
@@ -742,26 +744,16 @@ function sdm_ajax_fetch_domains_list() {
                                     <?php echo esc_html($domain->site_name); ?>
                                 </a>
                                 <?php if ($is_main_domain) : ?>
-                                    <span class="sdm-main-domain-icon" style="display: inline-flex; align-items: center; margin-left: 5px;">
+                                    <span class="sdm-main-domain-icon" style="display:inline-flex;align-items:center;margin-left:5px;">
                                         <?php
                                         $domain_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/domain.svg');
                                         if ($domain_svg) {
-                                            echo wp_kses(
-                                                $domain_svg,
-                                                array(
-                                                    'svg'  => array(
-                                                        'width'   => true,
-                                                        'height'  => true,
-                                                        'viewBox' => true
-                                                    ),
-                                                    'path' => array(
-                                                        'd'    => true,
-                                                        'fill' => true
-                                                    )
-                                                )
-                                            );
+                                            echo wp_kses($domain_svg, [
+                                                'svg'  => ['width'=>true,'height'=>true,'viewBox'=>true],
+                                                'path' => ['d'=>true,'fill'=>true]
+                                            ]);
                                         } else {
-                                            echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/domain.svg') . '" alt="' . esc_attr__('Main Domain', 'spintax-domain-manager') . '" width="16" height="16" />';
+                                            echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/domain.svg') . '" alt="Main" width="16" height="16" />';
                                         }
                                         ?>
                                     </span>
@@ -770,26 +762,50 @@ function sdm_ajax_fetch_domains_list() {
                                 (Unassigned)
                             <?php endif; ?>
                         </td>
+
+                        <!-- Other columns ------------------------------------------------------ -->
                         <td><?php echo esc_html($domain->abuse_status); ?></td>
                         <td><?php echo $is_blocked ? esc_html__('Yes', 'spintax-domain-manager') : esc_html__('No', 'spintax-domain-manager'); ?></td>
                         <td><?php echo esc_html($domain->status); ?></td>
                         <td><?php echo esc_html($domain->last_checked); ?></td>
                         <td><?php echo esc_html($domain->created_at); ?></td>
+
+                        <!-- ACTIONS ------------------------------------------------------------ -->
                         <td>
                             <?php if ($is_active && $mail_in_a_box_enabled) : ?>
+                                <!-- чекбокс / Unassign -->
                                 <?php if ($is_assigned && !$is_main_domain) : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                     <button type="button"
                                             class="sdm-action-button sdm-unassign sdm-mini-icon"
                                             data-domain-id="<?php echo esc_attr($domain->id); ?>"
                                             title="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>">
-                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>" />
+                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="" />
                                     </button>
-                                <?php elseif ($is_assigned && $is_main_domain) : ?>
-                                    <!-- No checkbox or actions for main domains -->
-                                <?php else : ?>
+                                <?php elseif (!$is_main_domain) : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                 <?php endif; ?>
+
+                                <!-- NEW Sync NS  ↓↓ -->
+                                <button type="button"
+                                        class="sdm-action-button sdm-mini-icon sdm-sync-ns"
+                                        data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                                        title="<?php esc_attr_e('Sync NS to Namecheap', 'spintax-domain-manager'); ?>">
+                                    <?php
+                                    $dns_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/dns.svg');
+                                    if ($dns_svg) {
+                                        echo wp_kses($dns_svg, [
+                                            'svg'  => ['width'=>true,'height'=>true,'viewBox'=>true,'fill'=>true,'xmlns'=>true],
+                                            'path' => ['d'=>true,'fill'=>true,'fill-rule'=>true,'clip-rule'=>true],
+                                        ]);
+                                    } else {
+                                        echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/dns.svg') . '" alt="NS" width="16" height="16" />';
+                                    }
+                                    ?>
+                                </button>
+                                <!-- ↑↑ NEW Sync NS -->
+
+                                <!-- Email-forwarding -->
                                 <button type="button"
                                         class="sdm-action-button sdm-mini-icon sdm-email-forwarding <?php echo $forwarding_class; ?>"
                                         data-domain-id="<?php echo esc_attr($domain->id); ?>"
@@ -798,46 +814,53 @@ function sdm_ajax_fetch_domains_list() {
                                         title="<?php esc_attr_e('Set Email Forwarding', 'spintax-domain-manager'); ?>">
                                     <?php
                                     $email_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/email.svg');
-                                    if ($email_svg) {
-                                        echo wp_kses(
-                                            $email_svg,
-                                            array(
-                                                'svg'  => array(
-                                                    'width'   => true,
-                                                    'height'  => true,
-                                                    'viewBox' => true
-                                                ),
-                                                'path' => array(
-                                                    'd'    => true,
-                                                    'fill' => true
-                                                )
-                                            )
-                                        );
-                                    } else {
-                                        echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/email.svg') . '" alt="' . esc_attr__('Email Forwarding', 'spintax-domain-manager') . '" width="16" height="16" />';
-                                    }
+                                    echo $email_svg
+                                        ? wp_kses($email_svg, [
+                                              'svg'=>['width'=>true,'height'=>true,'viewBox'=>true],
+                                              'path'=>['d'=>true,'fill'=>true]
+                                          ])
+                                        : '<img src="'.esc_url(SDM_PLUGIN_URL.'assets/icons/email.svg').'" alt="@" width="16" height="16" />';
                                     ?>
                                 </button>
+
                             <?php elseif ($is_active && !$mail_in_a_box_enabled) : ?>
+                                <!-- чекбокс / Unassign (тот же блок, но без email-кнопки) -->
                                 <?php if ($is_assigned && !$is_main_domain) : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                     <button type="button"
                                             class="sdm-action-button sdm-unassign sdm-mini-icon"
                                             data-domain-id="<?php echo esc_attr($domain->id); ?>"
                                             title="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>">
-                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>" />
+                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="" />
                                     </button>
-                                <?php elseif ($is_assigned && $is_main_domain) : ?>
-                                    <!-- No checkbox or actions for main domains -->
-                                <?php else : ?>
+                                <?php elseif (!$is_main_domain) : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
                                 <?php endif; ?>
+
+                                <!-- NEW Sync NS  ↓↓ -->
+                                <button type="button"
+                                        class="sdm-action-button sdm-mini-icon sdm-sync-ns"
+                                        data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                                        title="<?php esc_attr_e('Sync NS to Namecheap', 'spintax-domain-manager'); ?>">
+                                    <?php
+                                    $dns_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/dns.svg');
+                                    echo $dns_svg
+                                        ? wp_kses($dns_svg, [
+                                              'svg'=>['width'=>true,'height'=>true,'viewBox'=>true,'fill'=>true,'xmlns'=>true],
+                                              'path'=>['d'=>true,'fill'=>true,'fill-rule'=>true,'clip-rule'=>true],
+                                          ])
+                                        : '<img src="'.esc_url(SDM_PLUGIN_URL.'assets/icons/dns.svg').'" alt="NS" width="16" height="16" />';
+                                    ?>
+                                </button>
+                                <!-- ↑↑ NEW Sync NS -->
+
                             <?php else : ?>
+                                <!-- Delete (неактивные / заблокированные) -->
                                 <button type="button"
                                         class="sdm-action-button sdm-delete-domain sdm-delete sdm-mini-icon"
                                         data-domain-id="<?php echo esc_attr($domain->id); ?>"
                                         title="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>">
-                                    <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="<?php esc_attr_e('Delete', 'spintax-domain-manager'); ?>" />
+                                    <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="" />
                                 </button>
                             <?php endif; ?>
                         </td>
@@ -1494,3 +1517,99 @@ function sdm_ajax_get_zone_account_details_by_domain() {
     ]);
 }
 add_action('wp_ajax_sdm_get_zone_account_details_by_domain', 'sdm_ajax_get_zone_account_details_by_domain');
+
+/* --------------------------------------------------------------------------
+ * AJAX: синхронизация NS-серверов Cloudflare → Namecheap
+ * -------------------------------------------------------------------------- */
+add_action( 'wp_ajax_sdm_sync_cf_ns_namecheap', function () {
+
+    /* 0. Проверка прав и nonce */
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( __( 'Permission denied.', 'spintax-domain-manager' ) );
+    }
+    sdm_check_main_nonce();
+
+    /* 1. Получаем домен из БД */
+    $domain_id = isset( $_POST['domain_id'] ) ? absint( $_POST['domain_id'] ) : 0;
+    if ( ! $domain_id ) {
+        wp_send_json_error( __( 'Invalid domain ID.', 'spintax-domain-manager' ) );
+    }
+
+    global $wpdb;
+    $domain = $wpdb->get_row( $wpdb->prepare(
+        "SELECT * FROM {$wpdb->prefix}sdm_domains WHERE id = %d LIMIT 1",
+        $domain_id
+    ) );
+
+    if ( ! $domain ) {
+        wp_send_json_error( __( 'Domain not found.', 'spintax-domain-manager' ) );
+    }
+
+    /* 2. Cloudflare учётка для проекта */
+    $cf_creds = SDM_Cloudflare_API::get_project_cf_credentials( $domain->project_id );
+    if ( is_wp_error( $cf_creds ) ) {
+        wp_send_json_error( $cf_creds->get_error_message() );
+    }
+    $cf = new SDM_Cloudflare_API( $cf_creds );
+
+    /* 3. Получаем или создаём zone_id */
+    $zone_id = $domain->cf_zone_id;
+
+    if ( empty( $zone_id ) ) {
+        // Пытаемся найти зону по имени
+        $zone_id = $cf->find_zone_id_by_name( $domain->domain );
+        if ( is_wp_error( $zone_id ) && 'cf_no_zone' === $zone_id->get_error_code() ) {
+            // Зоны нет — создаём
+            $create = $cf->add_zone( $domain->domain );
+            if ( is_wp_error( $create ) ) {
+                wp_send_json_error( $create->get_error_message() );
+            }
+            $zone_id = $create['result']['id'] ?? '';
+        } elseif ( is_wp_error( $zone_id ) ) {
+            wp_send_json_error( $zone_id->get_error_message() );
+        }
+    }
+
+    if ( empty( $zone_id ) ) {
+        wp_send_json_error( __( 'Unable to obtain Cloudflare zone ID.', 'spintax-domain-manager' ) );
+    }
+
+    /* 4. Получаем именные NS Cloudflare */
+    $ns = $cf->get_zone_nameservers( $zone_id );
+    if ( is_wp_error( $ns ) ) {
+        wp_send_json_error( $ns->get_error_message() );
+    }
+
+    /* 5. Учётка Namecheap */
+    $acc_mgr = new SDM_Accounts_Manager();
+    $nc_acc  = $acc_mgr->get_account_by_project_and_service( $domain->project_id, 'namecheap' );
+    if ( ! $nc_acc ) {
+        wp_send_json_error( __( 'No Namecheap account linked to this project.', 'spintax-domain-manager' ) );
+    }
+
+    $nc_creds = array_merge(
+        [ 'username' => $nc_acc->account_name ],
+        json_decode( sdm_decrypt( $nc_acc->additional_data_enc ), true ) ?: []
+    );
+
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-namecheap-api.php';
+    $nc   = new SDM_Namecheap_API( $nc_creds );
+    $resp = $nc->set_nameservers( $domain->domain, $ns );
+
+    if ( ! $resp['success'] ) {
+        wp_send_json_error( $resp['message'] );
+    }
+
+    /* 6. Сохраняем zone_id, если нашли/создали впервые */
+    if ( empty( $domain->cf_zone_id ) && $zone_id ) {
+        $wpdb->update(
+            $wpdb->prefix . 'sdm_domains',
+            [ 'cf_zone_id' => $zone_id ],
+            [ 'id'         => $domain_id ],
+            [ '%s' ],
+            [ '%d' ]
+        );
+    }
+
+    wp_send_json_success( __( 'Nameservers synced successfully.', 'spintax-domain-manager' ) );
+} );

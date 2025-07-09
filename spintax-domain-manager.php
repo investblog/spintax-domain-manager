@@ -3,7 +3,7 @@
  * Plugin Name:       Spintax Domain Manager
  * Plugin URI:        https://spintax.net/domain_manager
  * Description:       A WordPress plugin for managing domains, redirects, and external API integrations.
- * Version:           1.0.5
+ * Version:           1.0.6
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Divisor & ChatGPT
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('SDM_VERSION', '1.0.5');
+define('SDM_VERSION', '1.0.6');
 define('SDM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SDM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SDM_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -231,3 +231,81 @@ function sdm_enqueue_admin_assets() {
     );
 }
 add_action('admin_enqueue_scripts', 'sdm_enqueue_admin_assets');
+
+/* --------------------------------------------------------------------------
+ * Admin-notice “Install Git Updater” – показываем один раз.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Выводим предупреждение, если Git Updater не активен и пользователь
+ * ещё не нажимал “Dismiss”.
+ */
+function sdm_git_updater_notice() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+
+    // 1) Git Updater активен? — ничего не выводим.
+    if ( is_plugin_active( 'git-updater/git-updater.php' ) ) {
+        return;
+    }
+
+    // 2) Пользователь уже отклонил.
+    if ( get_user_meta( get_current_user_id(), 'sdm_hide_git_updater_notice', true ) ) {
+        return;
+    }
+
+    // 3) Главный nonce (как во всём плагине)
+    $main_nonce = sdm_create_main_nonce();
+    ?>
+    <div class="notice notice-warning is-dismissible sdm-git-updater-notice">
+        <p>
+            <?php
+            printf(
+                __( '%1$s: To enable automatic updates from GitHub, please install and activate the <a href="%2$s" target="_blank">Git&nbsp;Updater</a> plugin.', 'spintax-domain-manager' ),
+                '<strong>Spintax&nbsp;Domain&nbsp;Manager</strong>',
+                esc_url( 'https://github.com/afragen/git-updater/releases/latest' )
+            );
+            ?>
+        </p>
+    </div>
+
+    <script>
+    (function(){
+        document.addEventListener('click', function(e){
+            var closeBtn = e.target.closest('.sdm-git-updater-notice .notice-dismiss');
+            if (!closeBtn) return;
+
+            // Подготовим FormData с основным nonce
+            var fd = new FormData();
+            fd.append('action',                     'sdm_dismiss_git_updater_notice');
+            fd.append('<?php echo esc_js( SDM_NONCE_FIELD ); ?>',  '<?php echo esc_js( $main_nonce ); ?>');
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: fd
+            });
+        });
+    })();
+    </script>
+    <?php
+}
+add_action( 'admin_notices', 'sdm_git_updater_notice' );
+
+/**
+ * AJAX: помечаем notice как скрытый.
+ */
+add_action( 'wp_ajax_sdm_dismiss_git_updater_notice', function () {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die();
+    }
+
+    // Проверяем главный nonce
+    if ( ! sdm_check_main_nonce() ) {
+        wp_die();
+    }
+
+    update_user_meta( get_current_user_id(), 'sdm_hide_git_updater_notice', 1 );
+    wp_die();
+} );

@@ -774,7 +774,49 @@ class SDM_Cloudflare_API {
         return $this->api_request_extended($endpoint, $query, 'GET');
     }
 
+    /**
+     * Find zone_id by plain domain name (fallback when cf_zone_id is empty).
+     *
+     * @param string $domain  example.com
+     * @return string|WP_Error
+     */
+    public function find_zone_id_by_name( $domain ) {
+        $resp = $this->api_request( 'zones', [
+            'name'     => $domain,
+            'per_page' => 1,
+            'page'     => 1,
+        ] );
 
+        if ( is_wp_error( $resp ) ) {
+            return $resp;
+        }
+
+        if ( empty( $resp['result'][0]['id'] ) ) {
+            return new WP_Error(
+                'cf_no_zone',
+                sprintf( __( 'Zone "%s" not found in Cloudflare account.', 'spintax-domain-manager' ), $domain )
+            );
+        }
+
+        return $resp['result'][0]['id'];
+    }
+
+    /**
+     * Return the two authoritative nameservers Cloudflare assigns to a zone.
+     *
+     * @param string $zone_id
+     * @return array|WP_Error  e.g. ['leah.ns.cloudflare.com','walt.ns.cloudflare.com']
+     */
+    public function get_zone_nameservers( $zone_id ) {
+        $resp = $this->api_request( "zones/$zone_id" );
+        if ( is_wp_error( $resp ) ) {
+            return $resp;
+        }
+        if ( empty( $resp['result']['name_servers'] ) ) {
+            return new WP_Error( 'cf_ns', __( 'Unable to fetch Cloudflare nameservers.', 'spintax-domain-manager' ) );
+        }
+        return $resp['result']['name_servers'];
+    }
 
 
 }

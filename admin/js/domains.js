@@ -1,52 +1,95 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Глобальные переменные
-    var mainNonceField = document.getElementById('sdm-main-nonce');
-    var mainNonce = mainNonceField ? mainNonceField.value : '';
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ────────── Глобальные переменные ────────── */
+    var mainNonceField  = document.getElementById('sdm-main-nonce');
+    var mainNonce       = mainNonceField ? mainNonceField.value : '';
     var projectSelector = document.getElementById('sdm-project-selector');
     var currentProjectId = projectSelector ? parseInt(projectSelector.value) : 0;
-    let sortDirection = {};
+    let sortDirection   = {};
     let lastSortedColumn = null;
 
-    // Инициализация состояния сортировки
+
+    /* ────────── Делегированный клик: Sync NS ────────── */
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.sdm-sync-ns');
+        if (!btn) return;                                 // клик не по нашей кнопке
+
+        e.preventDefault();
+        const domainId = btn.getAttribute('data-domain-id');
+        if (!domainId) return;
+
+        // при желании можно спросить подтверждение
+        if (!confirm('Sync Cloudflare nameservers to Namecheap for this domain?')) return;
+
+        btn.disabled = true;                              // визуальная блокировка
+
+        const fd = new FormData();
+        fd.append('action',               'sdm_sync_cf_ns_namecheap');
+        fd.append('domain_id',            domainId);
+        fd.append('sdm_main_nonce_field', mainNonce);
+
+        fetch(ajaxurl, {
+            method:       'POST',
+            credentials:  'same-origin',
+            body:         fd
+        })
+        .then(r => r.json())
+        .then(resp => {
+            const msg = resp.data || resp.message || 'Unknown server response';
+            showDomainsNotice(resp.success ? 'updated' : 'error', msg);
+        })
+        .catch(err => {
+            console.error('Sync NS error:', err);
+            showDomainsNotice('error', 'Ajax request failed.');
+        })
+        .finally(() => { btn.disabled = false; });
+    });
+
+
+
+    /* ────────── Сортировка: начальное состояние ────────── */
     function initializeSortState() {
-        sortDirection['domain'] = 'asc';
-        sortDirection['site_name'] = 'asc';
-        sortDirection['abuse_status'] = 'asc';
-        sortDirection['blocked'] = 'asc';
-        sortDirection['status'] = 'asc';
-        sortDirection['last_checked'] = 'asc';
-        sortDirection['created_at'] = 'asc';
+        sortDirection['domain']        = 'asc';
+        sortDirection['site_name']     = 'asc';
+        sortDirection['abuse_status']  = 'asc';
+        sortDirection['blocked']       = 'asc';
+        sortDirection['status']        = 'asc';
+        sortDirection['last_checked']  = 'asc';
+        sortDirection['created_at']    = 'asc';
     }
 
-    // AJAX-запрос для получения списка доменов с сортировкой и поиском
-    function fetchDomains(projectId, sortColumn = 'created_at', sortDirectionParam = 'desc', searchTerm = '', isBlockedSort = false) {
+
+    /* ────────── Ajax-загрузка списка доменов ────────── */
+    function fetchDomains(projectId,
+                          sortColumn        = 'created_at',
+                          sortDirectionParam = 'desc',
+                          searchTerm        = '',
+                          isBlockedSort     = false) {
+
         var formData = new FormData();
-        formData.append('action', 'sdm_fetch_domains_list');
-        formData.append('project_id', projectId);
-        formData.append('sort_column', sortColumn);
-        formData.append('sort_direction', sortDirectionParam);
-        formData.append('search_term', searchTerm);
-        if (isBlockedSort) {
-            formData.append('is_blocked_sort', '1');
-        }
+        formData.append('action',          'sdm_fetch_domains_list');
+        formData.append('project_id',      projectId);
+        formData.append('sort_column',     sortColumn);
+        formData.append('sort_direction',  sortDirectionParam);
+        formData.append('search_term',     searchTerm);
+        if (isBlockedSort) formData.append('is_blocked_sort', '1');
         formData.append('sdm_main_nonce_field', mainNonce);
 
         var container = document.getElementById('sdm-domains-container');
         container.innerHTML = '<p><span class="spinner"></span> Loading...</p>';
 
         fetch(ajaxurl, {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: formData
+            method:       'POST',
+            credentials:  'same-origin',
+            body:         formData
         })
-        .then(function(response) {
-            console.log('Response:', response);
-            return response.json();
-        })
-        .then(function(data) {
-            console.log('Data:', data);
+        .then(r => r.json())
+        .then(data => {
             if (data.success) {
                 container.innerHTML = data.data.html;
+
+                appendSyncButtons();        // ← добавляем кнопки после отрисовки таблицы
+
                 initializeDynamicListeners();
                 initializeSorting();
             } else {
@@ -54,22 +97,51 @@ document.addEventListener('DOMContentLoaded', function() {
                 container.innerHTML = '<p class="error">' + data.data + '</p>';
             }
         })
-        .catch(function(error) {
-            console.error('Fetch domains list error:', error);
+        .catch(err => {
+            console.error('Fetch domains list error:', err);
             showDomainsNotice('error', 'Ajax request failed.');
             container.innerHTML = '<p class="error">Error loading domains.</p>';
         });
     }
 
-    // При загрузке страницы, если выбран проект
+
+
+    /* ────────── Вставка кнопок “Sync NS” ────────── */
+    function appendSyncButtons() {
+        // Для всех <tr> с data-domain-id добавляем кнопку, если её ещё нет
+        const rows = document.querySelectorAll('#sdm-domains-container tr[data-domain-id]');
+        rows.forEach(function (row) {
+            if (row.querySelector('.sdm-sync-ns')) return;      // кнопка уже есть
+
+            const domainId = row.getAttribute('data-domain-id');
+            if (!domainId) return;
+
+            // Ищем ячейку действий – класс .sdm-actions или последняя TD
+            let actionsCell = row.querySelector('.sdm-actions');
+            if (!actionsCell) actionsCell = row.lastElementChild;
+
+            const btn = document.createElement('button');
+            btn.className = 'button button-small sdm-sync-ns';
+            btn.setAttribute('data-domain-id', domainId);
+            btn.title = 'Sync NS to Namecheap';
+            btn.innerHTML = '<span class="dashicons dashicons-update"></span>';
+
+            actionsCell.appendChild(btn);
+        });
+    }
+
+
+
+    /* ────────── Первичная загрузка (если проект выбран) ────────── */
     if (currentProjectId > 0) {
         initializeSortState();
         fetchDomains(currentProjectId);
     }
 
-    // При изменении селектора проекта
+
+    /* ────────── Селектор проекта ────────── */
     if (projectSelector) {
-        projectSelector.addEventListener('change', function() {
+        projectSelector.addEventListener('change', function () {
             currentProjectId = parseInt(this.value);
             if (currentProjectId > 0) {
                 initializeSortState();
@@ -78,6 +150,65 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('sdm-domains-container').innerHTML =
                     '<p style="margin: 20px 0; color: #666;">Please select a project to view its domains.</p>';
             }
+        });
+    }
+
+
+
+    /* ────────── Кнопка “Fetch Domains from CF” ────────── */
+    var fetchBtn    = document.getElementById('sdm-fetch-domains');
+    var fetchStatus = document.getElementById('sdm-fetch-domains-status');
+
+    if (fetchBtn && fetchStatus) {
+
+        fetchBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (!currentProjectId) {
+                fetchStatus.textContent = 'Please select a project.';
+                return;
+            }
+            fetchStatus.textContent = 'Fetching domains…';
+
+            var fd = new FormData();
+            fd.append('action',               'sdm_fetch_domains');
+            fd.append('project_id',           currentProjectId);
+            fd.append('sdm_main_nonce_field', mainNonce);
+
+            fetch(ajaxurl, {
+                method:      'POST',
+                credentials: 'same-origin',
+                body:        fd
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    fetchStatus.textContent = 'Fetched ' + data.data.count + ' domains from CloudFlare.';
+                    fetchDomains(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'desc');
+                } else {
+                    fetchStatus.textContent = 'Error: ' + data.data;
+                }
+            })
+            .catch(err => {
+                console.error('Fetch domains error:', err);
+                fetchStatus.textContent = 'Ajax request failed.';
+            });
+        });
+    }
+
+
+
+    /* ────────── Уведомления ────────── */
+    function showDomainsNotice(type, message) {
+        var noticeContainer = document.getElementById('sdm-domains-notice');
+        if (!noticeContainer) return;
+        var cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
+        noticeContainer.innerHTML =
+            '<div class="notice ' + cssClass + ' is-dismissible">' +
+            '<p>' + message + '</p><button class="notice-dismiss" type="button">×</button></div>';
+
+        var dismissBtn = noticeContainer.querySelector('.notice-dismiss');
+        if (dismissBtn) dismissBtn.addEventListener('click', function () {
+            noticeContainer.innerHTML = '';
         });
     }
 
