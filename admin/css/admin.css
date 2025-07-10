@@ -271,6 +271,21 @@
   border: 1px solid var(--sdm-border);
   border-radius: var(--sdm-border-radius);
 }
+.sdm-progress {
+  width: 100%;
+  height: 20px;
+  background: var(--sdm-bg-th);
+  border: 1px solid var(--sdm-border);
+  border-radius: var(--sdm-border-radius);
+  overflow: hidden;
+  position: relative;
+}
+.sdm-progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--sdm-accent);
+  transition: width 0.3s ease;
+}
 .sdm-label {
   margin-right: 10px;
   font-weight: 600;

@@ -984,4 +984,13 @@ document.addEventListener('DOMContentLoaded', function () {
             timeout = setTimeout(later, wait);
         };
     }
+
+    // Экспортируем несколько функций и переменных для batch-скриптов
+    window.SDM_Domains_API = {
+        fetchDomains: fetchDomains,
+        showNotice: showDomainsNotice,
+        getCurrentProjectId: () => currentProjectId,
+        getSortColumn: () => lastSortedColumn,
+        getSortDirection: () => sortDirection[lastSortedColumn] || 'desc'
+    };
 });

@@ -65,7 +65,7 @@ $main_nonce = sdm_create_main_nonce();
 
     <!-- Project Indicator -->
     <?php if ($current_project_id > 0) : ?>
-        <p class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
+        <div class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
             <?php
             $project_name = '';
             foreach ($all_projects as $proj) {
@@ -80,7 +80,10 @@ $main_nonce = sdm_create_main_nonce();
                 esc_html($project_name ?: 'Unknown')
             );
             ?>
-        </p>
+            <div id="sdm-batch-progress" class="sdm-progress" style="display:none; margin-top:5px;">
+                <div class="sdm-progress-bar"></div>
+            </div>
+        </div>
     <?php else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e('Please select a project to view its domains.', 'spintax-domain-manager'); ?></p>
     <?php endif; ?>
