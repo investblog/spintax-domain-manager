@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     /* ────────── Глобальные переменные ────────── */
+    // SVG-иконка DNS (используется для кнопки Sync NS)
+    var dnsSvgIcon = '<svg width="15" height="18" viewBox="0 0 15 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M.078 3.736A3.704 3.704 0 0 1 3.78.031h6.336a3.704 3.704 0 0 1 3.703 3.705V5.9a.924.924 0 0 1-.925.926H1.003A.924.924 0 0 1 .078 5.9zM6.21 9.141c.299 0 .48.338.344.604a5.3 5.30 0 0 0-.575 2.41c0 1.24.332 2.35.792 3.295.125.256-.055.566-.34.566H3.78a3.704 3.704 0 0 1-3.703-3.705v-2.245c0-.51.413-.925.925-.925zm8.091 3.014c0 2.02-1.346 3.679-2.236 4.556a1.08 1.08 0 0 1-1.535 0c-.89-.877-2.236-2.537-2.236-4.556a3.004 3.004 0 1 1 6.007 0" fill="currentColor"/></svg>';
     var mainNonceField  = document.getElementById('sdm-main-nonce');
     var mainNonce       = mainNonceField ? mainNonceField.value : '';
     var projectSelector = document.getElementById('sdm-project-selector');
@@ -124,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.className = 'button button-small sdm-sync-ns';
             btn.setAttribute('data-domain-id', domainId);
             btn.title = 'Sync NS to Namecheap';
-            btn.innerHTML = '<span class="dashicons dashicons-update"></span>';
+            btn.innerHTML = dnsSvgIcon;
 
             actionsCell.appendChild(btn);
         });

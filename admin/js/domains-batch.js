@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', function () {
         var total = domainIds.length;
         var processed = 0;
         var batchSize = 10;
+        var successCount = 0;
+        var failed = [];
 
         progressBar.style.width = '0%';
         progressBox.style.display = 'block';
@@ -51,6 +53,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         SDM_Domains_API.getSortColumn(),
                         SDM_Domains_API.getSortDirection()
                     );
+                }
+                var msg = successCount + ' domains synced.';
+                if (failed.length) {
+                    msg += ' ' + failed.length + ' failed:\n' + failed.join('\n');
+                    if (window.SDM_Domains_API) {
+                        SDM_Domains_API.showNotice('error', msg);
+                    }
+                } else if (window.SDM_Domains_API) {
+                    SDM_Domains_API.showNotice('updated', msg);
                 }
                 return;
             }
@@ -75,11 +86,14 @@ document.addEventListener('DOMContentLoaded', function () {
             }).then(function(r){ return r.json(); })
               .then(function(resp){
                   var msg = resp.data || resp.message || 'Unknown server response';
-                  if (!resp.success) {
-                      console.error('Sync error for domain', domainId, msg);
+                  if (resp.success) {
+                      successCount++;
+                  } else {
+                      failed.push(domainId + ': ' + msg);
                   }
               })
               .catch(function(err){
+                  failed.push(domainId + ': request failed');
                   console.error('Request failed for domain', domainId, err);
               });
         }
