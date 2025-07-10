@@ -12,6 +12,9 @@ A new AJAX endpoint (`sdm_ajax_get_zone_account_details`) was added to fetch acc
 ## UI & Code Integration
 The new email forwarding functionality was integrated into the existing domain management UI without affecting core features such as sorting, mass actions, and domain deletion.
 
+## Improved NS Sync Buttons
+Inactive domains now display a red "Sync NS" button directly in the domains table without relying on JavaScript manipulation.
+
 ...
 
 ## 2DO
