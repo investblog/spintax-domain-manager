@@ -90,8 +90,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data.success) {
                 container.innerHTML = data.data.html;
 
-                appendSyncButtons();        // ← добавляем кнопки после отрисовки таблицы
-
                 initializeDynamicListeners();
                 initializeSorting();
             } else {
@@ -108,29 +106,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-    /* ────────── Вставка кнопок “Sync NS” ────────── */
-    function appendSyncButtons() {
-        // Для всех <tr> с data-domain-id добавляем кнопку, если её ещё нет
-        const rows = document.querySelectorAll('#sdm-domains-container tr[data-domain-id]');
-        rows.forEach(function (row) {
-            if (row.querySelector('.sdm-sync-ns')) return;      // кнопка уже есть
-
-            const domainId = row.getAttribute('data-domain-id');
-            if (!domainId) return;
-
-            // Ищем ячейку действий – класс .sdm-actions или последняя TD
-            let actionsCell = row.querySelector('.sdm-actions');
-            if (!actionsCell) actionsCell = row.lastElementChild;
-
-            const btn = document.createElement('button');
-            btn.className = 'button button-small sdm-sync-ns';
-            btn.setAttribute('data-domain-id', domainId);
-            btn.title = 'Sync NS to Namecheap';
-            btn.innerHTML = dnsSvgIcon;
-
-            actionsCell.appendChild(btn);
-        });
-    }
 
 
 

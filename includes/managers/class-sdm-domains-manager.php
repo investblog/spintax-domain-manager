@@ -855,7 +855,22 @@ function sdm_ajax_fetch_domains_list() {
                                 <!-- ↑↑ NEW Sync NS -->
 
                             <?php else : ?>
-                                <!-- Delete (неактивные / заблокированные) -->
+                                <!-- Sync NS + Delete for inactive/blocked -->
+                                <button type="button"
+                                        class="sdm-action-button sdm-mini-icon sdm-sync-ns sdm-sync-ns-inactive"
+                                        data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                                        title="<?php esc_attr_e('Sync NS to Namecheap', 'spintax-domain-manager'); ?>">
+                                    <?php
+                                    $dns_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/dns.svg');
+                                    echo $dns_svg
+                                        ? wp_kses($dns_svg, [
+                                              'svg'=>['width'=>true,'height'=>true,'viewBox'=>true,'fill'=>true,'xmlns'=>true],
+                                              'path'=>['d'=>true,'fill'=>true,'fill-rule'=>true,'clip-rule'=>true],
+                                          ])
+                                        : '<img src="'.esc_url(SDM_PLUGIN_URL.'assets/icons/dns.svg').'" alt="NS" width="16" height="16" />';
+                                    ?>
+                                </button>
+
                                 <button type="button"
                                         class="sdm-action-button sdm-delete-domain sdm-delete sdm-mini-icon"
                                         data-domain-id="<?php echo esc_attr($domain->id); ?>"

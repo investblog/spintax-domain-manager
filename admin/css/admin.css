@@ -426,6 +426,11 @@ tr[data-site-id="0"] .sdm-target-domain {
   color: var(--sdm-green);
 }
 
+/* Inactive domains - highlight sync button */
+.sdm-sync-ns-inactive {
+  color: var(--sdm-red);
+}
+
 /*--------------------------------------------------------------
 8. MODALS
 --------------------------------------------------------------*/
