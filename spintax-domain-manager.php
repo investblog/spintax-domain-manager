@@ -152,6 +152,13 @@ function sdm_enqueue_admin_assets() {
             SDM_VERSION,
             true
         );
+        wp_enqueue_script(
+            'sdm-domains-batch-js',
+            SDM_PLUGIN_URL . 'admin/js/domains-batch.js',
+            array('jquery', 'sdm-domains-js'),
+            SDM_VERSION,
+            true
+        );
     }
 
     // Подключаем sites.js только на странице сайтов
