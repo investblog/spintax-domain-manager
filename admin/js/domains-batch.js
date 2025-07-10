@@ -1,18 +1,14 @@
 // Handles batch operations for domains page
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('click', function (e) {
+    var applyBtn = e.target.closest('#sdm-mass-action-apply');
+    if (!applyBtn) return;
     var massActionSelect = document.getElementById('sdm-mass-action-select');
-    var massActionApply  = document.getElementById('sdm-mass-action-apply');
-    var mainNonceField   = document.getElementById('sdm-main-nonce');
-    var mainNonce        = mainNonceField ? mainNonceField.value : '';
-    var progressBox      = document.getElementById('sdm-batch-progress');
-    var progressBar      = progressBox ? progressBox.querySelector('.sdm-progress-bar') : null;
+    if (!massActionSelect || massActionSelect.value !== 'sync_ns') return;
+    e.preventDefault();
 
-    if (!massActionSelect || !massActionApply) return;
-
-    massActionApply.addEventListener('click', function(e){
-        if (massActionSelect.value !== 'sync_ns') return;
-        e.preventDefault();
+    var mainNonceField = document.getElementById('sdm-main-nonce');
+    var mainNonce = mainNonceField ? mainNonceField.value : '';
 
         var selected = [];
         document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb){
@@ -30,10 +26,12 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        batchSyncNS(selected.map(function(id){ return parseInt(id); }));
+        batchSyncNS(selected.map(function(id){ return parseInt(id); }), mainNonce);
     });
 
-    function batchSyncNS(domainIds){
+    function batchSyncNS(domainIds, mainNonce){
+        var progressBox = document.getElementById('sdm-batch-progress');
+        var progressBar = progressBox ? progressBox.querySelector('.sdm-progress-bar') : null;
         if (!progressBox || !progressBar) return;
         var total = domainIds.length;
         var processed = 0;
@@ -100,4 +98,3 @@ document.addEventListener('DOMContentLoaded', function () {
 
         doBatch();
     }
-});

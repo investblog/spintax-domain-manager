@@ -42,7 +42,6 @@ class SDM_HostTracker_API {
         }
 
         $body = wp_remote_retrieve_body($response);
-        error_log('HostTracker token response body: ' . $body);
 
         $data = json_decode($body);
         if (!empty($data->ticket)) {
