@@ -175,14 +175,7 @@ class SDM_Cloudflare_API {
             $args['body'] = wp_json_encode( $body );
         }
 
-        // Добавляем логирование запроса
-        error_log("CloudFlare API Request:");
-        error_log("URL: " . $url);
-        error_log("Method: " . $method);
-        error_log("Headers: " . print_r($headers, true));
-        if ( isset($args['body']) ) {
-            error_log("Request Body: " . $args['body']);
-        }
+        // Debug logging removed for security
 
         $response = wp_remote_request( $url, $args );
         if ( is_wp_error( $response ) ) {
@@ -192,8 +185,6 @@ class SDM_Cloudflare_API {
 
         $code = wp_remote_retrieve_response_code( $response );
         $response_body = wp_remote_retrieve_body( $response );
-        error_log("CloudFlare API Response Code: " . $code);
-        error_log("CloudFlare API Response Body: " . $response_body);
 
         $json = json_decode( $response_body, true );
 

@@ -1,21 +1,20 @@
-# Changelog Summary
+# Spintax Domain Manager
 
-## Simplified Email Forwarding Setup
-Replaced the original four-step email routing process with a streamlined two-step flow. The new process creates a Mail-in-a-Box email and then a custom Cloudflare address. Remaining steps (enabling routing and setting catch-all) are provided as on-screen instructions.
+A WordPress plugin that manages domains and related services from a single dashboard.
 
-## Final Instructions UI Added
-An "Almost done!" section has been integrated into the email forwarding modal. It displays clear instructions and a dynamic link to the Cloudflare Routing page, generated via a new AJAX handler that retrieves the Cloudflare account details.
+## Features
 
-## Enhanced AJAX Handlers
-A new AJAX endpoint (`sdm_ajax_get_zone_account_details`) was added to fetch account details based on the domain’s stored zone ID, ensuring the proper dynamic link is assembled without modifying the existing domain table.
+- CRUD management for projects, sites, domains and redirects.
+- Import domains from Cloudflare and assign them to sites.
+- Sync Cloudflare nameservers to Namecheap (single or batch).
+- Handle service credentials for Cloudflare, Namecheap, Mail‑in‑a‑Box, HostTracker and Yandex.
+- Two‑step email forwarding setup via Mail‑in‑a‑Box and Cloudflare.
+- Redirect management using Cloudflare rulesets.
+- Domain monitoring through HostTracker with hourly cron checks.
+- Bulk actions for assigning sites, syncing statuses and setting abuse or block flags.
+- AJAX powered tables with search, sorting and progress bars.
+- Optional GraphQL integration.
 
-## UI & Code Integration
-The new email forwarding functionality was integrated into the existing domain management UI without affecting core features such as sorting, mass actions, and domain deletion.
+## Installation
 
-## Improved NS Sync Buttons
-Inactive domains now display a red "Sync NS" button directly in the domains table without relying on JavaScript manipulation.
-
-...
-
-## 2DO
-Add a rule to redirect requests with parameters (http.request.uri.query wildcard r"*")
+Copy the plugin folder to your WordPress installation and activate it. Configure your service accounts under **Spintax Manager → Accounts** to begin managing projects and domains.
