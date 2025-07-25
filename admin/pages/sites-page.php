@@ -109,15 +109,7 @@ $main_nonce = sdm_create_main_nonce();
                     ?>
                     <tr id="site-row-<?php echo esc_attr($site->id); ?>" data-site-id="<?php echo esc_attr($site->id); ?>" data-update-nonce="<?php echo esc_attr($main_nonce); ?>">
                         <td class="column-icon">
-                            <span class="sdm-site-icon" data-site-id="<?php echo esc_attr($site->id); ?>">
-                                <?php 
-                                if (!empty($site->svg_icon)) {
-                                    echo $site->svg_icon;
-                                } else {
-                                    echo file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/spintax-icon.svg');
-                                }
-                                ?>
-                            </span>
+                            <span class="fi fi-<?php echo esc_attr(sdm_normalize_language_code($site->language ?: 'en')); ?>" style="vertical-align: middle;"></span>
                         </td>
                         <td class="column-site-name">
                             <span class="sdm-display-value"><?php echo esc_html($site->site_name); ?></span>
@@ -196,30 +188,6 @@ $main_nonce = sdm_create_main_nonce();
         </tbody>
     </table>
 
-    <!-- Modal for Editing SVG Icon -->
-    <div id="sdm-edit-icon-modal" style="display:none;">
-        <div class="sdm-modal-overlay"></div>
-        <div class="sdm-modal-content">
-            <span id="sdm-close-icon-modal" style="position:absolute; top:10px; right:15px; font-size:20px; cursor:pointer;">×</span>
-            <h2><?php esc_html_e('Edit Site Icon', 'spintax-domain-manager'); ?></h2>
-            <form id="sdm-edit-icon-form" class="sdm-form" method="post" action="">
-                <input type="hidden" name="site_id" id="sdm-icon-site-id">
-                <?php sdm_nonce_field(); ?>
-                <table class="sdm-form-table">
-                    <tr>
-                        <th><label for="svg_icon"><?php esc_html_e('SVG Icon', 'spintax-domain-manager'); ?></label></th>
-                        <td>
-                            <textarea name="svg_icon" id="svg_icon" rows="5" placeholder='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/></svg>'></textarea>
-                            <p class="description"><?php esc_html_e('Paste your inline SVG code here. Recommended size: 24x24px.', 'spintax-domain-manager'); ?></p>
-                        </td>
-                    </tr>
-                </table>
-                <p class="submit">
-                    <button type="submit" class="button button-primary"><?php esc_html_e('Save Icon', 'spintax-domain-manager'); ?></button>
-                </p>
-            </form>
-        </div>
-    </div>
 
     <!-- Form for Adding a New Site -->
     <h2><?php esc_html_e('Add New Site', 'spintax-domain-manager'); ?></h2>
