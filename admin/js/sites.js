@@ -119,13 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const row = e.target.closest('tr');
                 saveRow(row);
-            } else if (e.target.closest('.sdm-site-icon')) {
-                e.preventDefault();
-                const iconSpan = e.target.closest('.sdm-site-icon');
-                const siteId = iconSpan.getAttribute('data-site-id');
-                if (currentProjectId > 0) {
-                    openIconModal(siteId);
-                }
             }
         });
     }
@@ -280,69 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Обработка редактирования SVG-иконки
-    const openIconModal = (siteId) => {
-        const modal = document.getElementById('sdm-edit-icon-modal');
-        const siteIdField = document.getElementById('sdm-icon-site-id');
-        const svgInput = document.getElementById('svg_icon');
-        const currentIcon = document.querySelector(`#site-row-${siteId} .sdm-site-icon`).innerHTML.trim();
-        if (modal && siteIdField && svgInput && currentProjectId > 0) {
-            siteIdField.value = siteId;
-            svgInput.value = currentIcon;
-            modal.style.display = 'block';
-        }
-    };
-
-    const editIconForm = document.getElementById('sdm-edit-icon-form');
-    if (editIconForm && currentProjectId > 0) {
-        editIconForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const formData = new FormData(editIconForm);
-            let svgIcon = document.getElementById('svg_icon').value;
-            svgIcon = svgIcon.replace(/width="[^"]*"/i, '').replace(/height="[^"]*"/i, '');
-            formData.set('svg_icon', svgIcon);
-            formData.append('action', 'sdm_update_site_icon');
-            formData.append('sdm_main_nonce_field', mainNonce);
-            const submitButton = editIconForm.querySelector('button[type="submit"]');
-            toggleButtonSpinner(submitButton, true);
-            fetch(ajaxurl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                toggleButtonSpinner(submitButton, false);
-                if (data.success) {
-                    const siteId = document.getElementById('sdm-icon-site-id').value;
-                    const iconSpan = document.querySelector(`#site-row-${siteId} .sdm-site-icon`);
-                    iconSpan.innerHTML = data.data.svg_icon;
-                    document.getElementById('sdm-edit-icon-modal').style.display = 'none';
-                    showSitesNotice('updated', 'Icon updated successfully.');
-                } else {
-                    showSitesNotice('error', data.data);
-                }
-            })
-            .catch(error => {
-                console.error('Update icon error:', error);
-                toggleButtonSpinner(submitButton, false);
-                showSitesNotice('error', 'Ajax request failed.');
-            });
-        });
-    }
-
-    const closeIconModal = document.getElementById('sdm-close-icon-modal');
-    const iconModalOverlay = document.querySelector('#sdm-edit-icon-modal .sdm-modal-overlay');
-    if (closeIconModal && currentProjectId > 0) {
-        closeIconModal.addEventListener('click', () => {
-            document.getElementById('sdm-edit-icon-modal').style.display = 'none';
-        });
-    }
-    if (iconModalOverlay && currentProjectId > 0) {
-        iconModalOverlay.addEventListener('click', () => {
-            document.getElementById('sdm-edit-icon-modal').style.display = 'none';
-        });
-    }
 
     // Функция для загрузки свободных доменов для select'а
     const fetchNonBlockedDomainsForSelect = (selectElement) => {

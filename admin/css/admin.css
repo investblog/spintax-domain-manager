@@ -502,15 +502,10 @@ tr[data-site-id="0"] .sdm-target-domain {
   display: inline-block;
   width: 24px;
   height: 24px;
-  cursor: pointer;
   vertical-align: middle;
   overflow: hidden;
   line-height: 0;
   position: relative;
-}
-
-.sdm-site-icon:hover svg {
-  opacity: 0.8;
 }
 tr[data-redirect-type="main"] {
   background-color: #E6F9F0; /* Бледно-зелёный как у Cloudflare */
