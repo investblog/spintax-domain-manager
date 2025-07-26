@@ -17,6 +17,37 @@ function sdm_normalize_language_code( $language_code ) {
     return isset( $mappings[$normalized] ) ? $mappings[$normalized] : $normalized;
 }
 
+/**
+ * Get active project ID for current user.
+ */
+function sdm_get_active_project_id() {
+    $id = get_user_meta( get_current_user_id(), 'sdm_active_project_id', true );
+    return $id ? absint( $id ) : 0;
+}
+
+/**
+ * Set active project ID for current user.
+ *
+ * @param int $project_id Project ID.
+ */
+function sdm_set_active_project_id( $project_id ) {
+    update_user_meta( get_current_user_id(), 'sdm_active_project_id', absint( $project_id ) );
+}
+
+/**
+ * Render navigation links for current project pages.
+ *
+ * @param int $project_id Current project ID.
+ */
+function sdm_render_project_nav( $project_id ) {
+    $params = $project_id > 0 ? '&project_id=' . absint( $project_id ) : '';
+    echo '<nav class="sdm-project-nav" style="margin:10px 0;">';
+    echo '<a href="admin.php?page=sdm-sites' . esc_attr( $params ) . '">' . esc_html__( 'Sites', 'spintax-domain-manager' ) . '</a> | ';
+    echo '<a href="admin.php?page=sdm-domains' . esc_attr( $params ) . '">' . esc_html__( 'Domains', 'spintax-domain-manager' ) . '</a> | ';
+    echo '<a href="admin.php?page=sdm-redirects' . esc_attr( $params ) . '">' . esc_html__( 'Redirects', 'spintax-domain-manager' ) . '</a>';
+    echo '</nav>';
+}
+
 if ( ! function_exists( 'sdm_get_server_ip' ) ) {
     /**
      * Возвращает IP-адрес текущего сервера.

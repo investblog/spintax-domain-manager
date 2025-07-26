@@ -19,8 +19,11 @@ $site_monitoring_enabled = true;
 $projects_manager = new SDM_Projects_Manager();
 $all_projects = $projects_manager->get_all_projects();
 
-// Определяем текущий выбранный проект (через GET)
-$current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) : 0;
+// Определяем текущий выбранный проект
+$current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) : sdm_get_active_project_id();
+if ($current_project_id > 0) {
+    sdm_set_active_project_id($current_project_id);
+}
 
 // Если проект выбран, получаем сайты этого проекта
 $sites = array();
@@ -55,6 +58,7 @@ $main_nonce = sdm_create_main_nonce();
 ?>
 <div class="wrap">
     <h1><?php esc_html_e('Sites', 'spintax-domain-manager'); ?></h1>
+    <?php sdm_render_project_nav($current_project_id); ?>
 
     <!-- Hidden field for global nonce -->
     <input type="hidden" id="sdm-main-nonce" value="<?php echo esc_attr($main_nonce); ?>">
