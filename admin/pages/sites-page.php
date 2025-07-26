@@ -57,8 +57,7 @@ if ($current_project_id > 0) {
 $main_nonce = sdm_create_main_nonce();
 ?>
 <div class="wrap">
-    <h1><?php esc_html_e('Sites', 'spintax-domain-manager'); ?></h1>
-    <?php sdm_render_project_nav($current_project_id); ?>
+    <?php sdm_render_project_nav($current_project_id, 'sdm-sites'); ?>
 
     <!-- Hidden field for global nonce -->
     <input type="hidden" id="sdm-main-nonce" value="<?php echo esc_attr($main_nonce); ?>">

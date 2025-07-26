@@ -39,13 +39,26 @@ function sdm_set_active_project_id( $project_id ) {
  *
  * @param int $project_id Current project ID.
  */
-function sdm_render_project_nav( $project_id ) {
+function sdm_render_project_nav( $project_id, $current_page = '' ) {
     $params = $project_id > 0 ? '&project_id=' . absint( $project_id ) : '';
-    echo '<nav class="sdm-project-nav" style="margin:10px 0;">';
-    echo '<a href="admin.php?page=sdm-sites' . esc_attr( $params ) . '">' . esc_html__( 'Sites', 'spintax-domain-manager' ) . '</a> | ';
-    echo '<a href="admin.php?page=sdm-domains' . esc_attr( $params ) . '">' . esc_html__( 'Domains', 'spintax-domain-manager' ) . '</a> | ';
-    echo '<a href="admin.php?page=sdm-redirects' . esc_attr( $params ) . '">' . esc_html__( 'Redirects', 'spintax-domain-manager' ) . '</a>';
-    echo '</nav>';
+
+    $pages = array(
+        'sdm-sites'     => __( 'Sites', 'spintax-domain-manager' ),
+        'sdm-domains'   => __( 'Domains', 'spintax-domain-manager' ),
+        'sdm-redirects' => __( 'Redirects', 'spintax-domain-manager' ),
+    );
+
+    echo '<h1 class="sdm-project-nav" style="margin:10px 0;">';
+    $links = array();
+    foreach ( $pages as $slug => $label ) {
+        if ( $slug === $current_page ) {
+            $links[] = esc_html( $label );
+        } else {
+            $links[] = '<a href="admin.php?page=' . esc_attr( $slug ) . esc_attr( $params ) . '">' . esc_html( $label ) . '</a>';
+        }
+    }
+    echo implode( ' | ', $links );
+    echo '</h1>';
 }
 
 if ( ! function_exists( 'sdm_get_server_ip' ) ) {
