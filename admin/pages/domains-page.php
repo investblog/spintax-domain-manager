@@ -20,19 +20,23 @@ $service_manager = new SDM_Service_Types_Manager();
 $services = $service_manager->get_all_services();
 
 // Получаем список сайтов для текущего проекта
-$current_project_id = isset($_GET['project_id']) ? absint($_GET['project_id']) : 0;
-$sites = [];
+$current_project_id = isset($_GET["project_id"]) ? absint($_GET["project_id"]) : sdm_get_active_project_id();
 if ($current_project_id > 0) {
+    sdm_set_active_project_id($current_project_id);
     $sites = $wpdb->get_results(
         $wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_sites WHERE project_id = %d", $current_project_id)
     );
+} else {
+    $sites = [];
 }
+
 
 // Генерируем nonce
 $main_nonce = sdm_create_main_nonce();
 ?>
 <div class="wrap">
     <h1><?php esc_html_e('Domains', 'spintax-domain-manager'); ?></h1>
+    <?php sdm_render_project_nav($current_project_id); ?>
 
     <!-- Hidden field for global nonce -->
     <input type="hidden" id="sdm-main-nonce" value="<?php echo esc_attr($main_nonce); ?>">
