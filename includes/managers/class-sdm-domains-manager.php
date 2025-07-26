@@ -739,15 +739,15 @@ function sdm_ajax_fetch_domains_list() {
                         <!-- Site link / main-icon -------------------------------------------- -->
                         <td>
                             <?php if ($is_assigned) : ?>
-                                <a href="?page=sdm-sites&project_id=<?php echo esc_attr($project_id); ?>"
-                                   class="sdm-site-link">
-                                    <?php echo esc_html($domain->site_name); ?>
-                                </a>
                                 <?php if ($is_main_domain) : ?>
-                                    <span class="sdm-main-domain-icon" style="display:inline-flex;align-items:center;margin-left:5px;width:auto;height:auto;font-size:16px;">
+                                    <span class="sdm-main-domain-icon<?php echo $domain->abuse_status !== 'clean' ? ' sdm-abuse-warning' : ''; ?>" style="display:inline-flex;align-items:center;margin-right:5px;width:auto;height:auto;font-size:16px;">
                                         <span class="fi fi-<?php echo esc_attr( sdm_normalize_language_code( $domain->language ?: 'en' ) ); ?>" style="vertical-align:middle;"></span>
                                     </span>
                                 <?php endif; ?>
+                                <a href="?page=sdm-sites&project_id=<?php echo esc_attr($project_id); ?>"
+                                   class="sdm-site-link<?php echo $domain->abuse_status !== 'clean' ? ' sdm-abuse-warning' : ''; ?>">
+                                    <?php echo esc_html($domain->site_name); ?>
+                                </a>
                             <?php else : ?>
                                 (Unassigned)
                             <?php endif; ?>
