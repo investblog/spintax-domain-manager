@@ -204,7 +204,12 @@ $main_nonce = sdm_create_main_nonce();
             </tr>
             <tr>
                 <th><label for="server_ip"><?php esc_html_e('Server IP (optional)', 'spintax-domain-manager'); ?></label></th>
-                <td><input type="text" name="server_ip" id="server_ip" value="<?php echo esc_attr( sdm_get_server_ip() ); ?>"></td>
+                <td>
+                    <select name="server_ip" id="server_ip">
+                        <option value="<?php echo esc_attr( sdm_get_server_ip() ); ?>" selected><?php echo esc_html( sdm_get_server_ip() ); ?></option>
+                        <option value="192.0.2.1">192.0.2.1 (CloudFlare)</option>
+                    </select>
+                </td>
             </tr>
 
             <tr>

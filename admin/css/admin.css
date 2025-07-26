@@ -617,3 +617,8 @@ tr[data-redirect-type="hidden"] {
     border: none;
     border-top: 1px solid var(--sdm-border);
 }
+
+/* Navigation links */
+.sdm-project-nav a {
+    text-decoration: none;
+}
