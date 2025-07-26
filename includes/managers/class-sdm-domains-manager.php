@@ -681,9 +681,9 @@ function sdm_ajax_fetch_domains_list() {
     // Получаем список доменов
     $domains = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT d.*, s.site_name, s.main_domain, s.language
+            "SELECT d.*, s.site_name, s.main_domain
              FROM {$prefix}sdm_domains d
-             LEFT JOIN {$prefix}sdm_sites s
+             LEFT JOIN {$prefix}sdm_sites s 
                ON d.site_id = s.id
              $where
              $order_by",
@@ -744,8 +744,18 @@ function sdm_ajax_fetch_domains_list() {
                                     <?php echo esc_html($domain->site_name); ?>
                                 </a>
                                 <?php if ($is_main_domain) : ?>
-                                    <span class="sdm-main-domain-icon" style="display:inline-flex;align-items:center;margin-left:5px;width:auto;height:auto;font-size:16px;">
-                                        <span class="fi fi-<?php echo esc_attr( sdm_normalize_language_code( $domain->language ?: 'en' ) ); ?>" style="vertical-align:middle;"></span>
+                                    <span class="sdm-main-domain-icon" style="display:inline-flex;align-items:center;margin-left:5px;">
+                                        <?php
+                                        $domain_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/domain.svg');
+                                        if ($domain_svg) {
+                                            echo wp_kses($domain_svg, [
+                                                'svg'  => ['width'=>true,'height'=>true,'viewBox'=>true],
+                                                'path' => ['d'=>true,'fill'=>true]
+                                            ]);
+                                        } else {
+                                            echo '<img src="' . esc_url(SDM_PLUGIN_URL . 'assets/icons/domain.svg') . '" alt="Main" width="16" height="16" />';
+                                        }
+                                        ?>
                                     </span>
                                 <?php endif; ?>
                             <?php else : ?>
