@@ -323,6 +323,10 @@
   color: var(--sdm-red) !important;
   font-weight: 600;
 }
+.sdm-abuse-warning {
+  color: var(--sdm-red);
+  font-weight: 600;
+}
 .sdm-no-redirect {
   color: #999;
   font-style: italic;
