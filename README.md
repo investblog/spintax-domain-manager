@@ -18,3 +18,8 @@ A WordPress plugin that manages domains and related services from a single dashb
 ## Installation
 
 Copy the plugin folder to your WordPress installation and activate it. Configure your service accounts under **Spintax Manager → Accounts** to begin managing projects and domains.
+
+## Changelog
+
+### 1.0.8
+- Combined header and navigation into a single line for project pages.
