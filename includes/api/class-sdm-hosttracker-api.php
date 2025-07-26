@@ -12,6 +12,43 @@ if (!defined('ABSPATH')) {
 class SDM_HostTracker_API {
 
     /**
+     * Map two-letter language codes to HostTracker agent pools.
+     *
+     * @param string $lang Two letter language code (e.g. 'ru').
+     * @return array Array of agent pools.
+     */
+    private static function map_language_to_agent_pools($lang) {
+        switch (strtolower($lang)) {
+            case 'ru':
+                return array('russia');
+            case 'tr':
+                return array('turkey');
+            case 'cn':
+                return array('china');
+            case 'ir':
+                return array('iran');
+            case 'sa':
+                return array('saudiarabia');
+            case 'ae':
+                return array('uae');
+            case 'by':
+                return array('belarus');
+            case 'kz':
+                return array('kazakhstan');
+            case 'en':
+                return array('usa');
+            case 'es':
+                return array('spain');
+            case 'fr':
+                return array('france');
+            case 'pl':
+                return array('poland');
+            default:
+                return array('europe');
+        }
+    }
+
+    /**
      * Получаем токен (login/password) в виде ранее – без project_id.
      * Если в старой логике credentials приходят «как есть», оставляем.
      */
@@ -99,9 +136,10 @@ class SDM_HostTracker_API {
                 break;
 
             case 'Http':
-                // Согласно документации для HTTP задач используем новый эндпоинт
-                $api_url = 'https://api1.host-tracker.com/tasks/http';
-                $post_body = array(
+                // Для HTTP задач выбираем пулы агентов по языку сайта
+                $api_url    = 'https://api1.host-tracker.com/tasks/http';
+                $agentPools = self::map_language_to_agent_pools($language_code);
+                $post_body  = array(
                     "url"                     => $domain_url,
                     "httpMethod"              => "Get",
                     "followRedirect"          => true,
@@ -114,7 +152,7 @@ class SDM_HostTracker_API {
                     "keywordMode"             => "ReverseAny",
                     "interval"                => 60,            // интервал в минутах
                     "enabled"                 => true,
-                    "agentPools"              => array("russia")
+                    "agentPools"              => $agentPools
                 );
                 break;
 

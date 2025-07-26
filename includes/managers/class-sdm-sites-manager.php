@@ -83,10 +83,10 @@ class SDM_Sites_Manager {
             return new WP_Error('invalid_language', __('Language is required.', 'spintax-domain-manager'));
         }
 
-        // Настройки мониторинга (по умолчанию наследуем от проекта)
+        // Настройки мониторинга: при создании сайта мониторинг выключен по умолчанию
         $monitoring_settings = isset($data['monitoring_settings']) ? json_decode($data['monitoring_settings'], true) : array(
-            'enabled' => true,
-            'types' => array('RusRegBL' => true, 'Http' => false),
+            'enabled' => false,
+            'types'   => array('RusRegBL' => false, 'Http' => false),
             'regions' => array('Russia')
         );
 
@@ -204,8 +204,8 @@ class SDM_Sites_Manager {
             || !isset($monitoring_settings['types'])) {
             // Если структура некорректна — подставим дефолт
             $monitoring_settings = array(
-                'enabled' => true,
-                'types'   => array('RusRegBL' => true, 'Http' => false),
+                'enabled' => false,
+                'types'   => array('RusRegBL' => false, 'Http' => false),
                 'regions' => array('Russia')
             );
             error_log('update_site(): monitoring_settings was invalid; used defaults => ' . print_r($monitoring_settings, true));
