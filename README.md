@@ -21,5 +21,9 @@ Copy the plugin folder to your WordPress installation and activate it. Configure
 
 ## Changelog
 
+### 1.0.9
+- Removed underline from project navigation links.
+- Added a server IP selector when adding new sites.
+
 ### 1.0.8
 - Combined header and navigation into a single line for project pages.
