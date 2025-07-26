@@ -11,9 +11,9 @@ if (!defined('ABSPATH')) {
 global $wpdb;
 $prefix = $wpdb->prefix;
 
-// Определяем, включён ли мониторинг по дефолту для существующих сайтов (это значение используется при редактировании).
-// Для новых сайтов управление мониторингом убрано из формы, и мониторинг будет создан в выключенном состоянии.
-$site_monitoring_enabled = true;
+// При редактировании каждый сайт использует собственные настройки мониторинга.
+// Для новых сайтов мониторинг выключен по умолчанию и включается вручную.
+$site_monitoring_enabled = false;
 
 // Получаем список проектов для селектора
 $projects_manager = new SDM_Projects_Manager();
@@ -106,9 +106,10 @@ $main_nonce = sdm_create_main_nonce();
             <?php if (!empty($sites)) : ?>
                 <?php foreach ($sites as $site) : ?>
                     <?php
-                    $monitoring_settings = json_decode($site->monitoring_settings, true);
-                    $rusregbl_enabled = $monitoring_settings && isset($monitoring_settings['types']['RusRegBL']) ? $monitoring_settings['types']['RusRegBL'] : false;
-                    $http_enabled = $monitoring_settings && isset($monitoring_settings['types']['Http']) ? $monitoring_settings['types']['Http'] : false;
+                    $monitoring_settings   = json_decode($site->monitoring_settings, true);
+                    $rusregbl_enabled      = $monitoring_settings && isset($monitoring_settings['types']['RusRegBL']) ? $monitoring_settings['types']['RusRegBL'] : false;
+                    $http_enabled          = $monitoring_settings && isset($monitoring_settings['types']['Http']) ? $monitoring_settings['types']['Http'] : false;
+                    $site_monitoring_enabled = $monitoring_settings && isset($monitoring_settings['enabled']) ? $monitoring_settings['enabled'] : false;
                     ?>
                     <tr id="site-row-<?php echo esc_attr($site->id); ?>" data-site-id="<?php echo esc_attr($site->id); ?>" data-update-nonce="<?php echo esc_attr($main_nonce); ?>">
                         <td class="column-icon">
