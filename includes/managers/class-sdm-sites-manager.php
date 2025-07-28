@@ -560,6 +560,81 @@ class SDM_Sites_Manager {
         return true;
     }
 
+    /**
+     * Enable monitoring for a site and create required HostTracker tasks.
+     *
+     * @param int   $site_id   Site ID.
+     * @param array $task_types Optional array of task types to create.
+     * @return array|WP_Error   Array of created task IDs keyed by type or error.
+     */
+    public function enable_monitoring($site_id, $task_types = array()) {
+        global $wpdb;
+
+        $site = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}sdm_sites WHERE id = %d", $site_id));
+        if (!$site) {
+            return new WP_Error('site_not_found', __('Site not found.', 'spintax-domain-manager'));
+        }
+
+        require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-hosttracker-api.php';
+
+        $settings = json_decode($site->monitoring_settings, true);
+        if (!is_array($settings)) {
+            $settings = array('enabled' => false, 'types' => array('RusRegBL' => false, 'Http' => false));
+        }
+
+        if (empty($task_types)) {
+            foreach ($settings['types'] as $type => $enabled) {
+                if ($enabled) {
+                    $task_types[] = $type;
+                }
+            }
+        }
+        if (empty($task_types)) {
+            $task_types = array('RusRegBL');
+        }
+
+        $created = array();
+        foreach ($task_types as $type) {
+            $task_id = $this->create_monitoring_task($site_id, $site->main_domain, $type);
+            if (is_wp_error($task_id)) {
+                return $task_id;
+            }
+
+            $settings['types'][$type] = true;
+
+            // Verify task exists on HostTracker
+            $token = SDM_HostTracker_API::get_token_for_project($site->project_id);
+            if ($token) {
+                $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, $type);
+                $found = false;
+                if (is_array($tasks)) {
+                    foreach ($tasks as $t) {
+                        if ($t['id'] === $task_id) { $found = true; break; }
+                    }
+                }
+                if (!$found) {
+                    return new WP_Error('task_not_found', __('Failed to verify HostTracker task creation.', 'spintax-domain-manager'));
+                }
+            }
+
+            $created[$type] = $task_id;
+        }
+
+        $settings['enabled'] = true;
+        $wpdb->update(
+            $wpdb->prefix . 'sdm_sites',
+            array(
+                'monitoring_settings' => json_encode($settings),
+                'updated_at'          => current_time('mysql'),
+            ),
+            array('id' => $site_id),
+            array('%s','%s'),
+            array('%d')
+        );
+
+        return $created;
+    }
+
     public function create_monitoring_task($site_id, $domain_url, $task_type = 'RusRegBL') {
     global $wpdb;
 
@@ -653,7 +728,7 @@ class SDM_Sites_Manager {
     );
     error_log("create_monitoring_task($task_type) => success => assigned task_id=$task_id to domain_id=$domain->id (domain=$domain_url)");
 
-    return true;
+    return $task_id;
 }
 
 }
@@ -771,6 +846,29 @@ function sdm_ajax_delete_site() {
     wp_send_json_success(array('message' => __('Site deleted successfully.', 'spintax-domain-manager')));
 }
 add_action('wp_ajax_sdm_delete_site', 'sdm_ajax_delete_site');
+
+/**
+ * AJAX Handler: Enable monitoring for a site
+ */
+function sdm_ajax_enable_monitoring() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $site_id = isset($_POST['site_id']) ? absint($_POST['site_id']) : 0;
+    $types   = isset($_POST['types']) ? array_map('sanitize_text_field', (array)$_POST['types']) : array();
+
+    $manager = new SDM_Sites_Manager();
+    $result  = $manager->enable_monitoring($site_id, $types);
+
+    if (is_wp_error($result)) {
+        wp_send_json_error(array('message' => $result->get_error_message()));
+    }
+
+    wp_send_json_success(array('message' => __('Monitoring enabled successfully.', 'spintax-domain-manager')));
+}
+add_action('wp_ajax_sdm_enable_monitoring', 'sdm_ajax_enable_monitoring');
 
 /**
  * AJAX Handler: Get Non-Blocked Domains for a Project

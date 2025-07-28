@@ -111,7 +111,12 @@ $main_nonce = sdm_create_main_nonce();
                     $http_enabled          = $monitoring_settings && isset($monitoring_settings['types']['Http']) ? $monitoring_settings['types']['Http'] : false;
                     $site_monitoring_enabled = $monitoring_settings && isset($monitoring_settings['enabled']) ? $monitoring_settings['enabled'] : false;
                     ?>
-                    <tr id="site-row-<?php echo esc_attr($site->id); ?>" data-site-id="<?php echo esc_attr($site->id); ?>" data-update-nonce="<?php echo esc_attr($main_nonce); ?>">
+                    <tr id="site-row-<?php echo esc_attr($site->id); ?>"
+                        data-site-id="<?php echo esc_attr($site->id); ?>"
+                        data-update-nonce="<?php echo esc_attr($main_nonce); ?>"
+                        data-monitoring-enabled="<?php echo $site_monitoring_enabled ? '1' : '0'; ?>"
+                        data-rusregbl="<?php echo $rusregbl_enabled ? '1' : '0'; ?>"
+                        data-http="<?php echo $http_enabled ? '1' : '0'; ?>">
                         <td class="column-icon">
                             <span class="fi fi-<?php echo esc_attr(sdm_normalize_language_code($site->language ?: 'en')); ?>" style="vertical-align: middle;"></span>
                         </td>
@@ -175,6 +180,8 @@ $main_nonce = sdm_create_main_nonce();
                                     <a href="#" class="sdm-save-site sdm-save sdm-hidden"><?php esc_html_e('Save', 'spintax-domain-manager'); ?></a>
                                     <hr>
                                     <a href="#" class="sdm-delete-site sdm-delete"><?php esc_html_e('Delete', 'spintax-domain-manager'); ?></a>
+                                    <hr>
+                                    <a href="#" class="sdm-enable-monitoring"><?php esc_html_e('Enable Monitoring', 'spintax-domain-manager'); ?></a>
                                     <hr>
                                     <!-- Если у вас была отдельная кнопка для Яндекса, перенесите её сюда -->
                                     <a href="#" class="sdm-yandex-webmaster"><?php esc_html_e('Add to Yandex', 'spintax-domain-manager'); ?></a>
