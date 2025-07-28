@@ -34,5 +34,8 @@ Copy the plugin folder to your WordPress installation and activate it. Configure
 ### 1.0.12
 - Removed unsupported HostTracker pools and mapped languages to the nearest available regions.
 
+### 1.0.13
+- Domains missing from Cloudflare are now marked as expired when syncing.
+
 ### 1.0.8
 - Combined header and navigation into a single line for project pages.
