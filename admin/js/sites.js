@@ -356,10 +356,16 @@ document.addEventListener('DOMContentLoaded', () => {
     enableMonitoringButtons.forEach(button => {
         button.addEventListener('click', (e) => {
             e.preventDefault();
-            const row = button.closest('tr');
-            const siteId = row.getAttribute('data-site-id');
-            const rusregbl = row.getAttribute('data-rusregbl') === '1';
-            const http = row.getAttribute('data-http') === '1';
+        const row = button.closest('tr');
+        const siteId = row.getAttribute('data-site-id');
+        let rusregbl = row.getAttribute('data-rusregbl') === '1';
+        let http = row.getAttribute('data-http') === '1';
+
+        // Если мониторинг ещё не был включён, будем создавать оба типа задач
+        if (!rusregbl && !http) {
+            rusregbl = true;
+            http = true;
+        }
 
             const formData = new FormData();
             formData.append('action', 'sdm_enable_monitoring');
@@ -380,6 +386,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggleButtonSpinner(button, false);
                 if (data.success) {
                     row.dataset.monitoringEnabled = '1';
+                    if (rusregbl) row.dataset.rusregbl = '1';
+                    if (http) row.dataset.http = '1';
                     showSitesNotice('updated', data.data.message);
                 } else {
                     showSitesNotice('error', data.data.message || data.data);
