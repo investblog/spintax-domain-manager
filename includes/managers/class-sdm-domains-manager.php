@@ -97,8 +97,9 @@ class SDM_Domains_Manager {
         $inserted = 0;
         $updated  = 0;
 
+        $cf_domain_names = array();
         foreach ( $zones as $zone ) {
-            // Пример структуры $zone: 
+            // Пример структуры $zone:
             // [
             //   'id' => 'cf_zone_id',
             //   'name' => 'example.com',
@@ -146,7 +147,27 @@ class SDM_Domains_Manager {
                 );
                 $inserted++;
             }
+            // Keep track of domains we found on Cloudflare
+            if ( isset( $zone['name'] ) ) {
+                $cf_domain_names[] = strtolower( $zone['name'] );
+            }
         }
+
+        // Mark domains missing from Cloudflare as expired
+        $placeholders = array_fill( 0, count( $cf_domain_names ), '%s' );
+        $not_in_clause = '';
+        $params       = array( current_time( 'mysql' ), $project_id );
+        if ( ! empty( $cf_domain_names ) ) {
+            $not_in_clause = 'AND domain NOT IN (' . implode( ',', $placeholders ) . ')';
+            $params        = array_merge( $params, $cf_domain_names );
+        }
+
+        $query = "UPDATE {$wpdb->prefix}sdm_domains
+                 SET status = 'expired', updated_at = %s
+                 WHERE project_id = %d {$not_in_clause}";
+        array_unshift( $params, $query );
+        $prepared = call_user_func_array( array( $wpdb, 'prepare' ), $params );
+        $wpdb->query( $prepared );
 
         return array(
             'zones'    => $zones,
