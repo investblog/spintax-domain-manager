@@ -121,6 +121,16 @@ function sdm_create_tables() {
     dbDelta($projects_sql);
     dbDelta($sites_sql);
     dbDelta($domains_sql);
+
+    // Add a unique index on domain if not present
+    $domains_table = $wpdb->prefix . 'sdm_domains';
+    $has_unique = $wpdb->get_var("SHOW INDEX FROM $domains_table WHERE Key_name = 'domain'");
+    if (!$has_unique) {
+        $result = $wpdb->query("ALTER TABLE $domains_table ADD UNIQUE KEY domain (domain)");
+        if ($result === false) {
+            error_log('Failed to add unique index on sdm_domains.domain: ' . $wpdb->last_error);
+        }
+    }
     dbDelta($service_types_sql);
     dbDelta($accounts_sql);
     dbDelta($email_forwarding_sql); // Добавляем создание новой таблицы
