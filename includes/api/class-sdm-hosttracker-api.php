@@ -18,9 +18,9 @@ class SDM_HostTracker_API {
      * @return array Array of agent pools.
      */
     private static $available_pools = array(
-        'russia', 'turkey', 'china', 'iran', 'saudiarabia', 'uae',
-        'belarus', 'kazakhstan', 'usa', 'spain', 'france', 'poland',
-        'westeurope', 'easteurope', 'asia', 'northamerica'
+        // Available top-level HostTracker pools as of 2025
+        'africa', 'allworld', 'asia', 'australia', 'easteurope', 'iran',
+        'northamerica', 'russia', 'southamerica', 'waterfall', 'westeurope'
     );
 
     private static function agent_pool_exists($pool) {
