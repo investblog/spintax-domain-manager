@@ -28,5 +28,8 @@ Copy the plugin folder to your WordPress installation and activate it. Configure
 ### 1.0.10
 - Updated HostTracker region mapping for languages without dedicated pools.
 
+### 1.0.11
+- Improved HostTracker pool selection for regional sites, using country-level pools when available.
+
 ### 1.0.8
 - Combined header and navigation into a single line for project pages.
