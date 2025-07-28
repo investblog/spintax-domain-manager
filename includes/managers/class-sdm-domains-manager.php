@@ -107,15 +107,14 @@ class SDM_Domains_Manager {
             //   ...
             // ]
 
-            // Проверяем, есть ли уже такая запись в sdm_domains для этого проекта
-            $existing_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}sdm_domains
-                 WHERE project_id = %d
-                   AND domain = %s
+            // Проверяем, есть ли уже такая запись в sdm_domains
+            $existing_row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, project_id FROM {$wpdb->prefix}sdm_domains
+                 WHERE domain = %s
                  LIMIT 1",
-                $project_id,
                 $zone['name']
             ) );
+            $existing_id = $existing_row ? intval( $existing_row->id ) : 0;
 
             // Формируем данные для вставки/обновления
             $data = array(
@@ -128,7 +127,10 @@ class SDM_Domains_Manager {
 
             // Вставляем/обновляем
             if ( $existing_id ) {
-                // update
+                // Если домен принадлежит другому проекту, обновляем его проект
+                if ( intval( $existing_row->project_id ) !== $project_id ) {
+                    $data['project_id'] = $project_id;
+                }
                 $wpdb->update(
                     $wpdb->prefix . 'sdm_domains',
                     $data,
@@ -140,12 +142,16 @@ class SDM_Domains_Manager {
             } else {
                 // insert
                 $data['created_at'] = current_time('mysql');
-                $wpdb->insert(
+                $insert_result = $wpdb->insert(
                     $wpdb->prefix . 'sdm_domains',
                     $data,
                     array( '%d','%s','%s','%s','%s','%s' )
                 );
-                $inserted++;
+                if ( false !== $insert_result ) {
+                    $inserted++;
+                } else {
+                    error_log( 'Failed to insert domain: ' . $wpdb->last_error );
+                }
             }
             // Keep track of domains we found on Cloudflare
             if ( isset( $zone['name'] ) ) {
@@ -477,12 +483,13 @@ class SDM_Domains_Manager {
             }
 
             // Проверяем, существует ли уже запись для этого домена
-            $existing_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}sdm_domains
-                 WHERE project_id = %d AND domain = %s
+            $existing_row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, project_id FROM {$wpdb->prefix}sdm_domains
+                 WHERE domain = %s
                  LIMIT 1",
-                $project_id, $domain
+                $domain
             ) );
+            $existing_id = $existing_row ? intval( $existing_row->id ) : 0;
 
             $data = array(
                 'project_id' => $project_id,
@@ -493,19 +500,27 @@ class SDM_Domains_Manager {
             );
 
             if ( $existing_id ) {
+                if ( intval( $existing_row->project_id ) !== $project_id ) {
+                    $data['project_id'] = $project_id;
+                }
                 $wpdb->update(
                     $wpdb->prefix . 'sdm_domains',
                     $data,
                     array( 'id' => $existing_id )
                 );
+                $inserted++;
             } else {
                 $data['created_at'] = current_time( 'mysql' );
-                $wpdb->insert(
+                $insert_result = $wpdb->insert(
                     $wpdb->prefix . 'sdm_domains',
                     $data
                 );
+                if ( false !== $insert_result ) {
+                    $inserted++;
+                } else {
+                    error_log( 'Failed to insert domain: ' . $wpdb->last_error );
+                }
             }
-            $inserted++;
         }
 
         return array(
