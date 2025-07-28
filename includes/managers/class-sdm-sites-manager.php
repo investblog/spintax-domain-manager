@@ -586,14 +586,28 @@ class SDM_Sites_Manager {
             $task_types = array('RusRegBL');
         }
 
+        // Сначала обновляем настройки, чтобы create_monitoring_task не отклонило запрос
+        foreach ($task_types as $type) {
+            $settings['types'][$type] = true;
+        }
+        $settings['enabled'] = true;
+        $wpdb->update(
+            $wpdb->prefix . 'sdm_sites',
+            array(
+                'monitoring_settings' => json_encode($settings),
+                'updated_at'          => current_time('mysql'),
+            ),
+            array('id' => $site_id),
+            array('%s','%s'),
+            array('%d')
+        );
+
         $created = array();
         foreach ($task_types as $type) {
             $task_id = $this->create_monitoring_task($site_id, $site->main_domain, $type);
             if (is_wp_error($task_id)) {
                 return $task_id;
             }
-
-            $settings['types'][$type] = true;
 
             // Verify task exists on HostTracker
             $token = SDM_HostTracker_API::get_token_for_project($site->project_id);
@@ -612,18 +626,6 @@ class SDM_Sites_Manager {
 
             $created[$type] = $task_id;
         }
-
-        $settings['enabled'] = true;
-        $wpdb->update(
-            $wpdb->prefix . 'sdm_sites',
-            array(
-                'monitoring_settings' => json_encode($settings),
-                'updated_at'          => current_time('mysql'),
-            ),
-            array('id' => $site_id),
-            array('%s','%s'),
-            array('%d')
-        );
 
         return $created;
     }
