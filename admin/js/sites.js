@@ -351,6 +351,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Обработка включения мониторинга через HostTracker
+    const enableMonitoringButtons = document.querySelectorAll('.sdm-enable-monitoring');
+    enableMonitoringButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const row = button.closest('tr');
+            const siteId = row.getAttribute('data-site-id');
+            const rusregbl = row.getAttribute('data-rusregbl') === '1';
+            const http = row.getAttribute('data-http') === '1';
+
+            const formData = new FormData();
+            formData.append('action', 'sdm_enable_monitoring');
+            formData.append('site_id', siteId);
+            if (rusregbl) formData.append('types[]', 'RusRegBL');
+            if (http) formData.append('types[]', 'Http');
+            formData.append('sdm_main_nonce_field', mainNonce);
+
+            toggleButtonSpinner(button, true);
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                toggleButtonSpinner(button, false);
+                if (data.success) {
+                    row.dataset.monitoringEnabled = '1';
+                    showSitesNotice('updated', data.data.message);
+                } else {
+                    showSitesNotice('error', data.data.message || data.data);
+                }
+            })
+            .catch(error => {
+                console.error('Enable monitoring error:', error);
+                toggleButtonSpinner(button, false);
+                showSitesNotice('error', 'Ajax request failed.');
+            });
+        });
+    });
+
         document.addEventListener('click', (e) => {
         // Клик по кнопке-триггеру (троеточие)
         const trigger = e.target.closest('.sdm-actions-trigger');
