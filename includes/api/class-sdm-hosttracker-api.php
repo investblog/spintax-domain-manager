@@ -17,30 +17,43 @@ class SDM_HostTracker_API {
      * @param string $lang Two letter language code (e.g. 'ru').
      * @return array Array of agent pools.
      */
+    private static $available_pools = array(
+        'russia', 'turkey', 'china', 'iran', 'saudiarabia', 'uae',
+        'belarus', 'kazakhstan', 'usa', 'spain', 'france', 'poland',
+        'westeurope', 'easteurope', 'asia', 'northamerica'
+    );
+
+    private static function agent_pool_exists($pool) {
+        return in_array($pool, self::$available_pools, true);
+    }
+
     private static function map_language_to_agent_pools($lang) {
-        switch (strtolower($lang)) {
+        $lang = strtolower($lang);
+        switch ($lang) {
             case 'ru':
                 return array('russia');
             case 'tr':
-                return array('westeurope');
+                return self::agent_pool_exists('turkey') ? array('turkey') : array('easteurope');
             case 'cn':
-                return array('asia');
+                return self::agent_pool_exists('china') ? array('china') : array('asia');
             case 'ir':
                 return array('iran');
             case 'sa':
+                return self::agent_pool_exists('saudiarabia') ? array('saudiarabia') : array('asia');
             case 'ae':
-                return array('asia');
+                return self::agent_pool_exists('uae') ? array('uae') : array('asia');
             case 'by':
-                return array('easteurope');
+                return self::agent_pool_exists('belarus') ? array('belarus') : array('easteurope');
             case 'kz':
-                return array('asia');
+                return self::agent_pool_exists('kazakhstan') ? array('kazakhstan') : array('asia');
             case 'en':
-                return array('northamerica');
+                return self::agent_pool_exists('usa') ? array('usa') : array('northamerica');
             case 'es':
+                return self::agent_pool_exists('spain') ? array('spain') : array('westeurope');
             case 'fr':
-                return array('westeurope');
+                return self::agent_pool_exists('france') ? array('france') : array('westeurope');
             case 'pl':
-                return array('easteurope');
+                return self::agent_pool_exists('poland') ? array('poland') : array('easteurope');
             default:
                 return array('westeurope');
         }
