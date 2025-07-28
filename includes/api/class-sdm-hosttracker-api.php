@@ -294,11 +294,22 @@ class SDM_HostTracker_API {
 
         // 1) Если домен отвязан, но имеет hosttracker_task_id — удаляем задачу
         if (empty($dom_row->site_id) && !empty($dom_row->hosttracker_task_id)) {
+            $task_data = maybe_unserialize($dom_row->hosttracker_task_id);
+            if (is_array($task_data)) {
+                $task_id_value = $task_data['RusRegBL'] ?? null;
+            } else {
+                $task_id_value = $dom_row->hosttracker_task_id;
+            }
+
             // Получаем токен/логин-пароль по проекту:
             // (предполагаем, что project_id есть в таблице sdm_domains)
             $token = SDM_HostTracker_API::get_token_for_project($dom_row->project_id);
             if ($token) {
-                $ok = SDM_HostTracker_API::delete_host_tracker_task($token, $dom_row->hosttracker_task_id, 'RusRegBL');
+                if ($task_id_value) {
+                    $ok = SDM_HostTracker_API::delete_host_tracker_task($token, $task_id_value, 'RusRegBL');
+                } else {
+                    $ok = false;
+                }
                 if ($ok) {
                     $wpdb->update(
                         $dom_table,
@@ -339,14 +350,17 @@ class SDM_HostTracker_API {
             );
 
             // 2a) Включён, но нет task_id → создаём
-            if ($rusregbl_enabled && empty($dom_row->hosttracker_task_id)) {
+            $task_data = maybe_unserialize($dom_row->hosttracker_task_id);
+            $rus_task_id = is_array($task_data) ? ($task_data['RusRegBL'] ?? null) : $dom_row->hosttracker_task_id;
+
+            if ($rusregbl_enabled && empty($rus_task_id)) {
                 $token = SDM_HostTracker_API::get_token_for_project($site->project_id);
                 if ($token) {
                     $task_id = SDM_HostTracker_API::create_host_tracker_task($token, $dom_row->domain, 'RusRegBL');
                     if (!is_wp_error($task_id)) {
                         $wpdb->update(
                             $dom_table,
-                            array('hosttracker_task_id' => $task_id, 'updated_at' => current_time('mysql')),
+                            array('hosttracker_task_id' => maybe_serialize(array_merge(is_array($task_data) ? $task_data : array(), array('RusRegBL' => $task_id))), 'updated_at' => current_time('mysql')),
                             array('id' => $domain_id),
                             array('%s','%s'),
                             array('%d')
@@ -359,14 +373,20 @@ class SDM_HostTracker_API {
                 }
             }
             // 2b) Выключен, но task_id есть → удаляем
-            elseif (!$rusregbl_enabled && !empty($dom_row->hosttracker_task_id)) {
+            elseif (!$rusregbl_enabled && !empty($rus_task_id)) {
                 $token = SDM_HostTracker_API::get_token_for_project($site->project_id);
                 if ($token) {
-                    $ok = SDM_HostTracker_API::delete_host_tracker_task($token, $dom_row->hosttracker_task_id, 'RusRegBL');
+                    $ok = SDM_HostTracker_API::delete_host_tracker_task($token, $rus_task_id, 'RusRegBL');
                     if ($ok) {
+                        if (is_array($task_data)) {
+                            unset($task_data['RusRegBL']);
+                            $new_val = empty($task_data) ? null : maybe_serialize($task_data);
+                        } else {
+                            $new_val = null;
+                        }
                         $wpdb->update(
                             $dom_table,
-                            array('hosttracker_task_id' => null, 'updated_at' => current_time('mysql')),
+                            array('hosttracker_task_id' => $new_val, 'updated_at' => current_time('mysql')),
                             array('id' => $domain_id),
                             array('%s','%s'),
                             array('%d')

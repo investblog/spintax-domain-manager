@@ -14,19 +14,23 @@ class SDM_Sites_Manager {
         global $wpdb;
 
         // Вызываем метод из SDM_HostTracker_API
-        $deleted = SDM_HostTracker_API::delete_host_tracker_task_by_project($project_id, $task_id, 'RusRegBL');
-        if ($deleted) {
-            // Если успешно удалили → обнуляем hosttracker_task_id
-            $wpdb->update(
-                "{$wpdb->prefix}sdm_domains",
-                array('hosttracker_task_id' => null, 'updated_at' => current_time('mysql')),
-                array('id' => $domain_id),
-                array('%s','%s'),
-                array('%d')
-            );
-            return true;
+        $ids = maybe_unserialize($task_id);
+        if (!is_array($ids)) {
+            $ids = array('RusRegBL' => $task_id);
         }
-        return false;
+
+        foreach ($ids as $type => $tid) {
+            SDM_HostTracker_API::delete_host_tracker_task_by_project($project_id, $tid, $type);
+        }
+
+        $wpdb->update(
+            "{$wpdb->prefix}sdm_domains",
+            array('hosttracker_task_id' => null, 'updated_at' => current_time('mysql')),
+            array('id' => $domain_id),
+            array('%s','%s'),
+            array('%d')
+        );
+        return true;
     }
 
 
@@ -461,10 +465,13 @@ class SDM_Sites_Manager {
 
         foreach ($domains as $domain) {
             if (!empty($domain->hosttracker_task_id)) {
-                $result = SDM_HostTracker_API::delete_host_tracker_task($token, $domain->hosttracker_task_id);
-                if (is_wp_error($result)) {
-                    error_log('delete_monitoring_tasks: Failed to delete task ID ' . $domain->hosttracker_task_id . ': ' . $result->get_error_message());
-                    continue;
+                $task_data = maybe_unserialize($domain->hosttracker_task_id);
+                if (is_array($task_data)) {
+                    foreach ($task_data as $type => $tid) {
+                        SDM_HostTracker_API::delete_host_tracker_task($token, $tid, $type);
+                    }
+                } else {
+                    SDM_HostTracker_API::delete_host_tracker_task($token, $task_data);
                 }
                 $wpdb->update(
                     $wpdb->prefix . 'sdm_domains',
@@ -512,16 +519,24 @@ class SDM_Sites_Manager {
 
         $monitoring_settings = json_decode($site->monitoring_settings, true);
         foreach ($domains as $domain) {
-            if (!empty($domain->hosttracker_task_id)) {
-                $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, 'RusRegBL');
-                $task_found = false;
+            if (empty($domain->hosttracker_task_id)) {
+                continue;
+            }
+
+            $task_data = maybe_unserialize($domain->hosttracker_task_id);
+            if (!is_array($task_data)) {
+                $task_data = array('single' => $task_data);
+            }
+
+            foreach ($task_data as $type => $tid) {
+                $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, $type === 'Http' ? 'Http' : 'RusRegBL');
                 foreach ($tasks as $task) {
-                    if ($task['id'] === $domain->hosttracker_task_id) {
-                        $is_blocked = !$task['lastState']; // если lastState == true => домен Up => не заблокирован
+                    if ($task['id'] === $tid) {
+                        $is_blocked = !$task['lastState'];
                         $wpdb->update(
                             $wpdb->prefix . 'sdm_domains',
                             array(
-                                'is_blocked_provider' => $is_blocked ? 1 : 0,
+                                'is_blocked_provider' => ($type === 'RusRegBL') ? ($is_blocked ? 1 : 0) : ($is_blocked ? 0 : 1),
                                 'last_checked' => current_time('mysql'),
                                 'updated_at' => current_time('mysql'),
                             ),
@@ -529,29 +544,7 @@ class SDM_Sites_Manager {
                             array('%d', '%s', '%s'),
                             array('%d')
                         );
-                        $task_found = true;
                         break;
-                    }
-                }
-
-                if (!$task_found) {
-                    $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, 'Http');
-                    foreach ($tasks as $task) {
-                        if ($task['id'] === $domain->hosttracker_task_id) {
-                            $is_blocked = !$task['lastState']; // Для Http: false означает блокировку
-                            $wpdb->update(
-                                $wpdb->prefix . 'sdm_domains',
-                                array(
-                                    'is_blocked_provider' => $is_blocked ? 0 : 1,
-                                    'last_checked' => current_time('mysql'),
-                                    'updated_at' => current_time('mysql'),
-                                ),
-                                array('id' => $domain->id),
-                                array('%d', '%s', '%s'),
-                                array('%d')
-                            );
-                            break;
-                        }
                     }
                 }
             }
@@ -719,9 +712,38 @@ class SDM_Sites_Manager {
     }
 
     // 8) Записываем в базу
+    $existing_raw = $domain->hosttracker_task_id;
+    $new_value = $task_id;
+    if (!empty($existing_raw)) {
+        $existing = maybe_unserialize($existing_raw);
+        if (!is_array($existing)) {
+            $existing_type = null;
+            $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, 'RusRegBL');
+            if (is_array($tasks)) {
+                foreach ($tasks as $t) {
+                    if (!empty($t['id']) && $t['id'] === $existing_raw) { $existing_type = 'RusRegBL'; break; }
+                }
+            }
+            if (!$existing_type) {
+                $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, 'Http');
+                if (is_array($tasks)) {
+                    foreach ($tasks as $t) {
+                        if (!empty($t['id']) && $t['id'] === $existing_raw) { $existing_type = 'Http'; break; }
+                    }
+                }
+            }
+            if (!$existing_type) {
+                $existing_type = ($task_type === 'RusRegBL') ? 'Http' : 'RusRegBL';
+            }
+            $existing = array($existing_type => $existing_raw);
+        }
+        $existing[$task_type] = $task_id;
+        $new_value = maybe_serialize($existing);
+    }
+
     $wpdb->update(
         "{$wpdb->prefix}sdm_domains",
-        array('hosttracker_task_id' => $task_id),
+        array('hosttracker_task_id' => $new_value),
         array('id' => $domain->id),
         array('%s'),
         array('%d')
