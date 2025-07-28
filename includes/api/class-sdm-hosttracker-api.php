@@ -22,29 +22,27 @@ class SDM_HostTracker_API {
             case 'ru':
                 return array('russia');
             case 'tr':
-                return array('turkey');
+                return array('westeurope');
             case 'cn':
-                return array('china');
+                return array('asia');
             case 'ir':
                 return array('iran');
             case 'sa':
-                return array('saudiarabia');
             case 'ae':
-                return array('uae');
+                return array('asia');
             case 'by':
-                return array('belarus');
+                return array('easteurope');
             case 'kz':
-                return array('kazakhstan');
+                return array('asia');
             case 'en':
-                return array('usa');
+                return array('northamerica');
             case 'es':
-                return array('spain');
             case 'fr':
-                return array('france');
+                return array('westeurope');
             case 'pl':
-                return array('poland');
+                return array('easteurope');
             default:
-                return array('europe');
+                return array('westeurope');
         }
     }
 

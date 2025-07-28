@@ -25,5 +25,8 @@ Copy the plugin folder to your WordPress installation and activate it. Configure
 - Removed underline from project navigation links.
 - Added a server IP selector when adding new sites.
 
+### 1.0.10
+- Updated HostTracker region mapping for languages without dedicated pools.
+
 ### 1.0.8
 - Combined header and navigation into a single line for project pages.
