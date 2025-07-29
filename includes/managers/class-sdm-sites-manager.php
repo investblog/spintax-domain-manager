@@ -532,13 +532,15 @@ class SDM_Sites_Manager {
                 $tasks = SDM_HostTracker_API::get_host_tracker_tasks($token, $type === 'Http' ? 'Http' : 'RusRegBL');
                 foreach ($tasks as $task) {
                     if ($task['id'] === $tid) {
-                        $is_blocked = !$task['lastState'];
+                        $is_blocked = isset( $task['lastState'] ) ? sdm_hosttracker_state_is_blocked( $task['lastState'] ) : false;
+                        $field      = ( $type === 'RusRegBL' ) ? 'is_blocked_government' : 'is_blocked_provider';
+
                         $wpdb->update(
                             $wpdb->prefix . 'sdm_domains',
                             array(
-                                'is_blocked_provider' => ($type === 'RusRegBL') ? ($is_blocked ? 1 : 0) : ($is_blocked ? 0 : 1),
+                                $field        => $is_blocked ? 1 : 0,
                                 'last_checked' => current_time('mysql'),
-                                'updated_at' => current_time('mysql'),
+                                'updated_at'   => current_time('mysql'),
                             ),
                             array('id' => $domain->id),
                             array('%d', '%s', '%s'),
