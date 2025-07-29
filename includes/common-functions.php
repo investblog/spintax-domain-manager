@@ -99,4 +99,37 @@ if ( ! function_exists( 'sdm_get_server_ip' ) ) {
         return '127.0.0.1';
     }
 }
+
+/**
+ * Determine if HostTracker task state indicates a block.
+ *
+ * @param mixed $state Value of the `lastState` field from HostTracker.
+ * @return bool True if considered blocked, false otherwise.
+ */
+function sdm_hosttracker_state_is_blocked( $state ) {
+    if ( is_bool( $state ) ) {
+        return ! $state; // true => up, false => down
+    }
+
+    if ( is_numeric( $state ) ) {
+        return (int) $state === 0; // 0 => down
+    }
+
+    if ( is_string( $state ) ) {
+        $state_normal = strtolower( trim( $state ) );
+        $up_values   = array( 'up', 'ok', 'true', 'success', 'available' );
+        $down_values = array( 'down', 'blocked', 'false', 'fail', 'failed', 'error' );
+
+        if ( in_array( $state_normal, $up_values, true ) ) {
+            return false;
+        }
+
+        if ( in_array( $state_normal, $down_values, true ) ) {
+            return true;
+        }
+    }
+
+    // Unknown state - treat as not blocked
+    return false;
+}
 ?>
