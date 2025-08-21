@@ -184,7 +184,7 @@ $main_nonce = sdm_create_main_nonce();
                                     <a href="#" class="sdm-enable-monitoring"><?php esc_html_e('Enable Monitoring', 'spintax-domain-manager'); ?></a>
                                     <hr>
                                     <!-- Если у вас была отдельная кнопка для Яндекса, перенесите её сюда -->
-                                    <a href="#" class="sdm-yandex-webmaster"><?php esc_html_e('Add to Yandex', 'spintax-domain-manager'); ?></a>
+                                    <a href="#" class="sdm-yandex-webmaster" title="<?php esc_attr_e('Verify in Yandex via CloudFlare DNS. Propagation may take a minute.', 'spintax-domain-manager'); ?>"><?php esc_html_e('Add to Yandex', 'spintax-domain-manager'); ?></a>
                                 </div>
                             </div>
                         </td>

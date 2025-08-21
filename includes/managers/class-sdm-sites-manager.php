@@ -897,6 +897,123 @@ function sdm_ajax_enable_monitoring() {
 add_action('wp_ajax_sdm_enable_monitoring', 'sdm_ajax_enable_monitoring');
 
 /**
+ * AJAX Handler: Add site to Yandex.Webmaster via CloudFlare DNS.
+ */
+function sdm_ajax_add_site_to_yandex() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $site_id = isset($_POST['site_id']) ? absint($_POST['site_id']) : 0;
+    if ($site_id <= 0) {
+        wp_send_json_error(__('Invalid site ID.', 'spintax-domain-manager'));
+    }
+
+    global $wpdb;
+    $site = $wpdb->get_row($wpdb->prepare(
+        "SELECT id, project_id, main_domain FROM {$wpdb->prefix}sdm_sites WHERE id = %d",
+        $site_id
+    ));
+    if (!$site) {
+        wp_send_json_error(__('Site not found.', 'spintax-domain-manager'));
+    }
+
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-yandex-api.php';
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
+
+    $account_manager = new SDM_Accounts_Manager();
+    $yandex_account = $account_manager->get_account_by_project_and_service($site->project_id, 'Yandex');
+    if (!$yandex_account || empty($yandex_account->additional_data_enc)) {
+        wp_send_json_error(__('Yandex account not configured.', 'spintax-domain-manager'));
+    }
+    $decoded = sdm_decrypt($yandex_account->additional_data_enc);
+    if ($decoded === false) {
+        wp_send_json_error(__('Failed to decrypt Yandex credentials.', 'spintax-domain-manager'));
+    }
+    $creds = json_decode($decoded, true);
+    $token = $creds['oauth_token'] ?? '';
+    $user_id = $creds['user_id'] ?? '';
+    if (empty($token) || empty($user_id)) {
+        wp_send_json_error(__('Incomplete Yandex credentials.', 'spintax-domain-manager'));
+    }
+
+    $cf_credentials = SDM_Cloudflare_API::get_project_cf_credentials($site->project_id);
+    if (is_wp_error($cf_credentials)) {
+        wp_send_json_error($cf_credentials->get_error_message());
+    }
+    $cf_api = new SDM_Cloudflare_API($cf_credentials);
+    $zone = $cf_api->get_zone_by_domain($site->main_domain);
+    if (is_wp_error($zone)) {
+        wp_send_json_error($zone->get_error_message());
+    }
+
+    $verification_uin = SDM_Yandex_API::init_verification($token, $user_id, $site->main_domain);
+    if (!$verification_uin) {
+        wp_send_json_error(__('Could not initiate Yandex verification.', 'spintax-domain-manager'));
+    }
+
+    $txt_value = 'yandex-verification: ' . $verification_uin;
+    $dns_resp = $cf_api->create_txt_record($zone['id'], $site->main_domain, $txt_value, 120);
+    if (is_wp_error($dns_resp)) {
+        wp_send_json_error($dns_resp->get_error_message());
+    }
+
+    wp_send_json_success(array('message' => __('Yandex verification started. DNS propagation may take a minute.', 'spintax-domain-manager')));
+}
+add_action('wp_ajax_sdm_add_site_to_yandex', 'sdm_ajax_add_site_to_yandex');
+
+/**
+ * AJAX Handler: Check Yandex verification status for a site.
+ */
+function sdm_ajax_check_yandex_verification() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied.', 'spintax-domain-manager'));
+    }
+    sdm_check_main_nonce();
+
+    $site_id = isset($_POST['site_id']) ? absint($_POST['site_id']) : 0;
+    if ($site_id <= 0) {
+        wp_send_json_error(__('Invalid site ID.', 'spintax-domain-manager'));
+    }
+
+    global $wpdb;
+    $site = $wpdb->get_row($wpdb->prepare(
+        "SELECT id, project_id, main_domain FROM {$wpdb->prefix}sdm_sites WHERE id = %d",
+        $site_id
+    ));
+    if (!$site) {
+        wp_send_json_error(__('Site not found.', 'spintax-domain-manager'));
+    }
+
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-yandex-api.php';
+
+    $account_manager = new SDM_Accounts_Manager();
+    $yandex_account = $account_manager->get_account_by_project_and_service($site->project_id, 'Yandex');
+    if (!$yandex_account || empty($yandex_account->additional_data_enc)) {
+        wp_send_json_error(__('Yandex account not configured.', 'spintax-domain-manager'));
+    }
+    $decoded = sdm_decrypt($yandex_account->additional_data_enc);
+    if ($decoded === false) {
+        wp_send_json_error(__('Failed to decrypt Yandex credentials.', 'spintax-domain-manager'));
+    }
+    $creds = json_decode($decoded, true);
+    $token = $creds['oauth_token'] ?? '';
+    $user_id = $creds['user_id'] ?? '';
+    if (empty($token) || empty($user_id)) {
+        wp_send_json_error(__('Incomplete Yandex credentials.', 'spintax-domain-manager'));
+    }
+
+    $status = SDM_Yandex_API::check_verification_status($token, $user_id, $site->main_domain);
+    if (!empty($status['success'])) {
+        wp_send_json_success(array('status' => $status['status']));
+    }
+
+    wp_send_json_error(array('status' => $status['status']));
+}
+add_action('wp_ajax_sdm_check_yandex_verification', 'sdm_ajax_check_yandex_verification');
+
+/**
  * AJAX Handler: Get Non-Blocked Domains for a Project
  */
 function sdm_ajax_get_non_blocked_domains() {
