@@ -530,6 +530,31 @@ class SDM_Cloudflare_API {
         return new WP_Error( 'zone_not_found', sprintf( __( 'Zone for domain "%s" not found.', 'spintax-domain-manager' ), $domain ) );
     }
 
+    /**
+     * Create a DNS TXT record in a given zone.
+     *
+     * @param string $zone_id Zone identifier.
+     * @param string $name    Record name.
+     * @param string $content TXT content.
+     * @param int    $ttl     TTL in seconds.
+     * @return array|WP_Error
+     */
+    public function create_txt_record( $zone_id, $name, $content, $ttl = 120 ) {
+        $body = array(
+            'type'    => 'TXT',
+            'name'    => $name,
+            'content' => $content,
+            'ttl'     => $ttl,
+        );
+
+        return $this->api_request_extended(
+            "zones/{$zone_id}/dns_records",
+            array(),
+            'POST',
+            $body
+        );
+    }
+
         public function add_zone( $domain ) {
         $url = trailingslashit( $this->endpoint ) . 'zones';
         $headers = array();

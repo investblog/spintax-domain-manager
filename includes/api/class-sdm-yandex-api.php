@@ -177,4 +177,42 @@ class SDM_Yandex_API {
         }
         return false;
     }
+
+    /**
+     * Check verification status for a domain in Yandex.Webmaster.
+     *
+     * @param string $token
+     * @param string $user_id
+     * @param string $domain
+     * @return array [ 'success' => bool, 'status' => string ]
+     */
+    public static function check_verification_status($token, $user_id, $domain) {
+        $host_id = self::get_host_id($token, $user_id, $domain);
+        if (!$host_id) {
+            return array('success' => false, 'status' => 'HOST_NOT_FOUND');
+        }
+
+        $url = "https://api.webmaster.yandex.net/v4/user/$user_id/hosts/$host_id/verification";
+        $response = wp_remote_get($url, array(
+            'headers' => array(
+                'Authorization' => 'OAuth ' . $token,
+            ),
+            'timeout' => 25
+        ));
+
+        if (is_wp_error($response)) {
+            return array('success' => false, 'status' => $response->get_error_message());
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        $status = $data['verification_status'] ?? ($data['status'] ?? 'UNKNOWN');
+
+        if (in_array($status, array('VERIFIED', 'VERIFICATION_STATE_VERIFIED'), true)) {
+            return array('success' => true, 'status' => $status);
+        }
+
+        return array('success' => false, 'status' => $status);
+    }
 }

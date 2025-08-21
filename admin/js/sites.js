@@ -401,6 +401,80 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Yandex verification via CloudFlare DNS
+    const yandexButtons = document.querySelectorAll('.sdm-yandex-webmaster');
+    yandexButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const row = button.closest('tr');
+            const siteId = row.getAttribute('data-site-id');
+
+            const formData = new FormData();
+            formData.append('action', 'sdm_add_site_to_yandex');
+            formData.append('site_id', siteId);
+            formData.append('sdm_main_nonce_field', mainNonce);
+
+            toggleButtonSpinner(button, true);
+            showSitesNotice('updated', 'Starting Yandex verification...');
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSitesNotice('updated', data.data.message);
+                    pollYandexVerification(siteId, button, 0);
+                } else {
+                    toggleButtonSpinner(button, false);
+                    showSitesNotice('error', data.data.message || data.data);
+                }
+            })
+            .catch(error => {
+                console.error('Yandex verification error:', error);
+                toggleButtonSpinner(button, false);
+                showSitesNotice('error', 'Ajax request failed.');
+            });
+        });
+    });
+
+    const pollYandexVerification = (siteId, button, attempt) => {
+        setTimeout(() => {
+            const fd = new FormData();
+            fd.append('action', 'sdm_check_yandex_verification');
+            fd.append('site_id', siteId);
+            fd.append('sdm_main_nonce_field', mainNonce);
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: fd
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    toggleButtonSpinner(button, false);
+                    showSitesNotice('updated', 'Yandex verification successful.');
+                } else {
+                    if (attempt < 4) {
+                        showSitesNotice('updated', 'Waiting for DNS propagation... Checking again soon.');
+                        pollYandexVerification(siteId, button, attempt + 1);
+                    } else {
+                        toggleButtonSpinner(button, false);
+                        showSitesNotice('error', 'Verification is still pending. Please try again later.');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Yandex check error:', error);
+                toggleButtonSpinner(button, false);
+                showSitesNotice('error', 'Ajax request failed.');
+            });
+        }, 15000);
+    };
+
         document.addEventListener('click', (e) => {
         // Клик по кнопке-триггеру (троеточие)
         const trigger = e.target.closest('.sdm-actions-trigger');
