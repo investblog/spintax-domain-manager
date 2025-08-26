@@ -425,7 +425,11 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showSitesNotice('updated', data.data.message);
+                    let msg = data.data.message;
+                    if (data.data.url) {
+                        msg += ' <a href="' + data.data.url + '" target="_blank">Yandex Webmaster</a>';
+                    }
+                    showSitesNotice('updated', msg);
                     pollYandexVerification(siteId, button, 0);
                 } else {
                     toggleButtonSpinner(button, false);

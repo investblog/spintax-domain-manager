@@ -21,6 +21,10 @@ Copy the plugin folder to your WordPress installation and activate it. Configure
 
 ## Changelog
 
+### 1.0.14
+- Added NS-based Yandex verification with automatic Cloudflare NS record creation.
+- Success message now links to Yandex Webmaster for manual confirmation.
+
 ### 1.0.9
 - Removed underline from project navigation links.
 - Added a server IP selector when adding new sites.

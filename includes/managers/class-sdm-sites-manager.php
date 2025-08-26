@@ -948,18 +948,30 @@ function sdm_ajax_add_site_to_yandex() {
         wp_send_json_error($zone->get_error_message());
     }
 
-    $verification_uin = SDM_Yandex_API::init_verification($token, $user_id, $site->main_domain);
-    if (!$verification_uin) {
+    $verification = SDM_Yandex_API::init_verification($token, $user_id, $site->main_domain);
+    if (!$verification || empty($verification['verification_uin'])) {
         wp_send_json_error(__('Could not initiate Yandex verification.', 'spintax-domain-manager'));
     }
 
-    $txt_value = 'yandex-verification: ' . $verification_uin;
-    $dns_resp = $cf_api->create_txt_record($zone['id'], $site->main_domain, $txt_value, 120);
+    $ns_hosts = $verification['ns_hosts'] ?? array();
+    $ns_name  = $verification['ns_name'] ?? $verification['verification_uin'];
+    if (!empty($ns_hosts)) {
+        $dns_resp = $cf_api->create_ns_record($zone['id'], $ns_name, $ns_hosts, 120);
+    } else {
+        // Fallback to TXT verification if NS servers were not provided
+        $txt_value = 'yandex-verification: ' . $verification['verification_uin'];
+        $dns_resp = $cf_api->create_txt_record($zone['id'], $site->main_domain, $txt_value, 120);
+    }
     if (is_wp_error($dns_resp)) {
         wp_send_json_error($dns_resp->get_error_message());
     }
 
-    wp_send_json_success(array('message' => __('Yandex verification started. DNS propagation may take a minute.', 'spintax-domain-manager')));
+    $verify_url = 'https://webmaster.yandex.ru/site/?host=' . rawurlencode('https://' . $site->main_domain . '/');
+
+    wp_send_json_success(array(
+        'message' => __('Yandex verification started. DNS propagation may take a minute.', 'spintax-domain-manager'),
+        'url'     => $verify_url,
+    ));
 }
 add_action('wp_ajax_sdm_add_site_to_yandex', 'sdm_ajax_add_site_to_yandex');
 
