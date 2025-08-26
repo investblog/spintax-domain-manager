@@ -101,7 +101,8 @@ class SDM_Yandex_API {
 
         $url = "https://api.webmaster.yandex.net/v4/user/$user_id/hosts";
         $body = json_encode(array(
-            'host_url' => "https://{$domain}"
+            // Подавать домен нужно с https:// и завершающим слешем
+            'host_url' => "https://{$domain}/"
         ));
 
         $response = wp_remote_post($url, array(
@@ -131,11 +132,13 @@ class SDM_Yandex_API {
 
     /**
      * Инициировать проверку в Яндекс.Вебмастере (DNS-верификация).
-     * 
+     * Возвращает массив с ключами verification_uin и ns_hosts (если Яндекс
+     * предоставил NS-серверы для делегирования).
+     *
      * @param string $token
      * @param string $user_id
      * @param string $domain
-     * @return string|false verification_uin или false при ошибке
+     * @return array|false [ 'verification_uin' => string, 'ns_hosts' => array ] или false при ошибке
      */
     public static function init_verification($token, $user_id, $domain) {
         // Убедимся, что домен есть в вебмастере
@@ -154,7 +157,7 @@ class SDM_Yandex_API {
             return false;
         }
 
-        // Отправляем запрос на верификацию
+        // Отправляем запрос на верификацию и получаем UIN + данные NS (если есть)
         $url = "https://api.webmaster.yandex.net/v4/user/$user_id/hosts/$host_id/verification?verification_type=DNS";
         $response = wp_remote_post($url, array(
             'headers' => array(
@@ -172,10 +175,26 @@ class SDM_Yandex_API {
         $resp_body = wp_remote_retrieve_body($response);
         $data = json_decode($resp_body, true);
 
-        if (isset($data['verification_uin'])) {
-            return $data['verification_uin'];
+        if (empty($data['verification_uin'])) {
+            return false;
         }
-        return false;
+
+        $result = array(
+            'verification_uin' => $data['verification_uin'],
+            'ns_hosts'        => array(),
+            'ns_name'         => $data['ns_name'] ?? ($data['ns_host'] ?? ''),
+        );
+
+        // Попытка извлечь список NS-серверов из ответа (если он их содержит)
+        if (!empty($data['ns_hosts']) && is_array($data['ns_hosts'])) {
+            $result['ns_hosts'] = $data['ns_hosts'];
+        } elseif (!empty($data['ns']) && is_array($data['ns'])) {
+            $result['ns_hosts'] = $data['ns'];
+        } elseif (!empty($data['nameservers']) && is_array($data['nameservers'])) {
+            $result['ns_hosts'] = $data['nameservers'];
+        }
+
+        return $result;
     }
 
     /**

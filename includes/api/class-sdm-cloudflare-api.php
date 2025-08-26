@@ -555,6 +555,42 @@ class SDM_Cloudflare_API {
         );
     }
 
+    /**
+     * Create NS records for delegating a subdomain.
+     *
+     * @param string $zone_id    Zone identifier.
+     * @param string $name       Hostname for the NS record (without zone).
+     * @param array  $nameservers Array of NS servers to assign.
+     * @param int    $ttl        TTL in seconds.
+     * @return array|WP_Error    Array of API responses or WP_Error on failure.
+     */
+    public function create_ns_record( $zone_id, $name, array $nameservers, $ttl = 120 ) {
+        $responses = array();
+        foreach ( $nameservers as $ns ) {
+            $body = array(
+                'type'    => 'NS',
+                'name'    => $name,
+                'content' => $ns,
+                'ttl'     => $ttl,
+            );
+
+            $resp = $this->api_request_extended(
+                "zones/{$zone_id}/dns_records",
+                array(),
+                'POST',
+                $body
+            );
+
+            if ( is_wp_error( $resp ) ) {
+                return $resp;
+            }
+
+            $responses[] = $resp;
+        }
+
+        return $responses;
+    }
+
         public function add_zone( $domain ) {
         $url = trailingslashit( $this->endpoint ) . 'zones';
         $headers = array();
