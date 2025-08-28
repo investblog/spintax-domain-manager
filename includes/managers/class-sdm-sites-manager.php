@@ -966,6 +966,9 @@ function sdm_ajax_add_site_to_yandex() {
         wp_send_json_error($dns_resp->get_error_message());
     }
 
+    // After the TXT/NS record is created, trigger DNS verification.
+    SDM_Yandex_API::trigger_verification($token, $user_id, $site->main_domain);
+
     $verify_url = 'https://webmaster.yandex.ru/site/?host=' . rawurlencode('https://' . $site->main_domain . '/');
 
     wp_send_json_success(array(
