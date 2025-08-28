@@ -198,6 +198,37 @@ class SDM_Yandex_API {
     }
 
     /**
+     * Trigger DNS verification for a domain after the record is created.
+     *
+     * @param string $token
+     * @param string $user_id
+     * @param string $domain
+     * @return bool
+     */
+    public static function trigger_verification($token, $user_id, $domain, $type = 'DNS') {
+        $host_id = self::get_host_id($token, $user_id, $domain);
+        if (!$host_id) {
+            return false;
+        }
+
+        $url = "https://api.webmaster.yandex.net/v4/user/$user_id/hosts/$host_id/verification?verification_type=$type";
+        $response = wp_remote_post($url, array(
+            'headers' => array(
+                'Authorization' => 'OAuth ' . $token,
+                'Content-Type'  => 'application/json',
+            ),
+            'timeout' => 25,
+        ));
+
+        if (is_wp_error($response)) {
+            error_log("Error triggering verification for $domain: " . $response->get_error_message());
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Check verification status for a domain in Yandex.Webmaster.
      *
      * @param string $token

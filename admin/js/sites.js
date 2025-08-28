@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         msg += ' <a href="' + data.data.url + '" target="_blank">Yandex Webmaster</a>';
                     }
                     showSitesNotice('updated', msg);
-                    pollYandexVerification(siteId, button, 0);
+                    pollYandexVerification(siteId, button, 0, data.data.url);
                 } else {
                     toggleButtonSpinner(button, false);
                     showSitesNotice('error', data.data.message || data.data);
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    const pollYandexVerification = (siteId, button, attempt) => {
+    const pollYandexVerification = (siteId, button, attempt, verifyUrl) => {
         setTimeout(() => {
             const fd = new FormData();
             fd.append('action', 'sdm_check_yandex_verification');
@@ -462,12 +462,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     toggleButtonSpinner(button, false);
                     showSitesNotice('updated', 'Yandex verification successful.');
                 } else {
-                    if (attempt < 4) {
+                    if (attempt < 5) {
                         showSitesNotice('updated', 'Waiting for DNS propagation... Checking again soon.');
-                        pollYandexVerification(siteId, button, attempt + 1);
+                        pollYandexVerification(siteId, button, attempt + 1, verifyUrl);
                     } else {
                         toggleButtonSpinner(button, false);
-                        showSitesNotice('error', 'Verification is still pending. Please try again later.');
+                        let msg = 'TXT record created. Please confirm in Yandex Webmaster manually';
+                        if (verifyUrl) {
+                            msg += ' <a href="' + verifyUrl + '" target="_blank">Verify</a>';
+                        }
+                        showSitesNotice('error', msg);
                     }
                 }
             })
@@ -476,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggleButtonSpinner(button, false);
                 showSitesNotice('error', 'Ajax request failed.');
             });
-        }, 15000);
+        }, 5000);
     };
 
         document.addEventListener('click', (e) => {

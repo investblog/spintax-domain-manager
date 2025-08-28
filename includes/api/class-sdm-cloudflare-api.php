@@ -540,6 +540,11 @@ class SDM_Cloudflare_API {
      * @return array|WP_Error
      */
     public function create_txt_record( $zone_id, $name, $content, $ttl = 120 ) {
+        // CloudFlare requires TXT record content to be wrapped in quotes.
+        if ( substr( $content, 0, 1 ) !== '"' ) {
+            $content = '"' . $content . '"';
+        }
+
         $body = array(
             'type'    => 'TXT',
             'name'    => $name,
