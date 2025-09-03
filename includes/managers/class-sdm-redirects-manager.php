@@ -697,7 +697,20 @@ class SDM_Redirects_Manager {
                     return $r->redirect_type === 'glue';
                 });
                 if (!empty($glueRedirects)) {
-                    $rules = [];
+                    $rules = [
+                        [
+                            'action' => 'redirect',
+                            'description' => 'SDM drop query string',
+                            'expression' => '(http.request.uri.query ne "")',
+                            'action_parameters' => [
+                                'from_value' => [
+                                    'target_url' => ['expression' => 'concat("https://", http.host, "/")'],
+                                    'status_code' => 301,
+                                    'preserve_query_string' => false,
+                                ],
+                            ],
+                        ],
+                    ];
                     foreach ($glueRedirects as $redirect) {
                         $rules[] = [
                             'action' => 'redirect',

@@ -52,14 +52,13 @@ $main_nonce = sdm_create_main_nonce();
             <button type="button" id="sdm-sync-cloudflare" class="button button-primary sdm-action-button" style="margin-left: 10px;">
                 <?php esc_html_e('Sync with CloudFlare', 'spintax-domain-manager'); ?>
             </button>
-            <span id="sdm-cloudflare-message" class="sdm-status"></span>
         <?php endif; ?>
     </form>
 
     <!-- Project Indicator -->
     <?php if ($current_project_id > 0) : ?>
-        <p class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
-            <?php 
+        <div class="sdm-project-indicator" style="margin: 10px 0 20px; font-size: 14px; color: #666;">
+            <?php
             $project_name = '';
             foreach ($all_projects as $proj) {
                 if ($proj->id == $current_project_id) {
@@ -71,9 +70,12 @@ $main_nonce = sdm_create_main_nonce();
                 __('Viewing redirects for project: %d - %s', 'spintax-domain-manager'),
                 $current_project_id,
                 esc_html($project_name ?: 'Unknown')
-            ); 
+            );
             ?>
-        </p>
+            <div id="sdm-batch-progress" class="sdm-progress" style="display:none; margin-top:5px;">
+                <div class="sdm-progress-bar"></div>
+            </div>
+        </div>
     <?php else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e('Please select a project to view its redirects.', 'spintax-domain-manager'); ?></p>
     <?php endif; ?>

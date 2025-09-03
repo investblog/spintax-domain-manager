@@ -38,6 +38,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(response => response.json());
     };
 
+    function batchSyncRedirects(domainIds, mainNonce){
+        const progressBox = document.getElementById('sdm-batch-progress');
+        const progressBar = progressBox ? progressBox.querySelector('.sdm-progress-bar') : null;
+        if (!progressBox || !progressBar) return;
+        const total = domainIds.length;
+        let processed = 0;
+        const batchSize = 10;
+        let successCount = 0;
+        const failed = [];
+
+        progressBar.style.width = '0%';
+        progressBox.style.display = 'block';
+
+        function doBatch(){
+            if (domainIds.length === 0) {
+                setTimeout(() => { progressBox.style.display = 'none'; }, 500);
+                fetchRedirects(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
+                let msg = successCount + ' redirects synced.';
+                if (failed.length) {
+                    msg += ' ' + failed.length + ' failed:\n' + failed.join('\n');
+                    showRedirectsNotice('error', msg);
+                } else {
+                    showRedirectsNotice('updated', msg);
+                }
+                return;
+            }
+            const batch = domainIds.splice(0, batchSize);
+            Promise.all(batch.map(syncSingle)).then(() => {
+                processed += batch.length;
+                const percent = Math.round(processed / total * 100);
+                progressBar.style.width = percent + '%';
+                doBatch();
+            });
+        }
+
+        function syncSingle(domainId){
+            const fd = new FormData();
+            fd.append('action', 'sdm_mass_sync_redirects_to_cloudflare');
+            fd.append('domain_ids', JSON.stringify([domainId]));
+            fd.append('project_id', currentProjectId);
+            fd.append('sdm_main_nonce_field', mainNonce);
+            return fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: fd
+            }).then(r => r.json())
+            .then(resp => {
+                const msg = resp.data || resp.message || 'Unknown server response';
+                if (resp.success) {
+                    successCount++;
+                } else {
+                    failed.push(domainId + ': ' + msg);
+                }
+            })
+            .catch(err => {
+                failed.push(domainId + ': request failed');
+                console.error('Request failed for domain', domainId, err);
+            });
+        }
+
+        doBatch();
+    }
+
     const fetchRedirects = (projectId, sortColumn = 'domain', sortDirectionParam = 'asc') => {
         if (isRedirectsLoaded) {
             console.log('Redirects already loading, skipping...');
@@ -105,31 +168,13 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             if (!confirm('Are you sure you want to sync all redirects with CloudFlare for this project?')) return;
 
-            const messageArea = document.getElementById('sdm-cloudflare-message');
-            messageArea.innerHTML = getSpinnerElement().outerHTML + ' Syncing...';
-            messageArea.className = 'sdm-status';
-
-            const formData = new FormData();
-            formData.append('action', 'sdm_sync_redirects_to_cloudflare');
-            formData.append('project_id', currentProjectId);
-            formData.append('sdm_main_nonce_field', mainNonce);
-
-            ajaxRequest(formData)
-                .then(data => {
-                    if (data.success) {
-                        messageArea.innerHTML = 'Sync completed successfully.';
-                        messageArea.className = 'sdm-status success';
-                        fetchRedirects(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
-                    } else {
-                        messageArea.innerHTML = 'Error: ' + data.data;
-                        messageArea.className = 'sdm-status error';
-                    }
-                })
-                .catch(error => {
-                    console.error('Sync redirects error:', error);
-                    messageArea.innerHTML = 'Network error.';
-                    messageArea.className = 'sdm-status error';
-                });
+            const allIds = Array.from(document.querySelectorAll('.sdm-redirect-checkbox'))
+                .map(cb => parseInt(cb.value));
+            if (allIds.length === 0) {
+                alert('No redirects to sync.');
+                return;
+            }
+            batchSyncRedirects(allIds, mainNonce);
         });
     }
 
@@ -232,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     massActionAPI('sdm_mass_delete_redirects', selected, applyBtn);
                 } else if (action === 'sync_cloudflare') {
                     if (!confirm('Are you sure you want to sync the selected redirects with CloudFlare for this site?')) return;
-                    massActionAPI('sdm_mass_sync_redirects_to_cloudflare', selected, applyBtn);
+                    batchSyncRedirects(selected.map(id => parseInt(id)), mainNonce);
                 }
             });
         });
@@ -272,6 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     spinner.remove();
                 });
         };
+
 
         document.querySelectorAll('.sdm-select-all-site-redirects').forEach(checkbox => {
             const siteId = checkbox.getAttribute('data-site-id');
