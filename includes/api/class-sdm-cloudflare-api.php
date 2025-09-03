@@ -394,7 +394,22 @@ class SDM_Cloudflare_API {
         }
 
         // 3) Формируем rules
-        $rules = array();
+        $rules = array(
+            // Правило для URL с параметрами: редирект на корень домена
+            array(
+                'action'      => 'redirect',
+                'description' => 'SDM drop query string',
+                'expression'  => '(http.request.uri.query ne "")',
+                'action_parameters' => array(
+                    'from_value' => array(
+                        'target_url' => array('expression' => 'concat("https://", http.host, "/")'),
+                        'status_code'           => 301,
+                        'preserve_query_string' => false,
+                    ),
+                ),
+            ),
+        );
+
         foreach ( $rows as $row ) {
             $final_target = $row->target_url;
             $expression = '(http.request.uri.path wildcard r"/*")';
