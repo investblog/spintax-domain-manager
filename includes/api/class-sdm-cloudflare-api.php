@@ -451,6 +451,12 @@ class SDM_Cloudflare_API {
         if ( empty($create_resp['result']) || empty($create_resp['result']['id']) ) {
             return new WP_Error( 'ruleset_create_failed', 'No valid ruleset created in CloudFlare response.' );
         }
+
+        $ensure_www = $this->ensure_www_redirect_rule( $zone_id );
+        if ( is_wp_error( $ensure_www ) ) {
+            error_log( 'Failed to ensure www redirect rule for zone ' . $zone_id . ': ' . $ensure_www->get_error_message() );
+        }
+
         return true;
     }
 
@@ -609,6 +615,267 @@ class SDM_Cloudflare_API {
         }
 
         return $responses;
+    }
+
+    /**
+     * Fetch DNS records for a zone with optional filters.
+     *
+     * @param string $zone_id Zone identifier.
+     * @param array  $filters Optional filters (type, name, per_page, etc.).
+     * @return array|WP_Error  Array of DNS records or WP_Error on failure.
+     */
+    public function get_dns_records( $zone_id, $filters = array() ) {
+        $zone_id = trim( $zone_id );
+        if ( empty( $zone_id ) ) {
+            return new WP_Error( 'invalid_zone', 'Zone ID is required for DNS listing.' );
+        }
+
+        $page      = 1;
+        $per_page  = isset( $filters['per_page'] ) ? absint( $filters['per_page'] ) : 100;
+        $records   = array();
+
+        do {
+            $query_args = array_merge(
+                $filters,
+                array(
+                    'page'     => $page,
+                    'per_page' => $per_page,
+                )
+            );
+
+            $response = $this->api_request_extended(
+                "zones/{$zone_id}/dns_records",
+                $query_args,
+                'GET'
+            );
+
+            if ( is_wp_error( $response ) ) {
+                return $response;
+            }
+
+            if ( empty( $response['result'] ) || ! is_array( $response['result'] ) ) {
+                break;
+            }
+
+            $records      = array_merge( $records, $response['result'] );
+            $total_pages  = isset( $response['result_info']['total_pages'] ) ? (int) $response['result_info']['total_pages'] : 1;
+            $page++;
+        } while ( $page <= $total_pages );
+
+        return $records;
+    }
+
+    /**
+     * Deletes a DNS record in the given zone.
+     *
+     * @param string $zone_id   Zone identifier.
+     * @param string $record_id DNS record identifier.
+     * @return array|WP_Error
+     */
+    public function delete_dns_record( $zone_id, $record_id ) {
+        $zone_id   = trim( $zone_id );
+        $record_id = trim( $record_id );
+
+        if ( empty( $zone_id ) || empty( $record_id ) ) {
+            return new WP_Error( 'invalid_dns_record', 'Zone ID and record ID are required for DNS deletion.' );
+        }
+
+        return $this->api_request_extended(
+            "zones/{$zone_id}/dns_records/{$record_id}",
+            array(),
+            'DELETE'
+        );
+    }
+
+    /**
+     * Creates a DNS record in the given zone.
+     *
+     * @param string     $zone_id Zone identifier.
+     * @param string     $type    DNS record type (A, AAAA, CNAME, etc.).
+     * @param string     $name    Record name.
+     * @param string     $content Record content.
+     * @param int|string $ttl     TTL value. Use 1 for 'auto'.
+     * @param bool|null  $proxied Optional proxy flag.
+     * @return array|WP_Error
+     */
+    public function create_dns_record( $zone_id, $type, $name, $content, $ttl = 1, $proxied = null ) {
+        $zone_id = trim( $zone_id );
+        $type    = strtoupper( trim( $type ) );
+        $name    = trim( $name );
+        $content = trim( $content );
+
+        if ( empty( $zone_id ) || empty( $type ) || empty( $name ) || empty( $content ) ) {
+            return new WP_Error( 'invalid_dns_record', 'Zone ID, type, name, and content are required for DNS creation.' );
+        }
+
+        $body = array(
+            'type'    => $type,
+            'name'    => $name,
+            'content' => $content,
+            'ttl'     => (int) $ttl,
+        );
+
+        if ( null !== $proxied ) {
+            $body['proxied'] = (bool) $proxied;
+        }
+
+        return $this->api_request_extended(
+            "zones/{$zone_id}/dns_records",
+            array(),
+            'POST',
+            $body
+        );
+    }
+
+    /**
+     * Ensures technical A-records exist for root and www hostnames.
+     * Removes existing A/AAAA/CNAME records for those hosts and recreates A with 192.0.2.1.
+     *
+     * @param string $zone_id Zone identifier.
+     * @param string $domain  Root domain (e.g. example.com).
+     * @param string $ip      Technical IP to assign. Defaults to 192.0.2.1.
+     * @return true|WP_Error
+     */
+    public function ensure_technical_a_records( $zone_id, $domain, $ip = '192.0.2.1' ) {
+        $zone_id = trim( $zone_id );
+        $domain  = strtolower( trim( $domain, " ." ) );
+
+        if ( empty( $zone_id ) || empty( $domain ) ) {
+            return new WP_Error( 'invalid_dns_record', 'Zone ID and domain are required to ensure technical A records.' );
+        }
+
+        $hostnames = array( $domain, 'www.' . $domain );
+
+        foreach ( $hostnames as $hostname ) {
+            $records = $this->get_dns_records( $zone_id, array( 'name' => $hostname, 'per_page' => 100 ) );
+            if ( is_wp_error( $records ) ) {
+                return $records;
+            }
+
+            foreach ( $records as $record ) {
+                if ( ! isset( $record['type'], $record['id'], $record['name'] ) ) {
+                    continue;
+                }
+                if ( strtolower( $record['name'] ) !== strtolower( $hostname ) ) {
+                    continue;
+                }
+                if ( in_array( strtoupper( $record['type'] ), array( 'A', 'AAAA', 'CNAME' ), true ) ) {
+                    $delete = $this->delete_dns_record( $zone_id, $record['id'] );
+                    if ( is_wp_error( $delete ) ) {
+                        return $delete;
+                    }
+                }
+            }
+
+            $create = $this->create_dns_record( $zone_id, 'A', $hostname, $ip, 1, true );
+            if ( is_wp_error( $create ) ) {
+                return $create;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Ensures a dynamic redirect rule exists that rewrites https://www.* to https://*.
+     *
+     * @param string $zone_id Zone identifier.
+     * @param int    $status_code Redirect HTTP status code (301 or 302).
+     * @param bool   $preserve_query Preserve query string flag.
+     * @return true|WP_Error
+     */
+    public function ensure_www_redirect_rule( $zone_id, $status_code = 301, $preserve_query_string = true ) {
+        $zone_id = trim( $zone_id );
+        if ( empty( $zone_id ) ) {
+            return new WP_Error( 'invalid_zone', 'Zone ID is required to ensure www redirect rule.' );
+        }
+
+        $pattern          = 'r"https://www.*"';
+        $rule_description = 'SDM www to root';
+
+        $rule = array(
+            'action'      => 'redirect',
+            'description' => $rule_description,
+            'expression'  => '(http.request.full_uri wildcard ' . $pattern . ')',
+            'action_parameters' => array(
+                'from_value' => array(
+                    'target_url' => array(
+                        'expression' => 'wildcard_replace(http.request.full_uri, ' . $pattern . ', r"https://${1}")',
+                    ),
+                    'status_code'            => (int) $status_code,
+                    'preserve_query_string'  => (bool) $preserve_query_string,
+                ),
+            ),
+        );
+
+        $existing = $this->api_request_extended(
+            "zones/{$zone_id}/rulesets",
+            array( 'per_page' => 50 ),
+            'GET'
+        );
+
+        if ( is_wp_error( $existing ) ) {
+            return $existing;
+        }
+
+        if ( ! empty( $existing['result'] ) && is_array( $existing['result'] ) ) {
+            foreach ( $existing['result'] as $ruleset ) {
+                if ( ! isset( $ruleset['phase'] ) || 'http_request_dynamic_redirect' !== $ruleset['phase'] ) {
+                    continue;
+                }
+
+                $ruleset_id = isset( $ruleset['id'] ) ? $ruleset['id'] : '';
+                if ( empty( $ruleset_id ) ) {
+                    continue;
+                }
+
+                $rules = isset( $ruleset['rules'] ) && is_array( $ruleset['rules'] ) ? $ruleset['rules'] : array();
+                foreach ( $rules as $existing_rule ) {
+                    if ( isset( $existing_rule['description'] ) && $existing_rule['description'] === $rule_description ) {
+                        return true;
+                    }
+                    if ( isset( $existing_rule['expression'] ) && $existing_rule['expression'] === $rule['expression'] ) {
+                        return true;
+                    }
+                }
+
+                array_unshift( $rules, $rule );
+
+                $body = array(
+                    'name'        => isset( $ruleset['name'] ) ? $ruleset['name'] : 'SDM Redirects',
+                    'description' => isset( $ruleset['description'] ) ? $ruleset['description'] : '',
+                    'kind'        => isset( $ruleset['kind'] ) ? $ruleset['kind'] : 'zone',
+                    'phase'       => 'http_request_dynamic_redirect',
+                    'rules'       => $rules,
+                );
+
+                $update = $this->api_request_extended(
+                    "zones/{$zone_id}/rulesets/{$ruleset_id}",
+                    array(),
+                    'PUT',
+                    $body
+                );
+
+                return is_wp_error( $update ) ? $update : true;
+            }
+        }
+
+        $body = array(
+            'name'        => 'SDM WWW Redirect',
+            'description' => 'Auto redirect www to root',
+            'kind'        => 'zone',
+            'phase'       => 'http_request_dynamic_redirect',
+            'rules'       => array( $rule ),
+        );
+
+        $create = $this->api_request_extended(
+            "zones/{$zone_id}/rulesets",
+            array(),
+            'POST',
+            $body
+        );
+
+        return is_wp_error( $create ) ? $create : true;
     }
 
         public function add_zone( $domain ) {

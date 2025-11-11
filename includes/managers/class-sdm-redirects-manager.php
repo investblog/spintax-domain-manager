@@ -447,6 +447,7 @@ class SDM_Redirects_Manager {
         $errors = [];
         $success_count = 0;
         $byZone = [];
+        $zone_www_ensured = array();
         foreach ( $redirects as $r ) {
             if ( empty($r->cf_zone_id) ) {
                 continue;
@@ -463,9 +464,36 @@ class SDM_Redirects_Manager {
                 continue;
             }
 
+            // 2a. Гарантируем правило перенаправления www -> root
+            if ( empty( $zone_www_ensured[ $zone_id ] ) ) {
+                $www_rule = $cf_api->ensure_www_redirect_rule( $zone_id );
+                if ( is_wp_error( $www_rule ) ) {
+                    $errors[] = sprintf( 'Zone %s: %s', $zone_id, $www_rule->get_error_message() );
+                } else {
+                    $zone_www_ensured[ $zone_id ] = true;
+                }
+            }
+
+            $prepared_domains = array();
+
             // 2. Создаём новые Page Rules
             foreach ( $zoneRedirects as $redirect ) {
                 $sourcePattern = "https://{$redirect->domain}/*";
+
+                if ( ! isset( $prepared_domains[ $redirect->domain ] ) ) {
+                    $dns_prepare = $cf_api->ensure_technical_a_records( $zone_id, $redirect->domain );
+                    if ( is_wp_error( $dns_prepare ) ) {
+                        $errors[] = sprintf( 'Domain ID %d: %s', $redirect->domain_id, $dns_prepare->get_error_message() );
+                        $prepared_domains[ $redirect->domain ] = 'failed';
+                    } else {
+                        $prepared_domains[ $redirect->domain ] = true;
+                    }
+                }
+
+                if ( isset( $prepared_domains[ $redirect->domain ] ) && 'failed' === $prepared_domains[ $redirect->domain ] ) {
+                    continue;
+                }
+
                 $targetDomain = $this->extract_domain_from_url( $redirect->target_url );
                 if ( empty($targetDomain) ) {
                     $errors[] = "Domain ID {$redirect->domain_id}: cannot extract domain from target_url";
@@ -630,6 +658,7 @@ class SDM_Redirects_Manager {
 
         // Группируем редиректы по зонам
         $byZone = [];
+        $zone_www_ensured = array();
         foreach ($redirects as $r) {
             if (empty($r->cf_zone_id)) {
                 $errors[] = sprintf('Domain ID %d: No Cloudflare zone ID.', $r->domain_id);
@@ -673,8 +702,30 @@ class SDM_Redirects_Manager {
                 $mainRedirects = array_filter($zoneRedirects, function($r) {
                     return $r->redirect_type === 'main';
                 });
+                if ( empty( $zone_www_ensured[ $zone_id ] ) ) {
+                    $www_rule = $cf_api->ensure_www_redirect_rule( $zone_id );
+                    if ( is_wp_error( $www_rule ) ) {
+                        $errors[] = sprintf( 'Zone %s: %s', $zone_id, $www_rule->get_error_message() );
+                    } else {
+                        $zone_www_ensured[ $zone_id ] = true;
+                    }
+                }
+                $prepared_domains = array();
                 foreach ($mainRedirects as $redirect) {
                     $sourcePattern = "https://{$redirect->domain}/*";
+                    if (!isset($prepared_domains[$redirect->domain])) {
+                        $dns_prepare = $cf_api->ensure_technical_a_records($zone_id, $redirect->domain);
+                        if (is_wp_error($dns_prepare)) {
+                            $errors[] = sprintf('Domain ID %d: %s', $redirect->domain_id, $dns_prepare->get_error_message());
+                            $prepared_domains[$redirect->domain] = 'failed';
+                        } else {
+                            $prepared_domains[$redirect->domain] = true;
+                        }
+                    }
+
+                    if (isset($prepared_domains[$redirect->domain]) && 'failed' === $prepared_domains[$redirect->domain]) {
+                        continue;
+                    }
                     $targetDomain = $this->extract_domain_from_url($redirect->target_url);
                     if (empty($targetDomain)) {
                         $errors[] = sprintf('Domain ID %d: Cannot extract domain from target_url', $redirect->domain_id);
