@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const mainNonceField = document.getElementById('sdm-main-nonce');
-    const mainNonce = mainNonceField ? mainNonceField.value : '';
+    const localizedNonce = (typeof SDM_Data !== 'undefined' && SDM_Data.nonce) ? SDM_Data.nonce : '';
+    const mainNonce = localizedNonce || (mainNonceField ? mainNonceField.value : '');
     const projectSelector = document.getElementById('sdm-project-selector');
     let currentProjectId = projectSelector ? parseInt(projectSelector.value) : 0;
     let isRedirectsLoaded = false;
@@ -36,6 +37,26 @@ document.addEventListener('DOMContentLoaded', () => {
             credentials: 'same-origin',
             body: formData
         }).then(response => response.json());
+    };
+
+    const normalizeMessage = (message) => {
+        if (!message) {
+            return '';
+        }
+        if (typeof message === 'string') {
+            return message;
+        }
+        if (message.message) {
+            return message.message;
+        }
+        if (message.data && message.data.message) {
+            return message.data.message;
+        }
+        try {
+            return JSON.stringify(message);
+        } catch (err) {
+            return String(message);
+        }
     };
 
     function batchSyncRedirects(domainIds, mainNonce){
@@ -491,8 +512,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const noticeContainer = document.getElementById('sdm-redirects-notice');
         if (!noticeContainer) return;
         const cssClass = (type === 'error') ? 'notice-error' : 'notice-success';
+        const resolvedMessage = normalizeMessage(message) || (type === 'error' ? 'An unknown error occurred.' : '');
         noticeContainer.innerHTML =
-            `<div class="notice ${cssClass} is-dismissible"><p>${message}</p><button class="notice-dismiss" type="button">×</button></div>`;
+            `<div class="notice ${cssClass} is-dismissible"><p>${resolvedMessage}</p><button class="notice-dismiss" type="button">×</button></div>`;
         const dismissBtn = noticeContainer.querySelector('.notice-dismiss');
         if (dismissBtn) {
             dismissBtn.addEventListener('click', () => {
