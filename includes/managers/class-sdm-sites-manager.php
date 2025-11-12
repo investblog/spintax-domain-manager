@@ -136,11 +136,17 @@ class SDM_Sites_Manager {
             return new WP_Error('domain_not_found', __('Specified main domain does not exist.', 'spintax-domain-manager'));
         }
 
+        $release_result = sdm_release_domain_conflicts( $main_domain, $site_id );
+        if ( is_wp_error( $release_result ) ) {
+            $wpdb->query('ROLLBACK');
+            return $release_result;
+        }
+
         // Assign the main_domain to this site by updating site_id in sdm_domains
         $updated_domain = $wpdb->update(
             $domains_table,
             array('site_id' => $site_id, 'updated_at' => current_time('mysql')),
-            array('domain' => $main_domain, 'site_id' => NULL),
+            array('domain' => $main_domain),
             array('%d', '%s'),
             array('%s')
         );
@@ -253,12 +259,18 @@ class SDM_Sites_Manager {
                 return new WP_Error('domain_not_found', __('Specified main domain does not exist.', 'spintax-domain-manager'));
             }
 
+            $release_result = sdm_release_domain_conflicts( $main_domain, $site_id );
+            if ( is_wp_error( $release_result ) ) {
+                $wpdb->query('ROLLBACK');
+                return $release_result;
+            }
+
             $assign_new = $wpdb->update(
                 $domains_table,
                 array('site_id' => $site_id, 'updated_at' => current_time('mysql')),
-                array('domain' => $main_domain, 'site_id' => NULL),
+                array('domain' => $main_domain),
                 array('%d','%s'),
-                array('%s','%s')
+                array('%s')
             );
             if (false === $assign_new) {
                 $wpdb->query('ROLLBACK');

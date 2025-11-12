@@ -35,6 +35,86 @@ function sdm_set_active_project_id( $project_id ) {
 }
 
 /**
+ * Release a domain from any conflicting site assignments.
+ *
+ * Ensures that the provided domain is no longer marked as the main domain of
+ * another site and resets its site binding inside the domains table. This is
+ * helpful when a domain should be reused but stale records still point to an
+ * old site.
+ *
+ * @param string   $domain          Domain name to release.
+ * @param int|null $exclude_site_id Site ID that should retain the domain (if
+ *                                  already attached). Use 0/NULL when the
+ *                                  domain is being prepared for a brand-new
+ *                                  site.
+ * @return array|WP_Error Summary of the clean-up process or WP_Error on
+ *                        failure.
+ */
+function sdm_release_domain_conflicts( $domain, $exclude_site_id = 0 ) {
+    global $wpdb;
+
+    $domain = sanitize_text_field( $domain );
+    if ( empty( $domain ) ) {
+        return new WP_Error( 'invalid_domain', __( 'Domain name is empty.', 'spintax-domain-manager' ) );
+    }
+
+    $sites_table   = $wpdb->prefix . 'sdm_sites';
+    $domains_table = $wpdb->prefix . 'sdm_domains';
+    $current_time  = current_time( 'mysql' );
+
+    $params = array( $domain );
+    $query  = "SELECT id FROM {$sites_table} WHERE main_domain = %s";
+    if ( $exclude_site_id ) {
+        $query   .= ' AND id != %d';
+        $params[] = absint( $exclude_site_id );
+    }
+
+    $conflicting_site_ids = $wpdb->get_col( $wpdb->prepare( $query, ...$params ) );
+    $sites_updated        = 0;
+
+    if ( ! empty( $conflicting_site_ids ) ) {
+        foreach ( $conflicting_site_ids as $conflicting_id ) {
+            $result = $wpdb->update(
+                $sites_table,
+                array(
+                    'last_domain' => $domain,
+                    'main_domain' => null,
+                    'updated_at'  => $current_time,
+                ),
+                array( 'id' => $conflicting_id ),
+                array( '%s', '%s', '%s' ),
+                array( '%d' )
+            );
+
+            if ( false === $result ) {
+                return new WP_Error( 'db_update_error', __( 'Failed to release domain from an existing site.', 'spintax-domain-manager' ) );
+            }
+
+            $sites_updated += (int) $result;
+        }
+    }
+
+    $domain_params = array( $current_time, $domain );
+    $domain_query  = "UPDATE {$domains_table} SET site_id = NULL, updated_at = %s WHERE domain = %s";
+
+    if ( $exclude_site_id ) {
+        $domain_query   .= ' AND (site_id IS NULL OR site_id != %d)';
+        $domain_params[] = absint( $exclude_site_id );
+    }
+
+    $domains_updated = $wpdb->query( $wpdb->prepare( $domain_query, ...$domain_params ) );
+
+    if ( false === $domains_updated ) {
+        return new WP_Error( 'db_update_error', __( 'Failed to reset domain assignment.', 'spintax-domain-manager' ) );
+    }
+
+    return array(
+        'sites_updated'   => $sites_updated,
+        'domains_updated' => (int) $domains_updated,
+    );
+}
+
+/**
  * Render navigation links for current project pages.
  *
  * @param int $project_id Current project ID.

@@ -215,16 +215,47 @@ class SDM_Domains_Manager {
                 continue;
             }
 
-            // Check if the domain is already assigned to another site
-            $current_site_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT site_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+            // Check if the domain exists and whether it is currently assigned
+            $domain_row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT site_id, domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
                 $domain_id
-            ));
+            ) );
 
-            if ( $current_site_id && $current_site_id != $site_id ) {
+            if ( ! $domain_row ) {
                 $failed++;
-                $messages[] = sprintf( __( 'Domain ID %d is already assigned to another site.', 'spintax-domain-manager' ), $domain_id );
+                $messages[] = sprintf( __( 'Domain ID %d was not found.', 'spintax-domain-manager' ), $domain_id );
                 continue;
+            }
+
+            $needs_release = false;
+
+            if ( $domain_row->site_id && (int) $domain_row->site_id !== $site_id ) {
+                $needs_release = true;
+            }
+
+            $conflict_params = array( $domain_row->domain );
+            $conflict_query  = "SELECT id FROM {$wpdb->prefix}sdm_sites WHERE main_domain = %s";
+            if ( $site_id > 0 ) {
+                $conflict_query  .= ' AND id != %d';
+                $conflict_params[] = $site_id;
+            }
+
+            $conflicting_site_id = $wpdb->get_var( $wpdb->prepare( $conflict_query, ...$conflict_params ) );
+            if ( $conflicting_site_id ) {
+                $needs_release = true;
+            }
+
+            if ( $needs_release ) {
+                $release_result = sdm_release_domain_conflicts( $domain_row->domain, $site_id );
+                if ( is_wp_error( $release_result ) ) {
+                    $failed++;
+                    $messages[] = sprintf(
+                        __( 'Could not reassign domain %1$s: %2$s', 'spintax-domain-manager' ),
+                        $domain_row->domain,
+                        $release_result->get_error_message()
+                    );
+                    continue;
+                }
             }
 
             // Allow blocked domains to be assigned to sites (but not as main domains)
@@ -969,19 +1000,44 @@ function sdm_ajax_validate_domain() {
         wp_send_json_error(__('Domain is not active, blocked, or does not exist.', 'spintax-domain-manager'));
     }
 
-    // Проверяем, не используется ли домен другим сайтом в sdm_sites, исключая текущий сайт
-    $domain_in_use = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM {$prefix}sdm_sites 
-         WHERE main_domain = %s" . ($site_id > 0 ? " AND id != %d" : ""),
-        $domain,
-        $site_id
-    ));
-
-    if ($domain_in_use > 0) {
-        wp_send_json_error(__('This domain is already assigned to another site.', 'spintax-domain-manager'));
+    $conflict_params = array( $domain );
+    $conflict_query  = "SELECT id FROM {$prefix}sdm_sites WHERE main_domain = %s";
+    if ( $site_id > 0 ) {
+        $conflict_query  .= ' AND id != %d';
+        $conflict_params[] = $site_id;
     }
 
-    wp_send_json_success(__('Domain is valid and available.', 'spintax-domain-manager'));
+    $conflicting_site_id = $wpdb->get_var( $wpdb->prepare( $conflict_query, ...$conflict_params ) );
+
+    $domain_row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT site_id FROM {$prefix}sdm_domains WHERE domain = %s",
+        $domain
+    ) );
+
+    $needs_release = false;
+    if ( $conflicting_site_id ) {
+        $needs_release = true;
+    }
+
+    if (
+        $domain_row &&
+        $domain_row->site_id &&
+        ( $site_id <= 0 || (int) $domain_row->site_id !== $site_id )
+    ) {
+        $needs_release = true;
+    }
+
+    $message_suffix = '';
+    if ( $needs_release ) {
+        $release_result = sdm_release_domain_conflicts( $domain, $site_id );
+        if ( is_wp_error( $release_result ) ) {
+            wp_send_json_error( $release_result->get_error_message() );
+        }
+
+        $message_suffix = ' ' . __( 'A stale assignment was cleared automatically.', 'spintax-domain-manager' );
+    }
+
+    wp_send_json_success( __( 'Domain is valid and available.', 'spintax-domain-manager' ) . $message_suffix );
 }
 add_action('wp_ajax_sdm_validate_domain', 'sdm_ajax_validate_domain');
 
