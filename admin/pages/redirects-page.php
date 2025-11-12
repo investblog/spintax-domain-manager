@@ -75,6 +75,13 @@ $main_nonce = sdm_create_main_nonce();
             <div id="sdm-batch-progress" class="sdm-progress" style="display:none; margin-top:5px;">
                 <div class="sdm-progress-bar"></div>
             </div>
+            <div id="sdm-redirects-queue" class="sdm-sync-queue" style="display:none; margin-top:8px;">
+                <div class="sdm-sync-queue-header">
+                    <strong><?php esc_html_e('CloudFlare sync queue', 'spintax-domain-manager'); ?></strong>
+                    <span class="sdm-sync-queue-summary"></span>
+                </div>
+                <ul class="sdm-sync-queue-list"></ul>
+            </div>
         </div>
     <?php else : ?>
         <p style="margin: 20px 0; color: #666;"><?php esc_html_e('Please select a project to view its redirects.', 'spintax-domain-manager'); ?></p>
