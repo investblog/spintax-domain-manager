@@ -21,6 +21,10 @@ Copy the plugin folder to your WordPress installation and activate it. Configure
 
 ## Changelog
 
+### 1.0.16
+- Synced the plugin header and internal version constant to ensure assets receive the latest cache-busting value.
+- Documented the release details for easier tracking of plugin updates.
+
 ### 1.0.14
 - Added NS-based Yandex verification with automatic Cloudflare NS record creation.
 - Success message now links to Yandex Webmaster for manual confirmation.
