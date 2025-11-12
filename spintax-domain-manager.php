@@ -183,6 +183,7 @@ function sdm_enqueue_admin_assets() {
         );
         wp_localize_script('sdm-redirects-js', 'SDM_Data', array(
             'pluginUrl' => SDM_PLUGIN_URL,
+            'nonce'     => sdm_create_main_nonce(),
         ));
     }
 
