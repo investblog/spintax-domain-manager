@@ -28,6 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return spinner;
     }
 
+    function createInlineSpinner() {
+        const spinner = document.createElement('span');
+        spinner.className = 'spinner is-active sdm-inline-spinner';
+        spinner.style.float = 'none';
+        return spinner;
+    }
+
 
 
     // Универсальная функция для AJAX-запросов
@@ -59,67 +66,205 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    function batchSyncRedirects(domainIds, mainNonce){
+    const getDomainLabel = (domainId) => {
+        const selector = `tr[data-domain-id="${domainId}"]`;
+        const row = document.querySelector(selector);
+        if (row) {
+            const datasetDomain = row.getAttribute('data-domain');
+            if (datasetDomain) {
+                return datasetDomain;
+            }
+            const domainCell = row.querySelector('.sdm-domain');
+            if (domainCell && domainCell.textContent) {
+                return domainCell.textContent.trim();
+            }
+        }
+        return `Domain #${domainId}`;
+    };
+
+    function batchSyncRedirects(domainIds, mainNonce, options = {}) {
+        const sanitizedIds = Array.isArray(domainIds)
+            ? domainIds.map(id => parseInt(id, 10)).filter(id => !Number.isNaN(id))
+            : [];
+
+        if (!sanitizedIds.length) {
+            if (typeof options.onComplete === 'function') {
+                options.onComplete();
+            }
+            return;
+        }
+
         const progressBox = document.getElementById('sdm-batch-progress');
         const progressBar = progressBox ? progressBox.querySelector('.sdm-progress-bar') : null;
-        if (!progressBox || !progressBar) return;
-        const total = domainIds.length;
-        let processed = 0;
-        const batchSize = 10;
-        let successCount = 0;
-        const failed = [];
+        const queueBox = document.getElementById('sdm-redirects-queue');
+        const queueList = queueBox ? queueBox.querySelector('.sdm-sync-queue-list') : null;
+        const queueSummary = queueBox ? queueBox.querySelector('.sdm-sync-queue-summary') : null;
+        const hasProgress = !!progressBar;
+        const statusText = {
+            pending: 'Pending',
+            processing: 'Syncing…',
+            success: 'Completed',
+            error: 'Failed'
+        };
 
-        progressBar.style.width = '0%';
-        progressBox.style.display = 'block';
+        const tasks = sanitizedIds.map(id => ({
+            id,
+            label: getDomainLabel(id)
+        }));
+        const total = tasks.length;
+        const queue = tasks.slice();
 
-        function doBatch(){
-            if (domainIds.length === 0) {
-                setTimeout(() => { progressBox.style.display = 'none'; }, 500);
-                fetchRedirects(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
-                let msg = successCount + ' redirects synced.';
-                if (failed.length) {
-                    msg += ' ' + failed.length + ' failed:\n' + failed.join('\n');
-                    showRedirectsNotice('error', msg);
-                } else {
-                    showRedirectsNotice('updated', msg);
-                }
-                return;
-            }
-            const batch = domainIds.splice(0, batchSize);
-            Promise.all(batch.map(syncSingle)).then(() => {
-                processed += batch.length;
-                const percent = Math.round(processed / total * 100);
-                progressBar.style.width = percent + '%';
-                doBatch();
+        if (queueList) {
+            queueList.innerHTML = '';
+            tasks.forEach(task => {
+                const item = document.createElement('li');
+                item.className = 'sdm-sync-queue-item is-pending';
+                item.dataset.domainId = String(task.id);
+
+                const labelEl = document.createElement('span');
+                labelEl.className = 'sdm-sync-queue-label';
+                labelEl.textContent = task.label;
+
+                const statusEl = document.createElement('span');
+                statusEl.className = 'sdm-sync-queue-status';
+                statusEl.textContent = statusText.pending;
+
+                item.appendChild(labelEl);
+                item.appendChild(statusEl);
+                queueList.appendChild(item);
+
+                task.element = item;
             });
         }
 
-        function syncSingle(domainId){
+        if (queueBox && (queueList || queueSummary)) {
+            queueBox.style.display = 'block';
+        }
+        if (queueSummary) {
+            queueSummary.textContent = `Processed 0/${total}`;
+        }
+        if (hasProgress) {
+            progressBar.style.width = '0%';
+            progressBox.style.display = 'block';
+        }
+
+        let processed = 0;
+        let successCount = 0;
+        const failed = [];
+
+        const truncateMessage = (message) => {
+            if (!message) {
+                return '';
+            }
+            const str = String(message);
+            return str.length > 160 ? str.slice(0, 157) + '…' : str;
+        };
+
+        const updateProgress = () => {
+            if (!hasProgress) {
+                return;
+            }
+            const percent = total ? Math.round((processed / total) * 100) : 100;
+            progressBar.style.width = percent + '%';
+        };
+
+        const updateSummary = (isFinal = false) => {
+            if (!queueSummary) {
+                return;
+            }
+            const failText = failed.length ? `, ${failed.length} failed` : '';
+            const prefix = isFinal ? 'Completed' : 'Processed';
+            queueSummary.textContent = `${prefix} ${processed}/${total}${failText}`;
+        };
+
+        const updateQueueItemStatus = (task, state, message) => {
+            if (!task || !task.element) {
+                return;
+            }
+            task.element.classList.remove('is-pending', 'is-processing', 'is-success', 'is-error');
+            task.element.classList.add(`is-${state}`);
+            const statusEl = task.element.querySelector('.sdm-sync-queue-status');
+            if (statusEl) {
+                const fallback = statusText[state] || '';
+                statusEl.textContent = truncateMessage(message) || fallback;
+            }
+        };
+
+        const syncSingle = (domainId) => {
             const fd = new FormData();
             fd.append('action', 'sdm_mass_sync_redirects_to_cloudflare');
             fd.append('domain_ids', JSON.stringify([domainId]));
             fd.append('project_id', currentProjectId);
             fd.append('sdm_main_nonce_field', mainNonce);
+
             return fetch(ajaxurl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: fd
-            }).then(r => r.json())
-            .then(resp => {
-                const msg = resp.data || resp.message || 'Unknown server response';
-                if (resp.success) {
-                    successCount++;
-                } else {
-                    failed.push(domainId + ': ' + msg);
-                }
             })
-            .catch(err => {
-                failed.push(domainId + ': request failed');
-                console.error('Request failed for domain', domainId, err);
-            });
-        }
+                .then(r => r.json())
+                .then(resp => {
+                    const msg = normalizeMessage(resp.data) || resp.message || 'Unknown server response';
+                    if (resp.success) {
+                        return { ok: true, message: msg };
+                    }
+                    return { ok: false, message: msg };
+                })
+                .catch(err => {
+                    console.error('Request failed for domain', domainId, err);
+                    return { ok: false, message: err && err.message ? err.message : 'Request failed.' };
+                });
+        };
 
-        doBatch();
+        const finalize = () => {
+            updateSummary(true);
+            if (hasProgress) {
+                setTimeout(() => { progressBox.style.display = 'none'; }, 600);
+            }
+            if (queueBox) {
+                setTimeout(() => { queueBox.style.display = 'none'; }, 6000);
+            }
+
+            fetchRedirects(currentProjectId, lastSortedColumn, sortDirection[lastSortedColumn] || 'asc');
+
+            let msg = `${successCount} of ${total} redirects synced.`;
+            if (failed.length) {
+                msg += ' ' + failed.length + ' failed:\n' + failed.join('\n');
+                showRedirectsNotice('error', msg);
+            } else {
+                showRedirectsNotice('updated', msg);
+            }
+
+            if (typeof options.onComplete === 'function') {
+                options.onComplete();
+            }
+        };
+
+        const processNext = () => {
+            if (!queue.length) {
+                finalize();
+                return;
+            }
+            const currentTask = queue.shift();
+            updateQueueItemStatus(currentTask, 'processing', statusText.processing);
+
+            syncSingle(currentTask.id).then(result => {
+                processed += 1;
+                if (result.ok) {
+                    successCount += 1;
+                    updateQueueItemStatus(currentTask, 'success', result.message || statusText.success);
+                } else {
+                    const failureMessage = result.message || statusText.error;
+                    failed.push(`${currentTask.label}: ${failureMessage}`);
+                    updateQueueItemStatus(currentTask, 'error', failureMessage);
+                }
+                updateProgress();
+                updateSummary();
+                processNext();
+            });
+        };
+
+        processNext();
     }
 
     const fetchRedirects = (projectId, sortColumn = 'domain', sortDirectionParam = 'asc') => {
@@ -195,7 +340,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('No redirects to sync.');
                 return;
             }
-            batchSyncRedirects(allIds, mainNonce);
+            const originalHtml = syncButton.innerHTML;
+            const spinner = createInlineSpinner();
+            const label = document.createElement('span');
+            label.textContent = 'Syncing...';
+
+            syncButton.disabled = true;
+            syncButton.innerHTML = '';
+            syncButton.appendChild(spinner);
+            syncButton.appendChild(label);
+
+            batchSyncRedirects(allIds, mainNonce, {
+                onComplete: () => {
+                    syncButton.disabled = false;
+                    syncButton.innerHTML = originalHtml;
+                }
+            });
         });
     }
 
@@ -298,7 +458,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     massActionAPI('sdm_mass_delete_redirects', selected, applyBtn);
                 } else if (action === 'sync_cloudflare') {
                     if (!confirm('Are you sure you want to sync the selected redirects with CloudFlare for this site?')) return;
-                    batchSyncRedirects(selected.map(id => parseInt(id)), mainNonce);
+                    const ids = selected
+                        .map(id => parseInt(id, 10))
+                        .filter(id => !Number.isNaN(id));
+                    if (!ids.length) {
+                        showRedirectsNotice('error', 'No valid domains selected for sync.');
+                        return;
+                    }
+
+                    const originalHtml = applyBtn.innerHTML;
+                    const spinner = createInlineSpinner();
+                    const label = document.createElement('span');
+                    label.textContent = 'Syncing...';
+
+                    applyBtn.disabled = true;
+                    applyBtn.innerHTML = '';
+                    applyBtn.appendChild(spinner);
+                    applyBtn.appendChild(label);
+
+                    batchSyncRedirects(ids, mainNonce, {
+                        onComplete: () => {
+                            applyBtn.disabled = false;
+                            applyBtn.innerHTML = originalHtml;
+                        }
+                    });
                 }
             });
         });
