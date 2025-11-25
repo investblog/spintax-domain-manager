@@ -575,34 +575,20 @@ class SDM_Domains_Manager {
             }
 
             $zone_id      = '';
+            $zone_name    = '';
             $is_subdomain = 0;
-
-            $labels = explode( '.', $domain );
-            $looks_like_subdomain = count( $labels ) > 2;
 
             // Пытаемся определить существующую зону для домена/сабдомена
             $matched_zone = $cf_api->find_zone_for_hostname( $domain, $zones_cache );
             if ( ! is_wp_error( $matched_zone ) && ! empty( $matched_zone['id'] ) ) {
-                $zone_id     = $matched_zone['id'];
-                $zone_domain = strtolower( $matched_zone['name'] );
+                $zone_id   = $matched_zone['id'];
+                $zone_name = strtolower( $matched_zone['name'] );
 
-                // Если имя зоны отличается от запрошенного домена — это сабдомен
-                if ( $zone_domain !== strtolower( $domain ) ) {
+                if ( $zone_name === $domain ) {
+                    $is_subdomain = 0;
+                } elseif ( ! empty( $zone_name ) && ( ( function_exists( 'str_ends_with' ) && str_ends_with( $domain, '.' . $zone_name ) ) || substr( $domain, - ( strlen( $zone_name ) + 1 ) ) === '.' . $zone_name ) ) {
                     $is_subdomain = 1;
-
-                    // Сабдомены всегда создаём в зоне основного домена.
-                    $base_domain = implode( '.', array_slice( $labels, -2 ) );
-                    if ( $zone_domain !== $base_domain ) {
-                        $errors[] = sprintf(
-                            __( 'Zone mismatch for %1$s: expected %2$s but matched %3$s.', 'spintax-domain-manager' ),
-                            esc_html( $domain ),
-                            esc_html( $base_domain ),
-                            esc_html( $zone_domain )
-                        );
-                        continue;
-                    }
-
-                    $record_resp = $cf_api->create_dns_record( $zone_id, 'A', $domain, '192.0.2.1', 1, true );
+                    $record_resp  = $cf_api->create_dns_record( $zone_id, 'A', $domain, '192.0.2.1', 1, true );
                     if ( is_wp_error( $record_resp ) ) {
                         $record_error = $record_resp->get_error_message();
                         $is_duplicate = ( false !== stripos( $record_error, 'exist' ) ) || ( false !== strpos( $record_error, '81057' ) );
@@ -612,33 +598,35 @@ class SDM_Domains_Manager {
                             continue;
                         }
                     }
+                } else {
+                    $errors[] = sprintf(
+                        __( 'Zone mismatch for %1$s: matched %2$s which is not a suffix.', 'spintax-domain-manager' ),
+                        esc_html( $domain ),
+                        esc_html( $zone_name )
+                    );
+                    $is_subdomain = 0;
                 }
             }
 
-            // Если зона не найдена — создаём новую
+            // Если зона не найдена — создаём новую, включая случаи с сабдоменами
             if ( empty( $zone_id ) ) {
-                if ( $looks_like_subdomain ) {
-                    $errors[] = sprintf(
-                        __( 'Root zone for %s was not found. Add the parent domain to CloudFlare first.', 'spintax-domain-manager' ),
-                        esc_html( $domain )
-                    );
-                    continue;
-                }
-
                 $result = $cf_api->add_zone( $domain );
                 if ( is_wp_error( $result ) ) {
                     $errors[] = sprintf( __( 'Error adding %s: %s', 'spintax-domain-manager' ), $domain, $result->get_error_message() );
                     continue;
                 }
 
-                $zone_id = isset( $result['result']['id'] ) ? $result['result']['id'] : '';
+                $zone_id   = isset( $result['result']['id'] ) ? $result['result']['id'] : '';
+                $zone_name = isset( $result['result']['name'] ) ? strtolower( $result['result']['name'] ) : '';
                 if ( empty( $zone_id ) ) {
                     $errors[] = sprintf( __( 'Error adding %s: no zone ID returned.', 'spintax-domain-manager' ), $domain );
                     continue;
                 }
 
+                $is_subdomain = ( ! empty( $zone_name ) && $domain !== $zone_name ) ? 1 : 0;
+
                 // Сохраняем новую зону в кэше, чтобы её могли использовать следующие домены
-                $zones_cache[] = array( 'id' => $zone_id, 'name' => $domain );
+                $zones_cache[] = array( 'id' => $zone_id, 'name' => $zone_name ? $zone_name : $domain );
             }
 
             // Проверяем, существует ли уже запись для этого домена
