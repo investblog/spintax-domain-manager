@@ -368,9 +368,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 var selected = [];
+                var skippedSubdomains = 0;
                 document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb) {
                     var row = cb.closest('tr');
                     var isMainDomain = row.querySelector('.sdm-main-domain-icon') !== null;
+                    var isSubdomain = row && row.dataset && row.dataset.isSubdomain === '1';
+                    if (action === 'sync_ns' && isSubdomain) {
+                        skippedSubdomains++;
+                        return;
+                    }
                     if (!isMainDomain) {
                         selected.push(cb.value);
                     }
@@ -378,6 +384,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (selected.length === 0 && action !== 'mass_add') {
                     alert('No domains selected (main domains are excluded).');
                     return;
+                }
+                if (action === 'sync_ns' && skippedSubdomains > 0) {
+                    alert('Subdomains are skipped for nameserver sync.');
                 }
                 if (action === 'mass_add') {
                     openMassAddModal();

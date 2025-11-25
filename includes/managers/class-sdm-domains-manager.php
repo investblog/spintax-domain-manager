@@ -121,6 +121,7 @@ class SDM_Domains_Manager {
                 'project_id'  => $project_id,
                 'domain'      => $zone['name'],
                 'cf_zone_id'  => $zone['id'],
+                'is_subdomain'=> 0,
                 'status'      => isset($zone['status']) ? $zone['status'] : 'active',
                 'updated_at'  => current_time('mysql'),
             );
@@ -135,7 +136,7 @@ class SDM_Domains_Manager {
                     $wpdb->prefix . 'sdm_domains',
                     $data,
                     array( 'id' => $existing_id ),
-                    array( '%d','%s','%s','%s','%s' ),
+                    array( '%d','%s','%s','%d','%s','%s' ),
                     array( '%d' )
                 );
                 $updated++;
@@ -145,7 +146,7 @@ class SDM_Domains_Manager {
                 $insert_result = $wpdb->insert(
                     $wpdb->prefix . 'sdm_domains',
                     $data,
-                    array( '%d','%s','%s','%s','%s','%s' )
+                    array( '%d','%s','%s','%d','%s','%s','%s' )
                 );
                 if ( false !== $insert_result ) {
                     $inserted++;
@@ -490,6 +491,12 @@ class SDM_Domains_Manager {
         require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
         $cf_api = new SDM_Cloudflare_API( $credentials );
 
+        // Получаем кэш зон для поиска подходящей зоны под сабдомен
+        $zones_cache = $cf_api->get_zones();
+        if ( is_wp_error( $zones_cache ) ) {
+            return array( 'error' => $zones_cache->get_error_message() );
+        }
+
         $inserted = 0;
         $errors   = array();
 
@@ -499,18 +506,46 @@ class SDM_Domains_Manager {
                 continue;
             }
 
-            // Добавляем зону через CloudFlare API
-            $result = $cf_api->add_zone( $domain );
-            if ( is_wp_error( $result ) ) {
-                $errors[] = sprintf( __( 'Error adding %s: %s', 'spintax-domain-manager' ), $domain, $result->get_error_message() );
-                continue;
+            $zone_id      = '';
+            $is_subdomain = 0;
+
+            // Пытаемся определить существующую зону для домена/сабдомена
+            $matched_zone = $cf_api->find_zone_for_hostname( $domain, $zones_cache );
+            if ( ! is_wp_error( $matched_zone ) && ! empty( $matched_zone['id'] ) ) {
+                $zone_id = $matched_zone['id'];
+
+                // Если имя зоны отличается от запрошенного домена — это сабдомен
+                if ( strtolower( $matched_zone['name'] ) !== strtolower( $domain ) ) {
+                    $is_subdomain = 1;
+                    $record_resp  = $cf_api->create_dns_record( $zone_id, 'A', $domain, '192.0.2.1', 1, true );
+                    if ( is_wp_error( $record_resp ) ) {
+                        $record_error = $record_resp->get_error_message();
+                        $is_duplicate = ( false !== stripos( $record_error, 'exist' ) ) || ( false !== strpos( $record_error, '81057' ) );
+
+                        if ( ! $is_duplicate ) {
+                            $errors[] = sprintf( __( 'Error adding %s: %s', 'spintax-domain-manager' ), $domain, $record_error );
+                            continue;
+                        }
+                    }
+                }
             }
 
-            // Получаем cf_zone_id из ответа (предполагается, что ответ содержит ключ result)
-            $zone_id = isset( $result['result']['id'] ) ? $result['result']['id'] : '';
+            // Если зона не найдена — создаём новую
             if ( empty( $zone_id ) ) {
-                $errors[] = sprintf( __( 'Error adding %s: no zone ID returned.', 'spintax-domain-manager' ), $domain );
-                continue;
+                $result = $cf_api->add_zone( $domain );
+                if ( is_wp_error( $result ) ) {
+                    $errors[] = sprintf( __( 'Error adding %s: %s', 'spintax-domain-manager' ), $domain, $result->get_error_message() );
+                    continue;
+                }
+
+                $zone_id = isset( $result['result']['id'] ) ? $result['result']['id'] : '';
+                if ( empty( $zone_id ) ) {
+                    $errors[] = sprintf( __( 'Error adding %s: no zone ID returned.', 'spintax-domain-manager' ), $domain );
+                    continue;
+                }
+
+                // Сохраняем новую зону в кэше, чтобы её могли использовать следующие домены
+                $zones_cache[] = array( 'id' => $zone_id, 'name' => $domain );
             }
 
             // Проверяем, существует ли уже запись для этого домена
@@ -526,6 +561,7 @@ class SDM_Domains_Manager {
                 'project_id' => $project_id,
                 'domain'     => $domain,
                 'cf_zone_id' => $zone_id,
+                'is_subdomain' => $is_subdomain,
                 'status'     => 'active',
                 'updated_at' => current_time( 'mysql' ),
             );
@@ -781,11 +817,12 @@ function sdm_ajax_fetch_domains_list() {
                     $is_blocked     = ($domain->is_blocked_provider || $domain->is_blocked_government);
                     $is_assigned    = !empty($domain->site_id);
                     $is_main_domain = in_array($domain->domain, $main_domains);
+                    $is_subdomain   = (bool) $domain->is_subdomain;
 
                     // Проверяем, есть ли запись в wp_sdm_email_forwarding
                     $has_forwarding = (bool) $wpdb->get_var(
                         $wpdb->prepare(
-                            "SELECT 1 
+                            "SELECT 1
                              FROM {$prefix}sdm_email_forwarding
                              WHERE domain_id = %d 
                              LIMIT 1",
@@ -796,11 +833,17 @@ function sdm_ajax_fetch_domains_list() {
                     ?>
                     <tr id="domain-row-<?php echo esc_attr($domain->id); ?>"
                         data-domain-id="<?php echo esc_attr($domain->id); ?>"
-                        data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>">
+                        data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
+                        data-is-subdomain="<?php echo $is_subdomain ? '1' : '0'; ?>">
 
                         <!-- Domain ------------------------------------------------------------- -->
                         <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
                             <?php echo esc_html($domain->domain); ?>
+                            <?php if ( $is_subdomain ) : ?>
+                                <span class="sdm-badge" style="margin-left:6px;padding:2px 6px;background:#e9eef3;border-radius:4px;font-size:11px;">
+                                    <?php esc_html_e('Subdomain', 'spintax-domain-manager'); ?>
+                                </span>
+                            <?php endif; ?>
                         </td>
 
                         <!-- Site link / main-icon -------------------------------------------- -->
@@ -831,7 +874,20 @@ function sdm_ajax_fetch_domains_list() {
 
                         <!-- ACTIONS ------------------------------------------------------------ -->
                         <td>
-                            <?php if ($is_active && $mail_in_a_box_enabled) : ?>
+                            <?php if ( $is_active && $is_subdomain ) : ?>
+                                <?php if ($is_assigned && !$is_main_domain) : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
+                                    <button type="button"
+                                            class="sdm-action-button sdm-unassign sdm-mini-icon"
+                                            data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                                            title="<?php esc_attr_e('Unassign', 'spintax-domain-manager'); ?>">
+                                        <img src="<?php echo esc_url(SDM_PLUGIN_URL . 'assets/icons/clear.svg'); ?>" alt="" />
+                                    </button>
+                                <?php elseif (!$is_main_domain) : ?>
+                                    <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
+                                <?php endif; ?>
+
+                            <?php elseif ($is_active && $mail_in_a_box_enabled) : ?>
                                 <!-- чекбокс / Unassign -->
                                 <?php if ($is_assigned && !$is_main_domain) : ?>
                                     <input type="checkbox" class="sdm-domain-checkbox" value="<?php echo esc_attr($domain->id); ?>">
@@ -915,20 +971,22 @@ function sdm_ajax_fetch_domains_list() {
 
                             <?php else : ?>
                                 <!-- Sync NS + Delete for inactive/blocked -->
-                                <button type="button"
-                                        class="sdm-action-button sdm-mini-icon sdm-sync-ns sdm-sync-ns-inactive"
-                                        data-domain-id="<?php echo esc_attr($domain->id); ?>"
-                                        title="<?php esc_attr_e('Sync NS to Namecheap', 'spintax-domain-manager'); ?>">
-                                    <?php
-                                    $dns_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/dns.svg');
-                                    echo $dns_svg
-                                        ? wp_kses($dns_svg, [
-                                              'svg'=>['width'=>true,'height'=>true,'viewBox'=>true,'fill'=>true,'xmlns'=>true],
-                                              'path'=>['d'=>true,'fill'=>true,'fill-rule'=>true,'clip-rule'=>true],
-                                          ])
-                                        : '<img src="'.esc_url(SDM_PLUGIN_URL.'assets/icons/dns.svg').'" alt="NS" width="16" height="16" />';
-                                    ?>
-                                </button>
+                                <?php if ( ! $is_subdomain ) : ?>
+                                    <button type="button"
+                                            class="sdm-action-button sdm-mini-icon sdm-sync-ns sdm-sync-ns-inactive"
+                                            data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                                            title="<?php esc_attr_e('Sync NS to Namecheap', 'spintax-domain-manager'); ?>">
+                                        <?php
+                                        $dns_svg = file_get_contents(SDM_PLUGIN_DIR . 'assets/icons/dns.svg');
+                                        echo $dns_svg
+                                            ? wp_kses($dns_svg, [
+                                                  'svg'=>['width'=>true,'height'=>true,'viewBox'=>true,'fill'=>true,'xmlns'=>true],
+                                                  'path'=>['d'=>true,'fill'=>true,'fill-rule'=>true,'clip-rule'=>true],
+                                              ])
+                                            : '<img src="'.esc_url(SDM_PLUGIN_URL.'assets/icons/dns.svg').'" alt="NS" width="16" height="16" />';
+                                        ?>
+                                    </button>
+                                <?php endif; ?>
 
                                 <button type="button"
                                         class="sdm-action-button sdm-delete-domain sdm-delete sdm-mini-icon"
@@ -955,7 +1013,7 @@ function sdm_ajax_fetch_domains_list() {
             <option value="sync_ns"><?php esc_html_e('Sync NS-Servers', 'spintax-domain-manager'); ?></option>
             <option value="assign_site"><?php esc_html_e('Assign to Site', 'spintax-domain-manager'); ?></option>
             <option value="sync_status"><?php esc_html_e('Sync Statuses', 'spintax-domain-manager'); ?></option>
-            <option value="mass_add"><?php esc_html_e('Add Domains', 'spintax-domain-manager'); ?></option>
+            <option value="mass_add"><?php esc_html_e('Add Domains/Subdomains', 'spintax-domain-manager'); ?></option>
             <option value="set_abuse_status"><?php esc_html_e('Set Abuse Status', 'spintax-domain-manager'); ?></option>
             <option value="set_blocked_provider"><?php esc_html_e('Block by Provider', 'spintax-domain-manager'); ?></option>
             <option value="set_blocked_government"><?php esc_html_e('Block by Government', 'spintax-domain-manager'); ?></option>
@@ -1098,7 +1156,7 @@ function sdm_ajax_mass_add_domains() {
         wp_send_json_error( $result['error'] );
     }
 
-    $message = sprintf( __( 'Added %d domains to CloudFlare.', 'spintax-domain-manager' ), $result['inserted'] );
+    $message = sprintf( __( 'Added %d domains/subdomains to CloudFlare.', 'spintax-domain-manager' ), $result['inserted'] );
     if ( ! empty( $result['errors'] ) ) {
         $message .= ' ' . implode( ' | ', $result['errors'] );
     }
@@ -1124,13 +1182,19 @@ function sdm_ajax_create_email_forwarding() {
 
     global $wpdb;
     // Получаем доменное имя
-    $domain_name = $wpdb->get_var( $wpdb->prepare(
-        "SELECT domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+    $domain_row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT domain, is_subdomain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
         $domain_id
     ) );
-    if ( ! $domain_name ) {
+    if ( ! $domain_row || empty( $domain_row->domain ) ) {
         wp_send_json_error( __( 'Domain not found.', 'spintax-domain-manager' ) );
     }
+
+    if ( ! empty( $domain_row->is_subdomain ) ) {
+        wp_send_json_error( __( 'Email creation is not supported for subdomains.', 'spintax-domain-manager' ) );
+    }
+
+    $domain_name = $domain_row->domain;
 
     // Получаем аккаунт Mail‑in‑a‑Box
     $account_manager = new SDM_Accounts_Manager();
@@ -1242,7 +1306,7 @@ function sdm_ajax_create_cf_custom_address() {
     global $wpdb;
     // Берём project_id, cf_zone_id, domain, email_address (Mail-in-a-Box)
     $row = $wpdb->get_row($wpdb->prepare("
-        SELECT d.project_id, d.cf_zone_id, d.domain, f.email_address
+        SELECT d.project_id, d.cf_zone_id, d.domain, d.is_subdomain, f.email_address
         FROM {$wpdb->prefix}sdm_domains d
         JOIN {$wpdb->prefix}sdm_email_forwarding f ON d.id = f.domain_id
         WHERE d.id = %d
@@ -1250,6 +1314,10 @@ function sdm_ajax_create_cf_custom_address() {
     ", $domain_id));
     if (!$row || empty($row->cf_zone_id)) {
         wp_send_json_error('No domain or zone data found.');
+    }
+
+    if ( ! empty( $row->is_subdomain ) ) {
+        wp_send_json_error( __( 'Email creation is not supported for subdomains.', 'spintax-domain-manager' ) );
     }
     $project_id     = absint($row->project_id);
     $zone_id        = $row->cf_zone_id;
@@ -1642,6 +1710,10 @@ add_action( 'wp_ajax_sdm_sync_cf_ns_namecheap', function () {
 
     if ( ! $domain ) {
         wp_send_json_error( __( 'Domain not found.', 'spintax-domain-manager' ) );
+    }
+
+    if ( ! empty( $domain->is_subdomain ) ) {
+        wp_send_json_error( __( 'Nameserver sync is not available for subdomains.', 'spintax-domain-manager' ) );
     }
 
     /* 2. Cloudflare учётка для проекта */

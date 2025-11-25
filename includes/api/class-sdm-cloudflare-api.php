@@ -1141,6 +1141,66 @@ class SDM_Cloudflare_API {
     }
 
     /**
+     * Locate a CloudFlare zone that matches the provided hostname.
+     *
+     * Tries to find the longest zone name that is a suffix of the hostname so
+     * that subdomains like "blog.example.com" map to the existing
+     * "example.com" zone.
+     *
+     * @param string     $hostname Full hostname (domain or subdomain).
+     * @param null|array $zones    Optional cache of zones as returned by get_zones().
+     *
+     * @return array|WP_Error Zone array with keys like ['id' => '...', 'name' => '...']
+     */
+    public function find_zone_for_hostname( $hostname, $zones = null ) {
+        $hostname = strtolower( trim( $hostname, " ." ) );
+
+        if ( empty( $hostname ) ) {
+            return new WP_Error( 'invalid_hostname', __( 'Hostname is empty.', 'spintax-domain-manager' ) );
+        }
+
+        if ( null === $zones ) {
+            $zones = $this->get_zones();
+            if ( is_wp_error( $zones ) ) {
+                return $zones;
+            }
+        }
+
+        $matched_zone   = null;
+        $matched_length = 0;
+
+        foreach ( (array) $zones as $zone ) {
+            if ( empty( $zone['name'] ) || empty( $zone['id'] ) ) {
+                continue;
+            }
+
+            $zone_name = strtolower( $zone['name'] );
+
+            // Exact match or suffix match (e.g., host ends with .zone_name)
+            $is_match = ( $hostname === $zone_name );
+
+            if ( ! $is_match ) {
+                $suffix = '.' . $zone_name;
+                $is_match = substr( $hostname, -strlen( $suffix ) ) === $suffix;
+            }
+
+            if ( $is_match && strlen( $zone_name ) > $matched_length ) {
+                $matched_zone   = $zone;
+                $matched_length = strlen( $zone_name );
+            }
+        }
+
+        if ( ! $matched_zone ) {
+            return new WP_Error(
+                'cf_zone_not_found',
+                sprintf( __( 'No CloudFlare zone found for "%s".', 'spintax-domain-manager' ), $hostname )
+            );
+        }
+
+        return $matched_zone;
+    }
+
+    /**
      * Return the two authoritative nameservers Cloudflare assigns to a zone.
      *
      * @param string $zone_id

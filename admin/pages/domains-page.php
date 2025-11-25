@@ -101,13 +101,13 @@ $main_nonce = sdm_create_main_nonce();
         </div>
     </div>
 
-    <!-- Modal for Mass Adding Domains to CloudFlare -->
+    <!-- Modal for Mass Adding Domains/Subdomains to CloudFlare -->
     <div id="sdm-mass-add-modal" class="sdm-modal">
         <div class="sdm-modal-overlay"></div>
         <div class="sdm-modal-content">
-            <h2><?php esc_html_e('Mass Add Domains to CloudFlare', 'spintax-domain-manager'); ?></h2>
-            <p><?php esc_html_e('Enter the domains you want to add, one per line:', 'spintax-domain-manager'); ?></p>
-            <textarea id="sdm-mass-add-textarea" rows="6" class="sdm-textarea" placeholder="<?php esc_attr_e('example.com', 'spintax-domain-manager'); ?>"></textarea>
+            <h2><?php esc_html_e('Mass Add Domains or Subdomains to CloudFlare', 'spintax-domain-manager'); ?></h2>
+            <p><?php esc_html_e('Enter the domains or subdomains you want to add, one per line:', 'spintax-domain-manager'); ?></p>
+            <textarea id="sdm-mass-add-textarea" rows="6" class="sdm-textarea" placeholder="<?php esc_attr_e('example.com or blog.example.com', 'spintax-domain-manager'); ?>"></textarea>
             <div class="sdm-modal-actions" style="margin-top: 20px;">
                 <button id="sdm-modal-confirm" class="button button-primary sdm-action-button"><?php esc_html_e('Confirm', 'spintax-domain-manager'); ?></button>
                 <button id="sdm-modal-close" class="button sdm-action-button"><?php esc_html_e('Cancel', 'spintax-domain-manager'); ?></button>
