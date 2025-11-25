@@ -11,15 +11,25 @@ document.addEventListener('click', function (e) {
     var mainNonce = mainNonceField ? mainNonceField.value : '';
 
         var selected = [];
+        var skippedSubdomains = 0;
         document.querySelectorAll('.sdm-domain-checkbox:checked').forEach(function(cb){
             var row = cb.closest('tr');
             var isMain = row.querySelector('.sdm-main-domain-icon') !== null;
+            var isSubdomain = row && row.dataset && row.dataset.isSubdomain === '1';
+            if (isSubdomain) {
+                skippedSubdomains++;
+                return;
+            }
             if (!isMain) selected.push(cb.value);
         });
 
         if (selected.length === 0) {
             alert('No domains selected (main domains are excluded).');
             return;
+        }
+
+        if (skippedSubdomains > 0) {
+            alert('Subdomains are skipped for nameserver sync.');
         }
 
         if (!confirm('Sync Cloudflare nameservers to Namecheap for selected domains?')) {

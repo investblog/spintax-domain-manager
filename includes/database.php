@@ -46,6 +46,7 @@ function sdm_create_tables() {
         site_id BIGINT UNSIGNED DEFAULT NULL,
         domain VARCHAR(255) NOT NULL,
         cf_zone_id VARCHAR(50) DEFAULT NULL,
+        is_subdomain BOOLEAN NOT NULL DEFAULT FALSE,
         abuse_status ENUM('clean','phishing','malware','spam','other') DEFAULT 'clean',
         is_blocked_provider BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Monitoring result: 1 for RusRegBL (blocked), 0 for Http (unavailable)',
         is_blocked_government BOOLEAN NOT NULL DEFAULT FALSE,
