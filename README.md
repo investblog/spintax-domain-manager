@@ -14,10 +14,34 @@ A WordPress plugin that manages domains and related services from a single dashb
 - Bulk actions for assigning sites, syncing statuses and setting abuse or block flags.
 - AJAX powered tables with search, sorting and progress bars.
 - Optional GraphQL integration.
+- Admin UI grouping by Cloudflare zone with clearer root/subdomain context.
+- Support for multi-component TLDs such as `.co.uk`, `.com.br`, and `.com.au` when determining root domains.
 
 ## Installation
 
 Copy the plugin folder to your WordPress installation and activate it. Configure your service accounts under **Spintax Manager → Accounts** to begin managing projects and domains.
+
+## Subdomain Handling
+
+- Root domains and subdomains are detected using Cloudflare zone data (including multi-component TLDs like `example.co.uk`).
+- The plugin sets the `is_subdomain` flag automatically and provisions placeholder DNS `A` records for subdomains when needed.
+- Domain tables in the admin are grouped by Cloudflare zone so root domains and their subdomains stay together.
+
+## Cloudflare Zones
+
+- Domains are synced per project and rendered by zone in the admin interface.
+- Each zone groups its root domain first, followed by indented subdomains with a `sub` badge for clarity.
+- Redirects are separated into Main, Glue, and Hidden sections for easier review before syncing to Cloudflare.
+
+## Security Note
+
+- Email forwarding passwords stored in `wp_sdm_email_forwarding` are encrypted using `sdm_encrypt`/`sdm_decrypt` before saving or using them with external services.
+
+## Requirements
+
+- WordPress 5.8+ and PHP 7.4+.
+- JSON extension enabled on the server (required for API payload handling).
+- Access to Cloudflare, Namecheap, Mail‑in‑a‑Box, HostTracker, or other configured services as needed.
 
 ## Changelog
 

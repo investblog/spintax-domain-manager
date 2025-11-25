@@ -532,6 +532,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        document.querySelectorAll('.sdm-toggle-hidden-redirects').forEach(toggle => {
+            const siteId = toggle.getAttribute('data-site-id');
+            toggle.addEventListener('change', function() {
+                document.querySelectorAll(`.sdm-hidden-redirects[data-site-id="${siteId}"]`).forEach(section => {
+                    section.style.display = this.checked ? 'block' : 'none';
+                });
+            });
+        });
+
         document.body.addEventListener('click', (e) => {
             const typeDisplay = e.target.closest('.sdm-redirect-type-display');
             if (typeDisplay) {

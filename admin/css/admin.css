@@ -54,6 +54,67 @@
   background-color: var(--sdm-bg-tr-hover);
   transition: background-color 0.2s ease;
 }
+.sdm-zone-row td {
+  background: #f5f7fb;
+  font-weight: 600;
+  border-top: 1px solid var(--sdm-border);
+}
+.sdm-zone-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1f2933;
+}
+.sdm-root-domain {
+  font-weight: 600;
+}
+.sdm-root-icon {
+  display: inline-block;
+  margin-right: 6px;
+}
+.sdm-subdomain-indent {
+  display: inline-block;
+  margin-right: 8px;
+  color: #9aa3af;
+}
+.sdm-subdomain-label {
+  color: #3c4043;
+}
+.sdm-badge-sub {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: #e8effc;
+  border-radius: 4px;
+  color: #2b5fb3;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.sdm-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.sdm-status-active {
+  background: #e6f6ed;
+  color: #1a7f3b;
+}
+.sdm-status-expired {
+  background: #fff2e6;
+  color: #c05621;
+}
+.sdm-status-available,
+.sdm-status-clean {
+  background: #eef2ff;
+  color: #3f51b5;
+}
+.sdm-status-unknown {
+  background: #f1f1f1;
+  color: #555;
+}
 .sdm-sortable {
   position: relative;
 }
