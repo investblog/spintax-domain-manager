@@ -965,6 +965,33 @@ function sdm_ajax_fetch_domains_list() {
     );
 
     $zones_lookup = sdm_get_cf_zone_lookup( $project_id );
+
+    // Группируем домены по Cloudflare зоне и вычисляем тип домена
+    $grouped_domains = array();
+
+    foreach ( $domains as $domain ) {
+        $zone_key = $domain->cf_zone_id ? $domain->cf_zone_id : 'no-zone';
+        $domain->_is_subdomain = sdm_domain_is_subdomain_by_zone( $domain->domain, $project_id, $domain->cf_zone_id, $zones_lookup ) ? 1 : 0;
+
+        if ( ! isset( $grouped_domains[ $zone_key ] ) ) {
+            $grouped_domains[ $zone_key ] = array(
+                'zone_id' => $domain->cf_zone_id,
+                'domains' => array(),
+            );
+        }
+
+        $grouped_domains[ $zone_key ]['domains'][] = $domain;
+    }
+
+    foreach ( $grouped_domains as $group_key => $group_data ) {
+        usort( $grouped_domains[ $group_key ]['domains'], function( $a, $b ) {
+            if ( $a->_is_subdomain !== $b->_is_subdomain ) {
+                return $a->_is_subdomain - $b->_is_subdomain;
+            }
+
+            return strcmp( $a->domain, $b->domain );
+        } );
+    }
     ?>
     <table class="wp-list-table widefat fixed striped sdm-table" id="sdm-domains-table">
         <thead>
@@ -983,40 +1010,64 @@ function sdm_ajax_fetch_domains_list() {
             </tr>
         </thead>
         <tbody>
-            <?php if (!empty($domains)) : ?>
-                <?php foreach ($domains as $domain) :
-                    $is_active      = ($domain->status === 'active');
-                    $is_blocked     = ($domain->is_blocked_provider || $domain->is_blocked_government);
-                    $is_assigned    = !empty($domain->site_id);
-                    $is_main_domain = in_array($domain->domain, $main_domains);
-                    $is_subdomain   = sdm_domain_is_subdomain_by_zone( $domain->domain, $project_id, $domain->cf_zone_id, $zones_lookup );
-
-                    // Проверяем, есть ли запись в wp_sdm_email_forwarding
-                    $has_forwarding = (bool) $wpdb->get_var(
-                        $wpdb->prepare(
-                            "SELECT 1
-                             FROM {$prefix}sdm_email_forwarding
-                             WHERE domain_id = %d 
-                             LIMIT 1",
-                            $domain->id
-                        )
-                    );
-                    $forwarding_class = $has_forwarding ? 'sdm-email-active' : '';
+            <?php if (!empty($grouped_domains)) : ?>
+                <?php foreach ( $grouped_domains as $group_key => $group ) :
+                    $zone_label = '';
+                    if ( ! empty( $group['zone_id'] ) && isset( $zones_lookup[ $group['zone_id'] ] ) ) {
+                        $zone_label = sprintf( '%s (%s)', $zones_lookup[ $group['zone_id'] ], $group['zone_id'] );
+                    } elseif ( ! empty( $group['zone_id'] ) ) {
+                        $zone_label = sprintf( __( 'Zone ID: %s', 'spintax-domain-manager' ), $group['zone_id'] );
+                    } else {
+                        $zone_label = __( 'No Cloudflare zone', 'spintax-domain-manager' );
+                    }
                     ?>
-                    <tr id="domain-row-<?php echo esc_attr($domain->id); ?>"
-                        data-domain-id="<?php echo esc_attr($domain->id); ?>"
-                        data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
-                        data-is-subdomain="<?php echo $is_subdomain ? '1' : '0'; ?>">
-
-                        <!-- Domain ------------------------------------------------------------- -->
-                        <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
-                            <?php echo esc_html($domain->domain); ?>
-                            <?php if ( $is_subdomain ) : ?>
-                                <span class="sdm-badge" style="margin-left:6px;padding:2px 6px;background:#e9eef3;border-radius:4px;font-size:11px;">
-                                    <?php esc_html_e('Subdomain', 'spintax-domain-manager'); ?>
-                                </span>
-                            <?php endif; ?>
+                    <tr class="sdm-zone-row">
+                        <td colspan="8">
+                            <span class="sdm-zone-title">🌐 <?php echo esc_html( $zone_label ); ?></span>
                         </td>
+                    </tr>
+
+                    <?php foreach ( $group['domains'] as $domain ) :
+                        $is_active      = ($domain->status === 'active');
+                        $is_blocked     = ($domain->is_blocked_provider || $domain->is_blocked_government);
+                        $is_assigned    = !empty($domain->site_id);
+                        $is_main_domain = in_array($domain->domain, $main_domains);
+                        $is_subdomain   = ! empty( $domain->_is_subdomain );
+
+                        // Проверяем, есть ли запись в wp_sdm_email_forwarding
+                        $has_forwarding = (bool) $wpdb->get_var(
+                            $wpdb->prepare(
+                                "SELECT 1
+                                 FROM {$prefix}sdm_email_forwarding
+                                 WHERE domain_id = %d
+                                 LIMIT 1",
+                                $domain->id
+                            )
+                        );
+                        $forwarding_class = $has_forwarding ? 'sdm-email-active' : '';
+
+                        $status_slug = sanitize_title( $domain->status );
+                        ?>
+                        <tr id="domain-row-<?php echo esc_attr($domain->id); ?>"
+                            data-domain-id="<?php echo esc_attr($domain->id); ?>"
+                            data-update-nonce="<?php echo esc_attr(sdm_create_main_nonce()); ?>"
+                            data-is-subdomain="<?php echo $is_subdomain ? '1' : '0'; ?>">
+
+                            <!-- Domain ------------------------------------------------------------- -->
+                            <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
+                                <?php if ( $is_subdomain ) : ?>
+                                    <span class="sdm-subdomain-indent">↳</span>
+                                <?php else : ?>
+                                    <span class="sdm-root-icon" aria-hidden="true">🌐</span>
+                                <?php endif; ?>
+
+                                <span class="<?php echo $is_subdomain ? 'sdm-subdomain-label' : 'sdm-root-domain'; ?>">
+                                    <?php echo esc_html($domain->domain); ?>
+                                </span>
+                                <?php if ( $is_subdomain ) : ?>
+                                    <span class="sdm-badge sdm-badge-sub"><?php esc_html_e('sub', 'spintax-domain-manager'); ?></span>
+                                <?php endif; ?>
+                            </td>
 
                         <!-- Site link / main-icon -------------------------------------------- -->
                         <td>
@@ -1040,7 +1091,11 @@ function sdm_ajax_fetch_domains_list() {
                             <?php echo esc_html($domain->abuse_status); ?>
                         </td>
                         <td><?php echo $is_blocked ? esc_html__('Yes', 'spintax-domain-manager') : esc_html__('No', 'spintax-domain-manager'); ?></td>
-                        <td><?php echo esc_html($domain->status); ?></td>
+                        <td>
+                            <span class="sdm-status-badge sdm-status-<?php echo esc_attr( $status_slug ?: 'unknown' ); ?>">
+                                <?php echo esc_html($domain->status); ?>
+                            </span>
+                        </td>
                         <td><?php echo esc_html($domain->last_checked); ?></td>
                         <td><?php echo esc_html($domain->created_at); ?></td>
 
@@ -1170,6 +1225,7 @@ function sdm_ajax_fetch_domains_list() {
                         </td>
                     </tr>
                 <?php endforeach; ?>
+            <?php endforeach; ?>
             <?php else : ?>
                 <tr id="no-domains">
                     <td colspan="8"><?php esc_html_e('No domains found for this project.', 'spintax-domain-manager'); ?></td>
@@ -1398,38 +1454,51 @@ function sdm_ajax_create_email_forwarding() {
     // Формируем email: domain.com@box.mailrouting.site
     $email_address = $domain_name . '@' . $host;
 
-    // Генерируем пароль
-    $generated_password = wp_generate_password( 12, false );
+    // Генерируем пароль по умолчанию (может быть заменён при наличии сохранённого значения)
+    $mailbox_password = wp_generate_password( 12, false );
 
     // Подключаем класс
     require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-mailinabox-api.php';
     $mapi = new SDM_Mailinabox_API( $server_url, $admin_email, $admin_password );
 
+    // Проверяем, есть ли уже запись и пытаемся получить сохранённый (зашифрованный) пароль
+    $existing_record = $wpdb->get_row( $wpdb->prepare(
+        "SELECT id, password FROM {$wpdb->prefix}sdm_email_forwarding WHERE domain_id = %d LIMIT 1",
+        $domain_id
+    ) );
+
+    if ( $existing_record ) {
+        $decrypted_password = sdm_decrypt( $existing_record->password );
+
+        if ( ! empty( $decrypted_password ) ) {
+            $mailbox_password = $decrypted_password;
+        } elseif ( ! empty( $existing_record->password ) ) {
+            // Backward compatibility for legacy plain passwords
+            $mailbox_password = $existing_record->password;
+        }
+    }
+
     // Пытаемся создать почтовый ящик
-    $add_result = $mapi->add_user( $email_address, $generated_password );
+    $add_result = $mapi->add_user( $email_address, $mailbox_password );
     if ( is_wp_error( $add_result ) ) {
         // Если уже существует, можно проверить ошибку "Mail-in-a-Box API responded with status 400"...
         // Но для простоты просто возвращаем ошибку:
         wp_send_json_error( $add_result->get_error_message() );
     }
 
-    // Проверяем, есть ли уже запись
-    $existing_id = $wpdb->get_var( $wpdb->prepare(
-        "SELECT id FROM {$wpdb->prefix}sdm_email_forwarding WHERE domain_id = %d LIMIT 1",
-        $domain_id
-    ) );
+    $encrypted_password = sdm_encrypt( $mailbox_password );
 
-    if ( $existing_id ) {
+    if ( $existing_record && $existing_record->id ) {
         // UPDATE
         $wpdb->update(
             $wpdb->prefix . 'sdm_email_forwarding',
             array(
                 'email_address'     => $email_address,
-                'password'          => $generated_password,
+                'password'          => $encrypted_password ?: $mailbox_password,
                 'catch_all_enabled' => 0,
                 'created_at'        => current_time('mysql'), // или updated_at
             ),
-            array('id' => $existing_id),
+            array('id' => $existing_record->id),
             array('%s','%s','%d','%s'),
             array('%d')
         );
@@ -1440,7 +1509,7 @@ function sdm_ajax_create_email_forwarding() {
             array(
                 'domain_id'         => $domain_id,
                 'email_address'     => $email_address,
-                'password'          => $generated_password,
+                'password'          => $encrypted_password ?: $mailbox_password,
                 'catch_all_enabled' => 0,
                 'created_at'        => current_time('mysql'),
             ),
@@ -1451,7 +1520,7 @@ function sdm_ajax_create_email_forwarding() {
     // Возвращаем данные для UI
     wp_send_json_success( array(
         'email_address' => $email_address,
-        'password'      => $generated_password,
+        'password'      => $mailbox_password,
         'server_url'    => $host,
         'message'       => __( 'Email created (or updated) successfully.', 'spintax-domain-manager' ),
     ) );
