@@ -583,12 +583,26 @@ class SDM_Domains_Manager {
             // Пытаемся определить существующую зону для домена/сабдомена
             $matched_zone = $cf_api->find_zone_for_hostname( $domain, $zones_cache );
             if ( ! is_wp_error( $matched_zone ) && ! empty( $matched_zone['id'] ) ) {
-                $zone_id = $matched_zone['id'];
+                $zone_id     = $matched_zone['id'];
+                $zone_domain = strtolower( $matched_zone['name'] );
 
                 // Если имя зоны отличается от запрошенного домена — это сабдомен
-                if ( strtolower( $matched_zone['name'] ) !== strtolower( $domain ) ) {
+                if ( $zone_domain !== strtolower( $domain ) ) {
                     $is_subdomain = 1;
-                    $record_resp  = $cf_api->create_dns_record( $zone_id, 'A', $domain, '192.0.2.1', 1, true );
+
+                    // Сабдомены всегда создаём в зоне основного домена.
+                    $base_domain = implode( '.', array_slice( $labels, -2 ) );
+                    if ( $zone_domain !== $base_domain ) {
+                        $errors[] = sprintf(
+                            __( 'Zone mismatch for %1$s: expected %2$s but matched %3$s.', 'spintax-domain-manager' ),
+                            esc_html( $domain ),
+                            esc_html( $base_domain ),
+                            esc_html( $zone_domain )
+                        );
+                        continue;
+                    }
+
+                    $record_resp = $cf_api->create_dns_record( $zone_id, 'A', $domain, '192.0.2.1', 1, true );
                     if ( is_wp_error( $record_resp ) ) {
                         $record_error = $record_resp->get_error_message();
                         $is_duplicate = ( false !== stripos( $record_error, 'exist' ) ) || ( false !== strpos( $record_error, '81057' ) );
