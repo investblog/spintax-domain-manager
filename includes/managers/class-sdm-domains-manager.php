@@ -898,7 +898,7 @@ function sdm_ajax_fetch_domains_list() {
                     $is_blocked     = ($domain->is_blocked_provider || $domain->is_blocked_government);
                     $is_assigned    = !empty($domain->site_id);
                     $is_main_domain = in_array($domain->domain, $main_domains);
-                    $is_subdomain   = (bool) $domain->is_subdomain;
+                    $is_subdomain   = property_exists($domain, 'is_subdomain') ? (bool) $domain->is_subdomain : false;
 
                     // Проверяем, есть ли запись в wp_sdm_email_forwarding
                     $has_forwarding = (bool) $wpdb->get_var(
