@@ -268,6 +268,14 @@ function sdm_create_tables() {
     if (!in_array('hosttracker_task_id', $existing_columns)) {
         $wpdb->query("ALTER TABLE $domains_table ADD COLUMN hosttracker_task_id VARCHAR(255) DEFAULT NULL COMMENT 'ID of the HostTracker task for monitoring'");
     }
+    // Добавляем is_subdomain, если его нет (старые инсталлы)
+    if ( ! in_array( 'is_subdomain', $existing_columns, true ) ) {
+        $wpdb->query(
+            "ALTER TABLE $domains_table 
+             ADD COLUMN is_subdomain TINYINT(1) NOT NULL DEFAULT 0 
+             AFTER cf_zone_id"
+        );
+    }
 
     // Миграция и добавление новых полей в wp_sdm_sites
     $sites_table = $wpdb->prefix . 'sdm_sites';
