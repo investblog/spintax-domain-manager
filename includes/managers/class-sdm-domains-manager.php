@@ -236,6 +236,19 @@ class SDM_Domains_Manager {
             );
         }
 
+        $site_row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, project_id FROM {$wpdb->prefix}sdm_sites WHERE id = %d",
+            $site_id
+        ) );
+
+        if ( ! $site_row ) {
+            return array(
+                'success' => 0,
+                'failed'  => count( $domain_ids ),
+                'message' => __( 'Site not found.', 'spintax-domain-manager' ),
+            );
+        }
+
         $success = 0;
         $failed = 0;
         $messages = array();
@@ -249,13 +262,23 @@ class SDM_Domains_Manager {
 
             // Check if the domain exists and whether it is currently assigned
             $domain_row = $wpdb->get_row( $wpdb->prepare(
-                "SELECT site_id, domain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+                "SELECT site_id, domain, project_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
                 $domain_id
             ) );
 
             if ( ! $domain_row ) {
                 $failed++;
                 $messages[] = sprintf( __( 'Domain ID %d was not found.', 'spintax-domain-manager' ), $domain_id );
+                continue;
+            }
+
+            if ( (int) $domain_row->project_id !== (int) $site_row->project_id ) {
+                $failed++;
+                $messages[] = sprintf(
+                    __( 'Domain %1$s belongs to another project and cannot be assigned to site ID %2$d.', 'spintax-domain-manager' ),
+                    $domain_row->domain,
+                    $site_id
+                );
                 continue;
             }
 
@@ -497,7 +520,7 @@ class SDM_Domains_Manager {
         ];
     }
 
-        public function mass_add_domains( $project_id, $domain_list ) {
+    public function mass_add_domains( $project_id, $domain_list ) {
         global $wpdb;
         $project_id = absint( $project_id );
         if ( $project_id <= 0 ) {
@@ -537,8 +560,25 @@ class SDM_Domains_Manager {
                 continue;
             }
 
+            // Normalize input so that users can paste full URLs or hostnames.
+            $parsed = wp_parse_url( $domain );
+            if ( empty( $parsed['host'] ) ) {
+                $fallback = wp_parse_url( 'https://' . ltrim( $domain, '/' ) );
+                $domain   = ! empty( $fallback['host'] ) ? $fallback['host'] : $domain;
+            } else {
+                $domain = $parsed['host'];
+            }
+
+            $domain = strtolower( trim( $domain, " \t\n\r\0\x0B." ) );
+            if ( empty( $domain ) ) {
+                continue;
+            }
+
             $zone_id      = '';
             $is_subdomain = 0;
+
+            $labels = explode( '.', $domain );
+            $looks_like_subdomain = count( $labels ) > 2;
 
             // Пытаемся определить существующую зону для домена/сабдомена
             $matched_zone = $cf_api->find_zone_for_hostname( $domain, $zones_cache );
@@ -563,6 +603,14 @@ class SDM_Domains_Manager {
 
             // Если зона не найдена — создаём новую
             if ( empty( $zone_id ) ) {
+                if ( $looks_like_subdomain ) {
+                    $errors[] = sprintf(
+                        __( 'Root zone for %s was not found. Add the parent domain to CloudFlare first.', 'spintax-domain-manager' ),
+                        esc_html( $domain )
+                    );
+                    continue;
+                }
+
                 $result = $cf_api->add_zone( $domain );
                 if ( is_wp_error( $result ) ) {
                     $errors[] = sprintf( __( 'Error adding %s: %s', 'spintax-domain-manager' ), $domain, $result->get_error_message() );
