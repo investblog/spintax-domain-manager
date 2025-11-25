@@ -133,7 +133,6 @@ class SDM_Domains_Manager {
                 'project_id'  => $project_id,
                 'domain'      => $domain_name,
                 'cf_zone_id'  => $zone['id'],
-                'is_subdomain'=> 0,
                 'status'      => isset($zone['status']) ? $zone['status'] : 'active',
                 'updated_at'  => current_time('mysql'),
             );
@@ -148,7 +147,7 @@ class SDM_Domains_Manager {
                     $wpdb->prefix . 'sdm_domains',
                     $data,
                     array( 'id' => $existing_id ),
-                    array( '%d','%s','%s','%d','%s','%s' ),
+                    array( '%d','%s','%s','%s','%s' ),
                     array( '%d' )
                 );
                 $updated++;
@@ -158,7 +157,7 @@ class SDM_Domains_Manager {
                 $insert_result = $wpdb->insert(
                     $wpdb->prefix . 'sdm_domains',
                     $data,
-                    array( '%d','%s','%s','%d','%s','%s','%s' )
+                    array( '%d','%s','%s','%s','%s','%s' )
                 );
                 if ( false !== $insert_result ) {
                     $inserted++;
@@ -176,7 +175,7 @@ class SDM_Domains_Manager {
                             $wpdb->prefix . 'sdm_domains',
                             $data,
                             array( 'id' => intval( $existing_row->id ) ),
-                            array( '%d','%s','%s','%d','%s','%s' ),
+                            array( '%d','%s','%s','%s','%s' ),
                             array( '%d' )
                         );
                         $updated++;
@@ -642,7 +641,6 @@ class SDM_Domains_Manager {
                 'project_id' => $project_id,
                 'domain'     => $domain,
                 'cf_zone_id' => $zone_id,
-                'is_subdomain' => $is_subdomain,
                 'status'     => 'active',
                 'updated_at' => current_time( 'mysql' ),
             );
@@ -678,6 +676,97 @@ class SDM_Domains_Manager {
     }
 
 }/*<-- Last! */
+
+/**
+ * Build (and cache per-request) a lookup of Cloudflare zone IDs to zone names for a project.
+ *
+ * @param int $project_id
+ * @return array
+ */
+function sdm_get_cf_zone_lookup( $project_id ) {
+    static $cache = array();
+
+    if ( isset( $cache[ $project_id ] ) ) {
+        return $cache[ $project_id ];
+    }
+
+    $account_manager = new SDM_Accounts_Manager();
+    $account = $account_manager->get_account_by_project_and_service( $project_id, 'CloudFlare (API Key)' );
+    if ( ! $account ) {
+        $account = $account_manager->get_account_by_project_and_service( $project_id, 'CloudFlare (OAuth)' );
+    }
+
+    if ( ! $account || empty( $account->email ) || empty( $account->api_key_enc ) ) {
+        $cache[ $project_id ] = array();
+        return $cache[ $project_id ];
+    }
+
+    require_once SDM_PLUGIN_DIR . 'includes/api/class-sdm-cloudflare-api.php';
+    $api_key = sdm_decrypt( $account->api_key_enc );
+    $cf_api  = new SDM_Cloudflare_API(
+        array(
+            'email'   => $account->email,
+            'api_key' => $api_key,
+        )
+    );
+
+    $zones = $cf_api->get_zones();
+    if ( is_wp_error( $zones ) ) {
+        $cache[ $project_id ] = array();
+        return $cache[ $project_id ];
+    }
+
+    $lookup = array();
+    foreach ( (array) $zones as $zone ) {
+        if ( empty( $zone['id'] ) || empty( $zone['name'] ) ) {
+            continue;
+        }
+        $lookup[ $zone['id'] ] = strtolower( $zone['name'] );
+    }
+
+    $cache[ $project_id ] = $lookup;
+    return $lookup;
+}
+
+/**
+ * Determine if a domain is a subdomain by comparing it to known Cloudflare zones for the project.
+ *
+ * @param string     $domain
+ * @param int        $project_id
+ * @param string     $cf_zone_id
+ * @param array|null $zones_lookup Optional pre-fetched lookup from sdm_get_cf_zone_lookup().
+ *
+ * @return bool
+ */
+function sdm_domain_is_subdomain_by_zone( $domain, $project_id, $cf_zone_id = '', $zones_lookup = null ) {
+    $domain = strtolower( trim( $domain, " ." ) );
+
+    if ( null === $zones_lookup ) {
+        $zones_lookup = sdm_get_cf_zone_lookup( $project_id );
+    }
+
+    $zone_name = '';
+    if ( ! empty( $cf_zone_id ) && isset( $zones_lookup[ $cf_zone_id ] ) ) {
+        $zone_name = $zones_lookup[ $cf_zone_id ];
+    }
+
+    if ( ! empty( $zone_name ) ) {
+        return $domain !== $zone_name;
+    }
+
+    foreach ( $zones_lookup as $name ) {
+        if ( $domain === $name ) {
+            return false;
+        }
+
+        $suffix = '.' . $name;
+        if ( substr( $domain, -strlen( $suffix ) ) === $suffix ) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /**
  * AJAX Handler: Fetch and sync domains (zones) for a project from CloudFlare,
@@ -874,6 +963,8 @@ function sdm_ajax_fetch_domains_list() {
             ...$params
         )
     );
+
+    $zones_lookup = sdm_get_cf_zone_lookup( $project_id );
     ?>
     <table class="wp-list-table widefat fixed striped sdm-table" id="sdm-domains-table">
         <thead>
@@ -898,7 +989,7 @@ function sdm_ajax_fetch_domains_list() {
                     $is_blocked     = ($domain->is_blocked_provider || $domain->is_blocked_government);
                     $is_assigned    = !empty($domain->site_id);
                     $is_main_domain = in_array($domain->domain, $main_domains);
-                    $is_subdomain   = property_exists($domain, 'is_subdomain') ? (bool) $domain->is_subdomain : false;
+                    $is_subdomain   = sdm_domain_is_subdomain_by_zone( $domain->domain, $project_id, $domain->cf_zone_id, $zones_lookup );
 
                     // Проверяем, есть ли запись в wp_sdm_email_forwarding
                     $has_forwarding = (bool) $wpdb->get_var(
@@ -1264,14 +1355,14 @@ function sdm_ajax_create_email_forwarding() {
     global $wpdb;
     // Получаем доменное имя
     $domain_row = $wpdb->get_row( $wpdb->prepare(
-        "SELECT domain, is_subdomain FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
+        "SELECT domain, cf_zone_id FROM {$wpdb->prefix}sdm_domains WHERE id = %d",
         $domain_id
     ) );
     if ( ! $domain_row || empty( $domain_row->domain ) ) {
         wp_send_json_error( __( 'Domain not found.', 'spintax-domain-manager' ) );
     }
 
-    if ( ! empty( $domain_row->is_subdomain ) ) {
+    if ( sdm_domain_is_subdomain_by_zone( $domain_row->domain, $project_id, $domain_row->cf_zone_id ) ) {
         wp_send_json_error( __( 'Email creation is not supported for subdomains.', 'spintax-domain-manager' ) );
     }
 
@@ -1387,7 +1478,7 @@ function sdm_ajax_create_cf_custom_address() {
     global $wpdb;
     // Берём project_id, cf_zone_id, domain, email_address (Mail-in-a-Box)
     $row = $wpdb->get_row($wpdb->prepare("
-        SELECT d.project_id, d.cf_zone_id, d.domain, d.is_subdomain, f.email_address
+        SELECT d.project_id, d.cf_zone_id, d.domain, f.email_address
         FROM {$wpdb->prefix}sdm_domains d
         JOIN {$wpdb->prefix}sdm_email_forwarding f ON d.id = f.domain_id
         WHERE d.id = %d
@@ -1397,7 +1488,7 @@ function sdm_ajax_create_cf_custom_address() {
         wp_send_json_error('No domain or zone data found.');
     }
 
-    if ( ! empty( $row->is_subdomain ) ) {
+    if ( sdm_domain_is_subdomain_by_zone( $row->domain, $row->project_id, $row->cf_zone_id ) ) {
         wp_send_json_error( __( 'Email creation is not supported for subdomains.', 'spintax-domain-manager' ) );
     }
     $project_id     = absint($row->project_id);
@@ -1793,7 +1884,7 @@ add_action( 'wp_ajax_sdm_sync_cf_ns_namecheap', function () {
         wp_send_json_error( __( 'Domain not found.', 'spintax-domain-manager' ) );
     }
 
-    if ( ! empty( $domain->is_subdomain ) ) {
+    if ( sdm_domain_is_subdomain_by_zone( $domain->domain, $domain->project_id, $domain->cf_zone_id ) ) {
         wp_send_json_error( __( 'Nameserver sync is not available for subdomains.', 'spintax-domain-manager' ) );
     }
 
