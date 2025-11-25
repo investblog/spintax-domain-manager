@@ -98,6 +98,7 @@ class SDM_Domains_Manager {
         $updated  = 0;
 
         $cf_domain_names = array();
+        $seen_domains    = array();
         foreach ( $zones as $zone ) {
             // Пример структуры $zone:
             // [
@@ -107,19 +108,30 @@ class SDM_Domains_Manager {
             //   ...
             // ]
 
+            // Нормализуем домен и исключаем повторную обработку одинаковых имён в одном запросе
+            $domain_name = isset( $zone['name'] ) ? strtolower( trim( $zone['name'] ) ) : '';
+            if ( empty( $domain_name ) ) {
+                continue;
+            }
+
+            if ( isset( $seen_domains[ $domain_name ] ) ) {
+                continue;
+            }
+            $seen_domains[ $domain_name ] = true;
+
             // Проверяем, есть ли уже такая запись в sdm_domains
             $existing_row = $wpdb->get_row( $wpdb->prepare(
                 "SELECT id, project_id FROM {$wpdb->prefix}sdm_domains
                  WHERE domain = %s
                  LIMIT 1",
-                $zone['name']
+                $domain_name
             ) );
             $existing_id = $existing_row ? intval( $existing_row->id ) : 0;
 
             // Формируем данные для вставки/обновления
             $data = array(
                 'project_id'  => $project_id,
-                'domain'      => $zone['name'],
+                'domain'      => $domain_name,
                 'cf_zone_id'  => $zone['id'],
                 'is_subdomain'=> 0,
                 'status'      => isset($zone['status']) ? $zone['status'] : 'active',
@@ -150,13 +162,32 @@ class SDM_Domains_Manager {
                 );
                 if ( false !== $insert_result ) {
                     $inserted++;
+                } elseif ( strpos( strtolower( $wpdb->last_error ), 'duplicate' ) !== false ) {
+                    // Защитимся от гонок при наличии уникального индекса
+                    $existing_row = $wpdb->get_row( $wpdb->prepare(
+                        "SELECT id, project_id FROM {$wpdb->prefix}sdm_domains WHERE domain = %s LIMIT 1",
+                        $domain_name
+                    ) );
+                    if ( $existing_row ) {
+                        if ( intval( $existing_row->project_id ) !== $project_id ) {
+                            $data['project_id'] = $project_id;
+                        }
+                        $wpdb->update(
+                            $wpdb->prefix . 'sdm_domains',
+                            $data,
+                            array( 'id' => intval( $existing_row->id ) ),
+                            array( '%d','%s','%s','%d','%s','%s' ),
+                            array( '%d' )
+                        );
+                        $updated++;
+                    }
                 } else {
                     error_log( 'Failed to insert domain: ' . $wpdb->last_error );
                 }
             }
             // Keep track of domains we found on Cloudflare
-            if ( isset( $zone['name'] ) ) {
-                $cf_domain_names[] = strtolower( $zone['name'] );
+            if ( isset( $domain_name ) ) {
+                $cf_domain_names[] = $domain_name;
             }
         }
 
