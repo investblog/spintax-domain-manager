@@ -1011,28 +1011,14 @@ function sdm_ajax_fetch_domains_list() {
         </thead>
         <tbody>
             <?php if (!empty($grouped_domains)) : ?>
-                <?php foreach ( $grouped_domains as $group_key => $group ) :
-                    $zone_label = '';
-                    if ( ! empty( $group['zone_id'] ) && isset( $zones_lookup[ $group['zone_id'] ] ) ) {
-                        $zone_label = sprintf( '%s (%s)', $zones_lookup[ $group['zone_id'] ], $group['zone_id'] );
-                    } elseif ( ! empty( $group['zone_id'] ) ) {
-                        $zone_label = sprintf( __( 'Zone ID: %s', 'spintax-domain-manager' ), $group['zone_id'] );
-                    } else {
-                        $zone_label = __( 'No Cloudflare zone', 'spintax-domain-manager' );
-                    }
-                    ?>
-                    <tr class="sdm-zone-row">
-                        <td colspan="8">
-                            <span class="sdm-zone-title">🌐 <?php echo esc_html( $zone_label ); ?></span>
-                        </td>
-                    </tr>
-
+                <?php foreach ( $grouped_domains as $group_key => $group ) : ?>
                     <?php foreach ( $group['domains'] as $domain ) :
                         $is_active      = ($domain->status === 'active');
                         $is_blocked     = ($domain->is_blocked_provider || $domain->is_blocked_government);
                         $is_assigned    = !empty($domain->site_id);
                         $is_main_domain = in_array($domain->domain, $main_domains);
                         $is_subdomain   = ! empty( $domain->_is_subdomain );
+                        $domain_title   = $domain->cf_zone_id ? $domain->cf_zone_id : '';
 
                         // Проверяем, есть ли запись в wp_sdm_email_forwarding
                         $has_forwarding = (bool) $wpdb->get_var(
@@ -1054,7 +1040,10 @@ function sdm_ajax_fetch_domains_list() {
                             data-is-subdomain="<?php echo $is_subdomain ? '1' : '0'; ?>">
 
                             <!-- Domain ------------------------------------------------------------- -->
-                            <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>">
+                            <td class="sdm-domain <?php echo $is_blocked ? 'sdm-blocked-domain' : ''; ?>"
+                                <?php if ( $domain_title ) : ?>
+                                    title="<?php echo esc_attr( $domain_title ); ?>"
+                                <?php endif; ?>>
                                 <?php if ( $is_subdomain ) : ?>
                                     <span class="sdm-subdomain-indent">↳</span>
                                 <?php else : ?>
